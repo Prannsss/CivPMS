@@ -1,5 +1,505 @@
 @import "tailwindcss";
 
+/*
+ * CivPMS design tokens.
+ * Every color is a CSS variable defined for light (:root) and dark (.dark) and exposed to Tailwind
+ * through `@theme inline` (bg-primary, text-muted-foreground, border-border, …).
+ * Contrast for every text/background pair is checked by
+ * `node src/app/dev/styleguide/_lib/check-contrast.mjs` (results in docs/DESIGN.md).
+ * Never hard-code hex values in components — add or adjust a token here instead.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* Neutrals */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-sunken: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --input: #848ea0; /* form-control borders: ≥3:1 against surfaces (WCAG 1.4.11) */
+  --muted-foreground: #475569;
+
+  /* Brand */
+  --primary: #0866ff;
+  --primary-hover: #0757e0;
+  --primary-active: #0549bf;
+  --primary-foreground: #ffffff;
+  --primary-text: #0656d6; /* links & blue text; #0866FF itself fails 4.5:1 on tinted fills */
+  --primary-soft: #e7f0ff;
+
+  /* Danger (destructive, errors, Delayed, Budget Exceeded) */
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-foreground: #ffffff;
+  --danger-soft: #fee2e2;
+  --danger-text: #b91c1c;
+
+  /* Warning (yellow/amber: Near budget limit, soft warnings) */
+  --warning: #f59e0b;
+  --warning-foreground: #0a0a0a;
+  --warning-soft: #fef3c7;
+  --warning-text: #92400e;
+
+  /* Orange (On-Hold, escalations) */
+  --orange: #ea580c;
+  --orange-foreground: #0a0a0a;
+  --orange-soft: #ffedd5;
+  --orange-text: #9a3412;
+
+  /* Success (Completed) */
+  --success: #16a34a;
+  --success-foreground: #0a0a0a;
+  --success-soft: #dcfce7;
+  --success-text: #166534;
+
+  /* Info (sky — Ongoing; lighter than the brand blue) */
+  --info: #0ea5e9;
+  --info-foreground: #0a0a0a;
+  --info-soft: #e0f2fe;
+  --info-text: #075985;
+
+  /* Neutral (Not Started, Planning, Cancelled) */
+  --neutral: #64748b;
+  --neutral-foreground: #ffffff;
+  --neutral-soft: #f1f5f9;
+  --neutral-text: #334155;
+
+  /* Project sidebar (mockup 8) */
+  --sidebar-bg: #0866ff;
+  --sidebar-fg: #ffffff;
+  --sidebar-muted: #cfe0ff; /* icons & dividers only — not for small text */
+  --sidebar-hover: #0757e0;
+  --sidebar-active-bg: #ffffff;
+  --sidebar-active-fg: #0a0a0a;
+  --sidebar-border: rgba(255, 255, 255, 0.2);
+
+  /* Inverse surface (snackbars, tooltips) */
+  --inverse: #18181b;
+  --inverse-foreground: #fafafa;
+
+  --ring: #0866ff;
+  --overlay: rgba(2, 6, 23, 0.52);
+
+  /* Project card palette (no red/orange/yellow — D30). White text passes AA on both stops. */
+  --project-blue: #0866ff;
+  --project-blue-to: #0447b8;
+  --project-green: #0f7b55;
+  --project-green-to: #095c3f;
+  --project-pink: #c8238a;
+  --project-pink-to: #951766;
+  --project-purple: #7c3aed;
+  --project-purple-to: #5b21b6;
+  --project-teal: #0e7c86;
+  --project-teal-to: #0a5b63;
+  --project-graphite: #3f4654;
+  --project-graphite-to: #23272f;
+
+  /* Elevation */
+  --elev-xs: 0 1px 2px rgb(15 23 42 / 0.05);
+  --elev-sm: 0 1px 3px rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --elev-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --elev-lg: 0 16px 40px -12px rgb(15 23 42 / 0.18), 0 4px 10px -4px rgb(15 23 42 / 0.06);
+  --elev-popover: 0 12px 32px -8px rgb(15 23 42 / 0.2), 0 2px 6px -2px rgb(15 23 42 / 0.08);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #000000;
+  --foreground: #fafafa;
+  --surface: #0b0b0c;
+  --surface-muted: #111113;
+  --surface-sunken: #18181b;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --input: #63636d;
+  --muted-foreground: #a1a1aa;
+
+  --primary: #0866ff;
+  --primary-hover: #0757e0;
+  --primary-active: #0549bf;
+  --primary-foreground: #ffffff;
+  --primary-text: #4c8dff;
+  --primary-soft: rgba(8, 102, 255, 0.18);
+
+  --danger: #dc2626; /* fills keep #DC2626 so white labels pass 4.5:1 */
+  --danger-hover: #b91c1c;
+  --danger-foreground: #ffffff;
+  --danger-soft: rgba(239, 68, 68, 0.16);
+  --danger-text: #f87171;
+
+  --warning: #fbbf24;
+  --warning-foreground: #0a0a0a;
+  --warning-soft: rgba(245, 158, 11, 0.16);
+  --warning-text: #fcd34d;
+
+  --orange: #fb923c;
+  --orange-foreground: #0a0a0a;
+  --orange-soft: rgba(249, 115, 22, 0.16);
+  --orange-text: #fdba74;
+
+  --success: #22c55e;
+  --success-foreground: #0a0a0a;
+  --success-soft: rgba(34, 197, 94, 0.16);
+  --success-text: #4ade80;
+
+  --info: #38bdf8;
+  --info-foreground: #0a0a0a;
+  --info-soft: rgba(56, 189, 248, 0.16);
+  --info-text: #7dd3fc;
+
+  --neutral: #71717a;
+  --neutral-foreground: #ffffff;
+  --neutral-soft: rgba(161, 161, 170, 0.16);
+  --neutral-text: #d4d4d8;
+
+  --sidebar-bg: #0b0b0c;
+  --sidebar-fg: #e4e4e7;
+  --sidebar-muted: #a1a1aa;
+  --sidebar-hover: #1c1c20;
+  --sidebar-active-bg: #0866ff;
+  --sidebar-active-fg: #ffffff;
+  --sidebar-border: #27272a;
+
+  --inverse: #27272a;
+  --inverse-foreground: #fafafa;
+
+  --ring: #4c8dff;
+  --overlay: rgba(0, 0, 0, 0.72);
+
+  --project-blue: #0866ff;
+  --project-blue-to: #0447b8;
+  --project-green: #0f7b55;
+  --project-green-to: #095c3f;
+  --project-pink: #c8238a;
+  --project-pink-to: #951766;
+  --project-purple: #7c3aed;
+  --project-purple-to: #5b21b6;
+  --project-teal: #0e7c86;
+  --project-teal-to: #0a5b63;
+  --project-graphite: #3f4654;
+  --project-graphite-to: #23272f;
+
+  --elev-xs: 0 1px 2px rgb(0 0 0 / 0.6);
+  --elev-sm: 0 1px 3px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.03);
+  --elev-md: 0 6px 16px -4px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --elev-lg: 0 20px 48px -12px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --elev-popover: 0 16px 40px -8px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
 @theme inline {
-  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-text: var(--danger-text);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
+
+  --color-orange: var(--orange);
+  --color-orange-foreground: var(--orange-foreground);
+  --color-orange-soft: var(--orange-soft);
+  --color-orange-text: var(--orange-text);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-text: var(--success-text);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-text: var(--info-text);
+
+  --color-neutral: var(--neutral);
+  --color-neutral-foreground: var(--neutral-foreground);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-text: var(--neutral-text);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active-bg: var(--sidebar-active-bg);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --color-project-blue: var(--project-blue);
+  --color-project-blue-to: var(--project-blue-to);
+  --color-project-green: var(--project-green);
+  --color-project-green-to: var(--project-green-to);
+  --color-project-pink: var(--project-pink);
+  --color-project-pink-to: var(--project-pink-to);
+  --color-project-purple: var(--project-purple);
+  --color-project-purple-to: var(--project-purple-to);
+  --color-project-teal: var(--project-teal);
+  --color-project-teal-to: var(--project-teal-to);
+  --color-project-graphite: var(--project-graphite);
+  --color-project-graphite-to: var(--project-graphite-to);
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+
+  --shadow-xs: var(--elev-xs);
+  --shadow-sm: var(--elev-sm);
+  --shadow-md: var(--elev-md);
+  --shadow-lg: var(--elev-lg);
+  --shadow-popover: var(--elev-popover);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in: fade-in 160ms var(--ease-out);
+  --animate-fade-out: fade-out 120ms ease-in;
+  --animate-pop-in: pop-in 180ms var(--ease-out);
+  --animate-pop-out: pop-out 120ms ease-in;
+  --animate-sheet-in-bottom: sheet-in-bottom 220ms var(--ease-out);
+  --animate-sheet-out-bottom: sheet-out-bottom 160ms ease-in;
+  --animate-sheet-in-left: sheet-in-left 220ms var(--ease-out);
+  --animate-sheet-out-left: sheet-out-left 160ms ease-in;
+  --animate-sheet-in-right: sheet-in-right 220ms var(--ease-out);
+  --animate-sheet-out-right: sheet-out-right 160ms ease-in;
+  --animate-sheet-in-top: sheet-in-top 220ms var(--ease-out);
+  --animate-sheet-out-top: sheet-out-top 160ms ease-in;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes pop-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.97); }
+  }
+  @keyframes sheet-in-bottom {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes sheet-out-bottom {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+  @keyframes sheet-in-left {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes sheet-out-left {
+    from { transform: translateX(0); }
+    to { transform: translateX(-100%); }
+  }
+  @keyframes sheet-in-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes sheet-out-right {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes sheet-in-top {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes sheet-out-top {
+    from { transform: translateY(0); }
+    to { transform: translateY(-100%); }
+  }
+  @keyframes shimmer {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+}
+
+/* ---------- Typography scale (CLAUDE.md). Poppins is wide: body stays at 14px. ----------
+ * NOTE: tailwind-merge does not know these names and treats `text-h1` like a text *color*.
+ * Do not pass a typography utility and a text-color utility through the same cn() call
+ * (see docs/DESIGN.md › Typography). */
+@utility text-display {
+  font-size: 1.875rem;
+  line-height: 2.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  @media (width >= 40rem) {
+    font-size: 2.25rem;
+    line-height: 2.75rem;
+  }
+}
+@utility text-h1 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  @media (width >= 40rem) {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+}
+@utility text-h2 {
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+@utility text-h3 {
+  font-size: 1.125rem;
+  line-height: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-body {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  font-weight: 400;
+}
+@utility text-body-lg {
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+}
+@utility text-label {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility text-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+}
+
+/* Visible keyboard focus: 2px brand outline with offset. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+/* Inset variant for elements inside clipped containers (menus, table rows, sidebars). */
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.375rem;
+    font-feature-settings: "ss01" off;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Subtle scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
