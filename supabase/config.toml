@@ -5,8 +5,11 @@
 #   supabase db push            # applies supabase/migrations/* not yet on the remote
 #
 # The sections below only matter for `supabase start` (local stack); `link` and
-# `db push` read project_id, [db] and the migrations folder. Auth email
-# templates are added later by the auth workstream.
+# `db push` read project_id, [db] and the migrations folder. The auth email
+# templates below are used by the local stack; for the hosted project paste the
+# same files into Dashboard → Authentication → Emails (see docs/SETUP.md).
+# Do not run `supabase config push` blindly: it would also overwrite the hosted
+# Site URL and redirect URLs with these localhost values.
 project_id = "civpms"
 
 [api]
@@ -33,6 +36,32 @@ enabled = true
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000/auth/confirm"]
 minimum_password_length = 10
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+
+# Token-hash links → /auth/confirm (src/app/auth/confirm/route.ts).
+[auth.email.template.confirmation]
+subject = "Confirm your email for CivPMS"
+content_path = "./supabase/templates/confirm-signup.html"
+
+[auth.email.template.recovery]
+subject = "Reset your CivPMS password"
+content_path = "./supabase/templates/reset-password.html"
+
+[auth.email.template.magic_link]
+subject = "Your CivPMS sign-in link"
+content_path = "./supabase/templates/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email for CivPMS"
+content_path = "./supabase/templates/email-change.html"
+
+[auth.email.template.invite]
+subject = "You've been invited to CivPMS"
+content_path = "./supabase/templates/invite.html"
 
 [storage]
 enabled = true
