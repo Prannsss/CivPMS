@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The floating dev-tools badge overlaps the mobile bottom-left corner (sheet nav, toasts).
+  devIndicators: false,
   turbopack: {
     rules: {
       "*.css": {

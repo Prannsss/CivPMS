@@ -29,8 +29,9 @@ export type ProjectNavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Not available yet: rendered disabled with a "Soon" tag. */
+  /** Planned for a later phase: links to its "coming next" page and shows a "Soon" tag. */
   soon?: boolean;
+  /** Rendered as a non-interactive item. */
   disabled?: boolean;
 };
 
@@ -161,13 +162,20 @@ export function ProjectSidebar({
           {items.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === active;
-            const isDisabled = item.disabled || item.soon;
+            const isDisabled = item.disabled;
             const inner = (
               <>
                 <Icon aria-hidden className="size-5 shrink-0" />
                 {isCollapsed ? null : <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                 {!isCollapsed && item.soon ? (
-                  <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] leading-4 font-semibold tracking-wide text-white uppercase dark:bg-sidebar-hover dark:text-sidebar-fg">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] leading-4 font-semibold tracking-wide uppercase",
+                      isActive
+                        ? "bg-sidebar-bg text-sidebar-fg dark:bg-black/30 dark:text-white"
+                        : "bg-black/25 text-white dark:bg-sidebar-hover dark:text-sidebar-fg",
+                    )}
+                  >
                     Soon
                   </span>
                 ) : null}
@@ -196,7 +204,7 @@ export function ProjectSidebar({
                       href={item.href}
                       onClick={onNavigate}
                       aria-current={isActive ? "page" : undefined}
-                      aria-label={isCollapsed ? item.label : undefined}
+                      aria-label={isCollapsed ? label : undefined}
                       className={itemClass}
                     >
                       {inner}

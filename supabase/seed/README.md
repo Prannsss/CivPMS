@@ -113,6 +113,20 @@ node --env-file=.env.local scripts/verify-demo-accounts.mjs
 Behind an HTTP proxy, as in agent containers, prefix it with `NODE_USE_ENV_PROXY=1`. It exits with
 code 1 if any check fails, and never prints the password.
 
+## E2E accounts (`found-e2e.sql`)
+
+The app-foundation specs (`e2e/found-*.spec.ts`) never change the demo company. They use their own
+tenant:
+
+| Email | Role |
+|---|---|
+| `found-owner@civpms.test` | Owner PM of "[FOUND] QA Builders" with the project "[FOUND] Bell Test Project" |
+| `found-inspector@civpms.test` | Inspector in the "No company yet" state; the specs make it join and leave again |
+
+`found-e2e.sql` creates only the two confirmed accounts (same password as the demo accounts, set the same
+way as for `demo.sql`). `e2e/helpers/found-tenant.ts` creates the company and project through the app's
+RPCs on first use and resets the inspector before each spec. `demo-cleanup.sql` removes them too.
+
 ## Removing the demo data
 
 `demo-cleanup.sql` deletes every `@civpms.test` account, the companies they own with everything

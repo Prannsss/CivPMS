@@ -37,7 +37,10 @@ export type UserMenuProps = {
   user: UserMenuUser;
   signOut: SignOutHandler;
   profileHref?: string;
-  settingsHref?: string;
+  /** `null` hides the Settings item (e.g. company settings are Owner-PM-only). */
+  settingsHref?: string | null;
+  /** Label of the settings item, e.g. "Company settings". */
+  settingsLabel?: string;
   /** Extra items rendered before the theme submenu. */
   children?: React.ReactNode;
   /** Hide the Theme submenu (e.g. when a ThemeToggle is already visible next to it). */
@@ -51,6 +54,7 @@ export function UserMenu({
   signOut,
   profileHref = "/profile",
   settingsHref = "/settings",
+  settingsLabel = "Settings",
   children,
   showTheme = true,
   className,
@@ -104,12 +108,14 @@ export function UserMenu({
                 Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={settingsHref}>
-                <Settings aria-hidden />
-                Settings
-              </Link>
-            </DropdownMenuItem>
+            {settingsHref ? (
+              <DropdownMenuItem asChild>
+                <Link href={settingsHref}>
+                  <Settings aria-hidden />
+                  {settingsLabel}
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             {children}
             {showTheme ? (
               <DropdownMenuSub>

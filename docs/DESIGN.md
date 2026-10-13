@@ -416,9 +416,9 @@ Presentational only. All data and callbacks come in through props, with no Supab
 | `TopBarGreeting` | `eyebrow`, `title`, `leading` ("Welcome back" / name, company logo) |
 | `ThemeToggle` | `variant` (`menu` · `segmented`). Also `useThemeChoice()` and `THEME_OPTIONS`. |
 | `NotificationBell` | `notifications: NotificationItem[]` (`id`, `type`, `title`, `body`, `createdAt`, `read`, `href`, `projectId`, `projectName`, `tone`), `unreadCount`, `projects` (per-project filter), `projectFilter`/`onProjectFilterChange`, `onMarkAllRead`, `onItemSelect`, `viewAllHref`, `loading`, `now` |
-| `UserMenu` | `user {name, email, avatarUrl, subtitle}`, `signOut` (`{ action }` POST form or server action, or `{ onSignOut }`), `profileHref`, `settingsHref`, `showTheme`, `children` |
+| `UserMenu` | `user {name, email, avatarUrl, subtitle}`, `signOut` (`{ action }` POST form or server action, or `{ onSignOut }`), `profileHref`, `settingsHref` (`null` hides the item), `settingsLabel`, `showTheme`, `children` |
 | `CommandPalette` | `open`, `onOpenChange`, `groups [{id, heading, items}]`, item `{id, label, hint, icon, keywords, href \| onSelect, shortcut, disabled}`, `recent`, `placeholder`, `enableShortcut` (global ⌘K/Ctrl+K), `onQueryChange`, `shouldFilter`, `loading`, `toolbar`. Also `useCommandPaletteShortcut()`. |
-| `ProjectSidebar` | `project {name, color, status, derivedBadges}`, `items: ProjectNavItem[]`, `activeId` (defaults to the longest matching href), `allProjectsHref`, `signOut`, `collapsed`/`onCollapsedChange`, `onNavigate`, `mode` (`rail` · `sheet`). Helpers: `getProjectNavItems(projectId)` (Gantt and S-Curve are marked `soon`), `findActiveNavId`, `useSidebarCollapsed()`. |
+| `ProjectSidebar` | `project {name, color, status, derivedBadges}`, `items: ProjectNavItem[]`, `activeId` (defaults to the longest matching href), `allProjectsHref`, `signOut`, `collapsed`/`onCollapsedChange`, `onNavigate`, `mode` (`rail` · `sheet`). Helpers: `getProjectNavItems(projectId)` (Gantt and S-Curve are marked `soon`: they link to their "coming next" pages and carry a Soon tag; `disabled` makes an item non-interactive), `findActiveNavId`, `useSidebarCollapsed()`. |
 | `HomeShell` | `topBar`, `palette`, `children`, `contentClassName`: sticky top bar plus centered content up to 80rem, with a skip link |
 | `ProjectShell` | `sidebar`, `topBar`, `palette`, `children`: floating sidebar rail (collapsible on `lg`, persisted), off-canvas Sheet below `lg` opened by the top-bar hamburger |
 
@@ -433,6 +433,27 @@ Presentational only. All data and callbacks come in through props, with no Supab
   …
 </ProjectShell>
 ```
+
+### 4.6 Connected app (`src/components/app-shell`, `src/components/invitations`)
+
+The route layouts already wrap every authenticated page, so feature pages render **only their content**
+(start with a `PageHeader`). Do not mount another shell, top bar or palette.
+
+| Piece | What it does |
+|---|---|
+| `(app)/layout.tsx` | `requireOnboarded()`: no session → `/login?next=…`, onboarding unfinished → `/onboarding` |
+| `(app)/(home)/layout.tsx` → `ConnectedHomeShell` | Top bar: company + "Welcome back, Juan", live bell, user menu, ⌘K palette |
+| `(app)/projects/[projectId]/layout.tsx` → `ConnectedProjectShell` | `getProjectAccess()` (404 when not visible), sidebar (Project Settings for managers only), "Projects / name" breadcrumb |
+| `loading.tsx` / `error.tsx` / `not-found.tsx` | `HomeContentSkeleton`, `ProjectContentSkeleton`, `ProjectFrameSkeleton`; `RouteError` (Try again + reference id); `StatusPage` + `StatusPanel` for 404/403 |
+| `ScreenPlaceholder` | The "This screen is being built" body of routes whose feature hasn't shipped. Replace the whole page. |
+| `ComingNext` + `ReadinessPanel` | Gantt (Phase 2) and S-curve (Phase 3) explainer pages |
+| `InviteCodeForm` | `XXXX-XXXX` input (auto-format), "Join <Company> · <Project>?" preview, then join; redirects to the project or home |
+| `PendingInvitations` | Email invitations for the signed-in user with Accept (confirm when joining a company) / Decline (danger confirm) |
+| `NoCompanyState` | Spec §4.3 "No company yet": invitations, the email to share, invite-code entry |
+
+Notifications: the bell starts from the server snapshot (latest 15 + unread count), subscribes to Realtime
+`INSERT`/`UPDATE` on `notifications` for the user, catches up once on every (re)subscribe, toasts new ones
+(warning tone for budget/delay/removal), refreshes server data once per burst, and marks read optimistically.
 
 ## 5. Patterns
 
