@@ -127,6 +127,21 @@ tenant:
 way as for `demo.sql`). `e2e/helpers/found-tenant.ts` creates the company and project through the app's
 RPCs on first use and resets the inspector before each spec. `demo-cleanup.sql` removes them too.
 
+## E2E accounts for sign-in and onboarding (`f1-e2e.sql`)
+
+Onboarding is one-way, so the auth/onboarding specs (`e2e/f1-*.spec.ts`) need accounts that are
+confirmed but **not** onboarded on every run. `f1-e2e.sql` creates a pool of them, plus the owner of the
+invitation tenant (same password as the demo accounts, set the same way as for `demo.sql`):
+
+| Email | Role |
+|---|---|
+| `f1-pool-01@civpms.test` … `f1-pool-60@civpms.test` | Fresh accounts. Each spec claims the next one that is still not onboarded (`claimFreshAccount()` in `e2e/f1-support.ts`) and remembers used ones in `test-results/.f1-pool.json`. A full run uses about 8. |
+| `f1-owner@civpms.test` | Owner PM of "[F1] Invitations Co." with "[F1] Invitation Test Project", created through the RPCs on first use. It sends the invite codes and email invitations. |
+
+When the pool runs out, the specs skip with a message. Run the script again with a bigger pool first:
+`select set_config('civpms.f1_pool_size', '120', false);`. Re-running it is safe: existing accounts keep
+their data. `demo-cleanup.sql` removes these accounts too.
+
 ## Removing the demo data
 
 `demo-cleanup.sql` deletes every `@civpms.test` account, the companies they own with everything
