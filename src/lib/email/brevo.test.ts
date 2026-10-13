@@ -7,7 +7,7 @@ vi.hoisted(() => {
 });
 
 import { resetWarnOnce } from "@/lib/env";
-import { BREVO_SEND_URL, brevoDisabledReason, sendEmail, type EmailMessage } from "./brevo";
+import { BREVO_SEND_URL, brevoDisabledReason, isReservedEmailDomain, sendEmail, type EmailMessage } from "./brevo";
 
 const config = {
   brevoApiKey: "xkeysib-test-key",
@@ -146,4 +146,27 @@ describe("sendEmail", () => {
     expect(result).toEqual({ ok: false, skipped: true, error: "The recipient has no email address" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("skips demo and test recipients on reserved TLDs without calling Brevo", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const result = await sendEmail({ ...message, to: { email: "owner@civpms.test", name: "Juan" } }, { config, fetch: fetchMock });
+    expect(result).toEqual({ ok: false, skipped: true, error: "Reserved test domain: email not sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("isReservedEmailDomain", () => {
+  it.each(["owner@civpms.test", "PM@CIVPMS.TEST", "a@b.example", "x@site.invalid", "dev@localhost", "z@mail.test."])(
+    "treats %s as undeliverable",
+    (email) => {
+      expect(isReservedEmailDomain(email)).toBe(true);
+    },
+  );
+
+  it.each(["ana@example.com", "juan@gmail.com", "ops@testing.ph", "qa@test.com", "test@company.co"])(
+    "keeps %s deliverable",
+    (email) => {
+      expect(isReservedEmailDomain(email)).toBe(false);
+    },
+  );
 });

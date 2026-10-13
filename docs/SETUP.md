@@ -7,7 +7,7 @@ All commands are for **Windows PowerShell**. Lines starting with `#` are comment
 [3. Install packages](#3-install-packages) · [4. Fill in .env.local](#4-fill-in-envlocal) ·
 [5. Run the app](#5-run-the-app) · [6. Configure Supabase](#6-configure-supabase) ·
 [7. Google sign-in](#7-google-sign-in) · [8. Deploy on Vercel](#8-deploy-on-vercel) ·
-[9. Troubleshooting](#9-troubleshooting)
+[9. Demo accounts](#9-demo-accounts) · [10. Troubleshooting](#10-troubleshooting)
 
 Related: [`docs/DATABASE.md`](DATABASE.md) (database, migrations from Windows, SQL tests) ·
 [`docs/DECISIONS.md`](DECISIONS.md) · [`CLAUDE.md`](../CLAUDE.md) (engineering rules).
@@ -91,7 +91,7 @@ Fill in each line as follows, save, and close Notepad.
 | `BREVO_SENDER_NAME` | `CivPMS` | The "from" name people see. |
 | `BREVO_SANDBOX` | `true` on your PC, `false` on Vercel | `true` makes Brevo accept and then **drop** every email, so testing never emails real people. |
 | `CRON_SECRET` | a long random string | Generate one (below). Protects `/api/cron/*`. |
-| `DEMO_PASSWORD` | leave empty | Only for seeded demo/test accounts on your PC. Ignored on production deployments. |
+| `DEMO_PASSWORD` | the demo accounts' password (step 9) | Only for the seeded demo/test accounts. Never set it on Vercel; production deployments ignore it. |
 
 Generate a `CRON_SECRET`:
 
@@ -233,6 +233,8 @@ sign-in keeps working.
    address to Google's **Authorized JavaScript origins** as well (step 7).
 5. **Custom domain (optional):** Vercel **Settings → Domains**. Then repeat step 4 with the new domain
    and set `APP_URL` to it.
+6. **Before inviting real users, remove the demo accounts** (step 9). They share one password and
+   can see the sample companies.
 
 ### Scheduled jobs
 
@@ -256,7 +258,37 @@ sign-in keeps working.
   A healthy answer looks like `ok: True, status: ok, sent: …`. `status: disabled` names the missing
   setting (secret key or Brevo).
 
-## 9. Troubleshooting
+## 9. Demo accounts
+
+The database has sample data for trying the app and for automated browser tests: two companies,
+five projects (one Delayed and over budget, one near its budget limit, one empty) and five accounts
+on the reserved `@civpms.test` domain, which can never receive email:
+
+| Sign in as | To see |
+|---|---|
+| `owner@civpms.test` (Juan Dela Cruz, Owner PM of *Dela Cruz Builders*) | everything an Owner PM sees |
+| `pm@civpms.test` (Maria Santos, PM) | only the projects she is on |
+| `inspector@civpms.test` (Paolo Reyes, Inspector) | the inspector's read-mostly view |
+| `rival@civpms.test` (Ana Villanueva, *Bayanihan Construction*) | another company that must never see Dela Cruz data |
+| `newbie@civpms.test` | a confirmed account that hasn't been onboarded yet |
+
+All five share one password, `DEMO_PASSWORD`. It is kept in `.env.local` and is **never** in the
+repository. The full list, what each project demonstrates, and how to (re)create the data are in
+[`supabase/seed/README.md`](../supabase/seed/README.md). In short:
+
+1. Pick a password (10+ characters) and add it to `.env.local` as `DEMO_PASSWORD=…`. If an agent
+   already seeded the data, use the same value from its `.env.local`. Running the seed again resets
+   every demo account to the password you pass.
+2. In Supabase → **SQL Editor**, run `select set_config('civpms.demo_password', 'YOUR-DEMO-PASSWORD', false);`
+   followed by the content of `supabase/seed/demo.sql`. It is safe to run more than once.
+3. Check that sign-in works: `node --env-file=.env.local scripts/verify-demo-accounts.mjs`.
+
+> **Remove the demo data before production.** When real users are about to join, run
+> `supabase/seed/demo-cleanup.sql` in the SQL Editor. It deletes every `@civpms.test` account and the
+> demo companies with everything in them. Then delete `DEMO_PASSWORD` from `.env.local`. Don't run it
+> while you or the test suite still use the demo accounts.
+
+## 10. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -284,5 +316,6 @@ limit 20;
 ```
 
 `pending` = waiting to be sent, `sent` = delivered to Brevo, `failed` = retried up to 5 times,
-`skipped` = no email address or email turned off. Check the database's daily job with
+`skipped` = no email address, email turned off, or a test address that can't receive mail (such as
+the `@civpms.test` demo accounts). Check the database's daily job with
 `select * from cron.job_run_details order by start_time desc limit 10;`.

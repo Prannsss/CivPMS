@@ -43,6 +43,19 @@ export interface SendEmailOptions {
   timeoutMs?: number;
 }
 
+/**
+ * Reserved top-level domains that can never receive mail (RFC 2606 / RFC 6761). The demo accounts
+ * (`*@civpms.test`, supabase/seed) and test fixtures use them; sending would only bounce and hurt
+ * the sender reputation, so these recipients are skipped instead.
+ */
+const RESERVED_TLDS = new Set(["test", "example", "invalid", "localhost"]);
+
+/** True when the address is on a reserved, non-routable TLD such as `owner@civpms.test`. */
+export function isReservedEmailDomain(email: string): boolean {
+  const domain = email.trim().toLowerCase().split("@").pop()?.replace(/\.+$/, "") ?? "";
+  return RESERVED_TLDS.has(domain.split(".").pop() ?? "");
+}
+
 /** Why email is disabled, or null when Brevo is configured. */
 export function brevoDisabledReason(config: BrevoConfig = serverEnv()): string | null {
   if (!config.brevoApiKey) return "BREVO_API_KEY is not set";
@@ -100,6 +113,9 @@ export async function sendEmail(message: EmailMessage, options: SendEmailOptions
     const recipient = message.to.email?.trim();
     if (!recipient) {
       return { ok: false, skipped: true, error: "The recipient has no email address" };
+    }
+    if (isReservedEmailDomain(recipient)) {
+      return { ok: false, skipped: true, error: "Reserved test domain: email not sent" };
     }
 
     const timeoutMs = options.timeoutMs ?? BREVO_TIMEOUT_MS;
