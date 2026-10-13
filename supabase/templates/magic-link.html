@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!--
+  CivPMS · Supabase Auth template: "Magic link"
+  Dashboard → Authentication → Emails → Templates → Magic link
+  Subject: Your CivPMS sign-in link
+  Link: token-hash flow → /auth/confirm (type=email) → / (onboarding is enforced by the app)
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Sign in to CivPMS</title>
+<style>
+  body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
+  table { border-collapse:collapse; }
+  img { border:0; outline:none; text-decoration:none; }
+  @media only screen and (max-width: 620px) {
+    .container { width:100% !important; }
+    .card-pad { padding:24px 20px !important; }
+    .outer-pad { padding:16px 8px !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#F1F5F9;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:#F1F5F9;">Your one-time link to sign in to CivPMS.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1F5F9;">
+  <tr>
+    <td align="center" class="outer-pad" style="padding:32px 16px;">
+      <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;">
+        <tr>
+          <td style="padding:0 4px 16px;">
+            <a href="{{ .SiteURL }}" target="_blank" rel="noopener" style="text-decoration:none;">
+              <img src="{{ .SiteURL }}/brand/logo-mark.png" width="36" height="36" alt="" style="display:inline-block;vertical-align:middle;width:36px;height:36px;">
+              <span style="display:inline-block;vertical-align:middle;margin-left:8px;font-family:Poppins,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;font-size:18px;line-height:26px;font-weight:600;color:#0A0A0A;">CivPMS</span>
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#FFFFFF;border:1px solid #E2E8F0;border-top:4px solid #0866FF;border-radius:16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="card-pad" style="padding:32px;font-family:Poppins,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+                  <h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.01em;color:#0A0A0A;">Sign in to CivPMS</h1>
+                  <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155;">Use the button below to sign in as <strong style="font-weight:600;color:#0A0A0A;">{{ .Email }}</strong>. No password needed.</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;">
+                    <tr>
+                      <td align="center" bgcolor="#0866FF" style="border-radius:12px;background:#0866FF;">
+                        <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/" target="_blank" rel="noopener" style="display:inline-block;padding:13px 28px;font-size:15px;line-height:22px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:12px;">Sign in</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:0 0 16px;font-size:12px;line-height:18px;color:#475569;">Button not working? Copy this link into your browser:<br><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/" target="_blank" rel="noopener" style="color:#0656D6;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/</a></p>
+                  <p style="margin:0;font-size:13px;line-height:20px;color:#475569;">The link works once and expires after a short time.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 8px 0;font-family:Poppins,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#475569;">
+            You're receiving this email because a sign-in link was requested for {{ .Email }}. If it wasn't you, ignore this email; nobody can sign in without this link.
+            <br><br>CivPMS · Project management for engineering and construction teams
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
