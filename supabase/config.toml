@@ -1,0 +1,39 @@
+# Supabase CLI configuration for CivPMS.
+# Remote project: "CivPMS" (ref bxfohhwvzbvmyokcsmwq, ap-southeast-1, Postgres 17).
+#
+#   supabase link --project-ref bxfohhwvzbvmyokcsmwq
+#   supabase db push            # applies supabase/migrations/* not yet on the remote
+#
+# The sections below only matter for `supabase start` (local stack); `link` and
+# `db push` read project_id, [db] and the migrations folder. Auth email
+# templates are added later by the auth workstream.
+project_id = "civpms"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+# PH holidays are seeded by a migration (20261012001300_seed_ph_holidays.sql).
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000/auth/confirm"]
+minimum_password_length = 10
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
