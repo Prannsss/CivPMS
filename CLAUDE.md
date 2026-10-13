@@ -72,7 +72,7 @@ Ownership rule: a feature's pages, components, queries and actions live in that 
 
 Brand: **Poppins** (400/500/600/700, `next/font/google`, CSS var `--font-poppins`). Primary blue **`#0866FF`**. Backgrounds: white (light) / black (dark). Red = danger (logout, delete, remove, cancel, errors). Yellow/orange/red = badges & warnings. Light **and** dark mode (class strategy via `next-themes`, default `system`).
 
-All colors are CSS variables in `globals.css`, exposed as Tailwind colors via `@theme inline`. **Never hard-code hex values in components** — use the tokens (`bg-primary`, `text-muted-foreground`, `bg-danger-soft`, …). Key tokens:
+All colors are CSS variables in `globals.css`, exposed as Tailwind colors via `@theme inline`; `docs/DESIGN.md` is the source of truth for exact values and contrast results. **Never hard-code hex values in components** — use the tokens (`bg-primary`, `text-muted-foreground`, `bg-danger-soft`, …). Key tokens:
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -81,9 +81,9 @@ All colors are CSS variables in `globals.css`, exposed as Tailwind colors via `@
 | border / border-strong | #E2E8F0 / #CBD5E1 | #27272A / #3F3F46 | |
 | foreground / muted-foreground | #0A0A0A / #475569 | #FAFAFA / #A1A1AA | text (≥4.5:1) |
 | primary (+hover/active) / primary-foreground | #0866FF / white | #0866FF / white | buttons, active states, focus ring |
-| primary-text | #0866FF | #4C8DFF | links & blue text (on dark, #0866FF fails AA for small text) |
+| primary-text | #0656D6 | #4C8DFF | links & blue text (#0866FF is only 4.2:1 on primary-soft, and fails AA as small text on black) |
 | primary-soft | #E7F0FF | rgba(8,102,255,.16) | selected rows, tinted chips |
-| danger / danger-soft / danger-text | #DC2626 / #FEE2E2 / #B91C1C | #EF4444 / rgba(239,68,68,.16) / #F87171 | destructive + Delayed + Budget Exceeded |
+| danger / danger-soft / danger-text | #DC2626 / #FEE2E2 / #B91C1C | #DC2626 (white text on #EF4444 is only 3.8:1) / rgba(239,68,68,.16) / #F87171 | destructive + Delayed + Budget Exceeded |
 | warning (yellow/amber) | #F59E0B / #FEF3C7 / #92400E | … | Near budget limit, soft warnings |
 | orange | #EA580C / #FFEDD5 / #9A3412 | … | On-Hold, escalations |
 | success | #16A34A / #DCFCE7 / #166534 | … | Completed |
