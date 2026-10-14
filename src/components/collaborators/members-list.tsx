@@ -131,7 +131,7 @@ export function MembersList({
             <Button
               variant="ghost"
               size="sm"
-              className="text-danger-text hover:bg-danger-soft hover:text-danger-text"
+              className="text-danger-text hover:bg-danger-soft hover:text-danger-text max-sm:h-11"
               onClick={() => onRemove(member)}
               disabled={Boolean(blocked) || removing !== null}
               loading={removing === member.userId}

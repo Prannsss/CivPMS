@@ -149,10 +149,10 @@ export function ProjectDetailsForm({
               </p>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-              <Button variant="outline" size="sm" onClick={reload} loading={resolving === "reload"} disabled={resolving !== null}>
+              <Button variant="outline" size="sm" className="max-sm:h-11" onClick={reload} loading={resolving === "reload"} disabled={resolving !== null}>
                 Reload
               </Button>
-              <Button variant="outline" size="sm" onClick={keepMine} loading={resolving === "keep"} disabled={resolving !== null}>
+              <Button variant="outline" size="sm" className="max-sm:h-11" onClick={keepMine} loading={resolving === "keep"} disabled={resolving !== null}>
                 Keep mine
               </Button>
             </div>

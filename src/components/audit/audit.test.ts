@@ -141,6 +141,9 @@ describe("audit CSV", () => {
     expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
     expect(csvCell("-₱1,000.00")).toBe('"-₱1,000.00"');
     expect(csvCell(42)).toBe("42");
+    expect(csvCell("-12.5")).toBe("-12.5");
+    expect(csvCell("-1+1")).toBe("'-1+1");
+    expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
     expect(csvCell(null)).toBe("");
   });
 

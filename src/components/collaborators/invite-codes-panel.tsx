@@ -183,14 +183,14 @@ export function InviteCodesPanel({
                   </div>
                   {isActive ? (
                     <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-                      <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => copyToClipboard(code.code, "Invite code copied")}>
+                      <Button variant="outline" size="sm" className="flex-1 max-sm:h-11 sm:flex-none" onClick={() => copyToClipboard(code.code, "Invite code copied")}>
                         <Copy aria-hidden />
                         Copy
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 text-danger-text hover:bg-danger-soft hover:text-danger-text sm:flex-none"
+                        className="flex-1 text-danger-text hover:bg-danger-soft hover:text-danger-text max-sm:h-11 sm:flex-none"
                         onClick={() => revoke(code)}
                         loading={revoking === code.id}
                         disabled={revoking !== null}
@@ -205,7 +205,7 @@ export function InviteCodesPanel({
             })}
           </ul>
           <div className="border-t border-border px-5 py-3.5 sm:px-6">
-            <Button variant="outline" size="sm" onClick={openDialog}>
+            <Button variant="outline" size="sm" className="max-sm:h-11" onClick={openDialog}>
               <Plus aria-hidden />
               Create invite code
             </Button>

@@ -148,7 +148,7 @@ export function InvitationsList({
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <IconButton aria-label={`More actions for ${invitation.email}`} variant="ghost" size="sm" disabled={busy !== null}>
+                  <IconButton aria-label={`More actions for ${invitation.email}`} variant="ghost" size="sm" className="max-sm:size-11" disabled={busy !== null}>
                     <Ellipsis />
                   </IconButton>
                 </DropdownMenuTrigger>

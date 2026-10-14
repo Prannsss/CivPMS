@@ -27,7 +27,9 @@ export const AUDIT_CSV_HEADER = [
 export function csvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
   let text = String(value);
-  if (/^[=+\-@\t\r]/.test(text) && !/^-?\d/.test(text) && !/^-₱/.test(text)) text = `'${text}`;
+  // Plain negative numbers and amounts (-12, -1,250.50, -₱1,000.00) stay as they are.
+  const plainNumber = /^-₱?\d[\d,]*(\.\d+)?$/.test(text);
+  if (/^[=+\-@\t\r]/.test(text) && !plainNumber) text = `'${text}`;
   return /[",\r\n]/.test(text) || text !== text.trim() ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

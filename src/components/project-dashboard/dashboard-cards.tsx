@@ -174,9 +174,9 @@ export function DashboardKpis({ project, work }: { project: DashboardProject; wo
         tone={delayed > 0 ? "danger" : "success"}
         hint={
           firstDelayed ? (
-            <span className="line-clamp-1">
+            <span className="line-clamp-2">
+              {delayed > 1 ? "Most overdue: " : ""}
               <span className="font-mono tabular-nums">{firstDelayed.wbsCode}</span> {firstDelayed.name}
-              {delayed > 1 ? ` +${delayed - 1} more` : ""}
             </span>
           ) : (
             "Nothing is running late"
@@ -273,7 +273,7 @@ export function AttentionCard({ items, projectId }: { items: AttentionItem[]; pr
           {items.length === 0
             ? "Late work, budget warnings and unplanned work show up here."
             : urgent > 0
-              ? `${pluralize(urgent, "urgent item")} · loudest first`
+              ? `${pluralize(urgent, "urgent item")} · most urgent first`
               : `${pluralize(items.length, "item")} to look at`}
         </CardDescription>
         {items.length > 0 ? (
