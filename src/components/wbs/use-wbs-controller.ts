@@ -104,75 +104,84 @@ export function useWbsController({
 
   /** Inline edit of one activity (name, dates, duration, cost). Returns true when saved. */
   const update = useCallback(
-    async (activity: WbsActivity, patch: ActivityPatch, options: { overwrite?: boolean } = {}): Promise<boolean> => {
-      const before = recordsRef.current;
-      // Instant feedback: apply the same schedule rules the server will apply.
-      let optimistic: WbsActivity = { ...activity };
-      if (patch.name !== undefined) optimistic.name = patch.name;
-      if (patch.estCost !== undefined) optimistic.estCost = patch.estCost;
-      const schedulePatch: SchedulePatch = {};
-      if (patch.startDate !== undefined) schedulePatch.startDate = patch.startDate;
-      if (patch.durationHours !== undefined) schedulePatch.durationHours = patch.durationHours;
-      if (patch.endDate !== undefined) schedulePatch.endDate = patch.endDate;
-      if (calendarIndex && Object.keys(schedulePatch).length > 0) {
-        const resolved = resolveLeafSchedule(calendarIndex, activity, schedulePatch);
-        if (!resolved.ok) {
-          toast.error("Couldn't save that change", { description: resolved.message });
+    (activity: WbsActivity, patch: ActivityPatch): Promise<boolean> => {
+      const attempt = async (overwrite: boolean): Promise<boolean> => {
+        const before = recordsRef.current;
+        // Instant feedback: apply the same schedule rules the server will apply.
+        let optimistic: WbsActivity = { ...activity };
+        if (patch.name !== undefined) optimistic.name = patch.name;
+        if (patch.estCost !== undefined) optimistic.estCost = patch.estCost;
+        const schedulePatch: SchedulePatch = {};
+        if (patch.startDate !== undefined) schedulePatch.startDate = patch.startDate;
+        if (patch.durationHours !== undefined) schedulePatch.durationHours = patch.durationHours;
+        if (patch.endDate !== undefined) schedulePatch.endDate = patch.endDate;
+        if (calendarIndex && Object.keys(schedulePatch).length > 0) {
+          const resolved = resolveLeafSchedule(calendarIndex, activity, schedulePatch);
+          if (!resolved.ok) {
+            toast.error("Couldn't save that change", { description: resolved.message });
+            return false;
+          }
+          optimistic = { ...optimistic, ...resolved.schedule };
+        }
+        const after = before.map((r) => (r.id === activity.id ? optimistic : r));
+        setRecords(after);
+        setBusy(activity.id, true);
+
+        const result = await updateActivity({
+          projectId: project.id,
+          activityId: activity.id,
+          expectedVersion: activity.version,
+          overwrite,
+          patch,
+        });
+        setBusy(activity.id, false);
+
+        if (result.ok) {
+          replaceRecord(result.data.activity);
+          if (patch.estCost !== undefined) warnIfBudgetCrossed(before, after);
+          if (result.data.endAdjusted && result.data.activity.endDate) {
+            toast.info("End date moved to a working day", {
+              description: `${activity.wbsCode} now ends on the last working day of that span.`,
+            });
+          }
+          return true;
+        }
+
+        setRecords((prev) => prev.map((r) => (r.id === activity.id ? activity : r)));
+        if (result.error.code === "STALE_VERSION") {
+          const keepMine = await confirm({
+            title: "Changed by someone else just now",
+            description: `Someone updated ${activity.wbsCode} ${activity.name} while you were editing. Reload to see their version, or keep yours to save over it.`,
+            confirmLabel: "Keep mine",
+            cancelLabel: "Reload",
+          });
+          if (keepMine) return attempt(true);
+          startTransition(() => router.refresh());
           return false;
         }
-        optimistic = { ...optimistic, ...resolved.schedule };
-      }
-      const after = before.map((r) => (r.id === activity.id ? optimistic : r));
-      setRecords(after);
-      setBusy(activity.id, true);
-
-      const result = await updateActivity({
-        projectId: project.id,
-        activityId: activity.id,
-        expectedVersion: activity.version,
-        overwrite: options.overwrite,
-        patch,
-      });
-      setBusy(activity.id, false);
-
-      if (result.ok) {
-        replaceRecord(result.data.activity);
-        if (patch.estCost !== undefined) warnIfBudgetCrossed(before, after);
-        if (result.data.endAdjusted && result.data.activity.endDate) {
-          toast.info("End date moved to a working day", {
-            description: `${activity.wbsCode} now ends on the last working day of that span.`,
-          });
-        }
-        return true;
-      }
-
-      setRecords((prev) => prev.map((r) => (r.id === activity.id ? activity : r)));
-      if (result.error.code === "STALE_VERSION") {
-        const keepMine = await confirm({
-          title: "Changed by someone else just now",
-          description: `Someone updated ${activity.wbsCode} ${activity.name} while you were editing. Reload to see their version, or keep yours to save over it.`,
-          confirmLabel: "Keep mine",
-          cancelLabel: "Reload",
-        });
-        if (keepMine) return update(activity, patch, { overwrite: true });
-        startTransition(() => router.refresh());
+        toast.error("Couldn't save that change", { description: result.error.message });
         return false;
-      }
-      toast.error("Couldn't save that change", { description: result.error.message });
-      return false;
+      };
+      return attempt(false);
     },
     [calendarIndex, confirm, project.id, replaceRecord, router, setBusy, warnIfBudgetCrossed],
   );
 
   const create = useCallback(
-    async (values: CreateValues): Promise<{ ok: true; activity: WbsActivity } | { ok: false; message: string; fieldErrors?: Record<string, string> }> => {
+    async (
+      values: CreateValues,
+    ): Promise<
+      { ok: true; activity: WbsActivity } | { ok: false; message: string; fieldErrors?: Record<string, string> }
+    > => {
       const result = await createActivity({ projectId: project.id, ...values });
       if (!result.ok) return { ok: false, message: result.error.message, fieldErrors: result.error.fieldErrors };
       const activity = result.data.activity;
       setRecords((prev) => {
         const withoutParentValues = result.data.carried
           ? prev.map((r) =>
-              r.id === values.parentId ? { ...r, startDate: null, endDate: null, durationHours: null, estCost: null } : r,
+              r.id === values.parentId
+                ? { ...r, startDate: null, endDate: null, durationHours: null, estCost: null }
+                : r,
             )
           : prev;
         return applyMove([...withoutParentValues, activity], activity.id, activity.parentId, values.index ?? null);
@@ -189,29 +198,36 @@ export function useWbsController({
 
   /** Re-parent / reorder with an Undo snackbar that moves it back. */
   const move = useCallback(
-    async (activity: WbsActivity, newParentId: string | null, newIndex: number, options: { isUndo?: boolean } = {}) => {
-      const before = recordsRef.current;
-      const oldParentId = activity.parentId;
-      const oldIndex = indexAmongSiblings(before, activity.id);
-      if (oldParentId === newParentId && oldIndex === newIndex) return;
-      setRecords(applyMove(before, activity.id, newParentId, newIndex));
-      setBusy(activity.id, true);
-      const result = await moveActivity({ projectId: project.id, activityId: activity.id, newParentId, newIndex });
-      setBusy(activity.id, false);
-      if (!result.ok) {
-        setRecords(before);
-        toast.error("Couldn't move it there", { description: result.error.message });
-        return;
-      }
-      if (!result.data.changed) return;
-      if (options.isUndo) {
-        toast.success("Move undone", { description: `${activity.name} is back at ${result.data.newWbsCode}.` });
-        return;
-      }
-      toast.undo(`Moved to ${result.data.newWbsCode}`, () => {
-        const current = recordsRef.current.find((r) => r.id === activity.id) ?? activity;
-        void move(current, oldParentId, oldIndex, { isUndo: true });
-      }, { description: `${activity.name} (was ${result.data.oldWbsCode})` });
+    (activity: WbsActivity, newParentId: string | null, newIndex: number): Promise<void> => {
+      const run = async (activity: WbsActivity, newParentId: string | null, newIndex: number, isUndo: boolean) => {
+        const before = recordsRef.current;
+        const oldParentId = activity.parentId;
+        const oldIndex = indexAmongSiblings(before, activity.id);
+        if (oldParentId === newParentId && oldIndex === newIndex) return;
+        setRecords(applyMove(before, activity.id, newParentId, newIndex));
+        setBusy(activity.id, true);
+        const result = await moveActivity({ projectId: project.id, activityId: activity.id, newParentId, newIndex });
+        setBusy(activity.id, false);
+        if (!result.ok) {
+          setRecords(before);
+          toast.error("Couldn't move it there", { description: result.error.message });
+          return;
+        }
+        if (!result.data.changed) return;
+        if (isUndo) {
+          toast.success("Move undone", { description: `${activity.name} is back at ${result.data.newWbsCode}.` });
+          return;
+        }
+        toast.undo(
+          `Moved to ${result.data.newWbsCode}`,
+          () => {
+            const current = recordsRef.current.find((r) => r.id === activity.id) ?? activity;
+            void run(current, oldParentId, oldIndex, true);
+          },
+          { description: `${activity.name} (was ${result.data.oldWbsCode})` },
+        );
+      };
+      return run(activity, newParentId, newIndex, false);
     },
     [project.id, setBusy],
   );
