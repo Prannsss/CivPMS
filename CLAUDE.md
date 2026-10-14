@@ -136,3 +136,38 @@ npm run test:e2e     # playwright
 - Server-only modules import `server-only`.
 - Every page has loading (skeleton) and error states; every list has an empty state.
 - Commit messages: imperative, scoped (`feat(wbs): …`, `fix(db): …`).
+
+## Known pitfalls (lessons learned — read before working)
+
+Current build status and next steps: `docs/HANDOFF.md`.
+
+Environment (cloud container)
+- **Remote URL resets on session restart** to the repo's old name `Prannsss/PMS` → push fails with "repository not found". Always run `git remote set-url origin https://github.com/Prannsss/CivPMS` before pushing.
+- **Only `claude/exciting-sagan-7valgn` may be pushed.** Agent branches (`wf/*`) exist only locally and die with the container — merge finished work into the main branch and push promptly; never leave verified work only on a `wf/*` branch.
+- **Network:** `next dev`, Node scripts and Playwright web servers need `NODE_USE_ENV_PROXY=1` to reach Supabase through the proxy (otherwise every page redirects to /login). But **`next build` must run WITHOUT it** — with it, `next/font` fails to fetch Poppins.
+- Killing `next dev` can corrupt `.next/dev/types/routes.d.ts` → the next build fails; delete the generated `.next/dev` folder and rebuild.
+- `tsc` alone fails on `LayoutProps` → always use `npm run typecheck` (runs `next typegen` first).
+- Playwright 1.56.1 with Chromium in `/opt/pw-browsers`; never run `playwright install`.
+- Machine has 4 CPUs / 15 GB → at most 2 heavy agents (dev server + build) at a time.
+
+Long-running agent work
+- **Usage limits interrupt agents mid-task** (happened 4 times). Commit WIP early and often (checkpoint commits on the feature branch), keep each agent's scope small, and on resume give the agent a "RESUME MODE" note: worktree path, branch, what is done, what is left. Never assume uncommitted work survives.
+- Workflow-created worktrees start from `origin/main`, not from the working branch → first `git checkout -B <branch> <base-sha>`.
+- The Workflow tool only accepts a `scriptPath` it returned or a file under the current working directory; keep a backup copy of edited scripts.
+
+Supabase
+- `apply_migration` (MCP) records a wall-clock version → rename it to match the file timestamp (`supabase migration repair` equivalent); keep repo files byte-identical to what was applied.
+- A plain `delete from` inside a migration makes the MCP hang waiting for a confirmation → use a data-modifying CTE (`with gone as (delete … returning 1) select …`).
+- Users created by SQL need rows in **both** `auth.users` and `auth.identities`, with token columns `''` (not NULL), or GoTrue refuses the sign-in.
+- Default Supabase SMTP only emails project team members → sign-up confirmation fails for real users until Brevo SMTP is configured. Google OAuth is not configured yet (UI shows a friendly toast).
+- `redeem_invite_code` returns `{ ok:false, error_code }` instead of raising (the failed-attempt row must persist for rate limiting) → handle with `errorFromRpcResult`.
+- The DB allows WBS edits on completed/cancelled projects → the UI must block them.
+- Demo password lives only in `.env.local` (`DEMO_PASSWORD`); seed files read it via `current_setting('civpms.demo_password')`. Never write it into a file or report.
+
+Code
+- **Controlled inputs lose text typed before hydration.** Use `register()` (uncontrolled) or `defaultValue` for form fields; the shared `FormField` (`Controller`) needs a register-based variant.
+- `tailwind-merge` drops custom `text-h1…text-caption` utilities unless registered (done in `cn()` — keep it that way when adding new type utilities).
+- `#0866FF` fails AA as small text on `primary-soft` and on black → use the `primary-text` token for blue text/links; `#0866FF` only for fills.
+- Realtime: a row created between server render and subscription is lost → subscribe with `wait` and catch up once on every (re)subscribe, de-duplicating by id (see the notification bell).
+- In development Next logs Server Action arguments → passwords sent to actions appear in the dev log. Do not paste dev logs anywhere public.
+- Never hard-code demo data assumptions in e2e specs without tagging test records (`[F3] …`); the database is shared by all agents.
