@@ -1,20 +1,33 @@
 import type { Metadata } from "next";
-import { CalendarDays } from "lucide-react";
-import { ScreenPlaceholder } from "@/components/app-shell/screen-placeholder";
+import { CalendarWorkspace, type CalendarLockReason } from "@/components/calendar/calendar-workspace";
+import { todayInManila } from "@/lib/domain";
 import { getProjectAccess } from "@/server/context";
+import { getProjectCalendar } from "@/server/queries/calendar";
 
 export const metadata: Metadata = { title: "Calendar" };
 
-/** Placeholder: the calendar team replaces this page (spec §7). */
+/** The project's working calendar (spec §7): working days, hours per day, holidays and overrides. */
 export default async function CalendarPage({ params }: PageProps<"/projects/[projectId]/calendar">) {
   const { projectId } = await params;
-  await getProjectAccess(projectId);
+  const { project, permissions } = await getProjectAccess(projectId);
+  const calendar = await getProjectCalendar(projectId);
+
+  const lockReason: CalendarLockReason = !permissions.canEditCalendar
+    ? "role"
+    : project.status === "completed"
+      ? "completed"
+      : project.status === "cancelled"
+        ? "cancelled"
+        : null;
+
   return (
-    <ScreenPlaceholder
-      title="Calendar"
-      description="Working days, hours per day and holidays"
-      icon={<CalendarDays />}
-      upcoming="Set working days and hours, mark Philippine holidays and site exceptions. Changes preview which work packages move before anything is saved."
+    <CalendarWorkspace
+      projectId={project.id}
+      projectStart={project.start_date}
+      projectEnd={project.end_date}
+      calendar={calendar}
+      today={todayInManila()}
+      lockReason={lockReason}
     />
   );
 }
