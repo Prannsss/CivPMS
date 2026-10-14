@@ -384,15 +384,16 @@ const Toolbar = memo(function Toolbar({
       ) : null}
       <div className="flex flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" onClick={onExpandAll} disabled={!canCollapse}>
-          <ChevronsUpDown /> Expand all
+          <ChevronsUpDown /> Expand<span className="-ml-1 hidden sm:inline"> all</span>
         </Button>
         <Button variant="ghost" size="sm" onClick={onCollapseAll} disabled={!canCollapse}>
-          <ChevronsDownUp /> Collapse all
+          <ChevronsDownUp /> Collapse<span className="-ml-1 hidden sm:inline"> all</span>
         </Button>
       </div>
       {trashCount !== null ? (
-        <Button variant="ghost" size="sm" className="sm:ml-auto" onClick={onOpenTrash}>
-          <History /> Recently deleted
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={onOpenTrash}>
+          <History /> <span className="sm:hidden">Deleted</span>
+          <span className="hidden sm:inline">Recently deleted</span>
           {trashCount > 0 ? (
             <span className="rounded-full bg-surface-sunken px-1.5 text-xs font-semibold tabular-nums text-muted-foreground">
               {trashCount}

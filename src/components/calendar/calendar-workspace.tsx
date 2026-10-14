@@ -19,6 +19,7 @@ import {
   useConfirm,
 } from "@/components/ui";
 import { formatDate, pluralize } from "@/lib/domain";
+import { cn } from "@/lib/utils";
 import {
   previewCalendarChange,
   saveCalendar,
@@ -225,77 +226,70 @@ export function CalendarWorkspace({
             Durations are counted in working hours on these days only.
           </p>
         </div>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
-          <fieldset className="flex min-w-0 flex-col gap-3">
-            <legend className="mb-3 text-[13px] leading-5 font-medium text-foreground">Working days</legend>
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {WEEKDAYS.map((w) => {
-                const checked = draft.workDays.includes(w.day);
-                return (
-                  <label
-                    key={w.day}
-                    className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${
-                      checked
-                        ? "border-primary/40 bg-primary-soft text-foreground"
-                        : "border-border bg-surface text-muted-foreground"
-                    } ${canEdit ? "" : "cursor-default opacity-80"}`}
-                  >
-                    <Checkbox
-                      checked={checked}
-                      disabled={!canEdit}
-                      aria-label={w.long}
-                      onCheckedChange={(value) => update((d) => toggleWorkDay(d, w.day, value === true))}
-                    />
-                    <span aria-hidden>{w.short}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto px-0"
-                disabled={!canEdit || allWeekendsOff || draft.workDays.every((d) => d >= 6)}
-                onClick={() => update(withoutWeekends)}
-              >
+        <fieldset className="flex min-w-0 flex-col gap-3">
+          <legend className="mb-3 text-[13px] leading-5 font-medium text-foreground">Working days</legend>
+          <div className="grid max-w-3xl grid-cols-4 gap-2 sm:grid-cols-7">
+            {WEEKDAYS.map((w) => {
+              const checked = draft.workDays.includes(w.day);
+              return (
+                <label
+                  key={w.day}
+                  className={cn(
+                    "flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                    checked ? "border-primary/40 bg-primary-soft text-foreground" : "border-border bg-surface text-muted-foreground",
+                    canEdit ? "cursor-pointer" : "cursor-default",
+                  )}
+                >
+                  <Checkbox
+                    checked={checked}
+                    disabled={!canEdit}
+                    aria-label={w.long}
+                    onCheckedChange={(value) => update((d) => toggleWorkDay(d, w.day, value === true))}
+                  />
+                  <span aria-hidden>{w.short}</span>
+                </label>
+              );
+            })}
+          </div>
+          {draft.workDays.length === 0 ? (
+            <p role="alert" className="text-xs font-medium text-danger-text">
+              Choose at least one working day.
+            </p>
+          ) : canEdit && !allWeekendsOff ? (
+            <div>
+              <Button variant="link" size="sm" className="h-auto px-0" onClick={() => update(withoutWeekends)}>
                 Mark all weekends as non-working
               </Button>
-              {draft.workDays.length === 0 ? (
-                <p role="alert" className="text-xs font-medium text-danger-text">
-                  Choose at least one working day.
-                </p>
-              ) : null}
             </div>
-          </fieldset>
-          <div className="flex flex-col gap-5">
-            <Field
-              label="Working hours per day"
-              error={hoursError ?? undefined}
-              hint="1–24 hours. A 16-hour work package takes 2 days at 8 h/day."
-            >
-              <Input
-                key={hoursKey}
-                inputMode="decimal"
-                defaultValue={String(draft.hoursPerDay)}
-                disabled={!canEdit}
-                trailing={<span className="text-xs font-medium text-muted-foreground">h/day</span>}
-                className="tabular-nums"
-                wrapperClassName="max-w-40"
-                onBlur={(event) => commitHours(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitHours(event.currentTarget.value);
-                }}
-              />
-            </Field>
-            <Switch
-              checked={draft.holidaysNonWorking}
+          ) : null}
+        </fieldset>
+        <div className="grid gap-6 border-t border-border pt-5 sm:grid-cols-2">
+          <Field
+            label="Working hours per day"
+            error={hoursError ?? undefined}
+            hint="1–24 hours. At 8 h/day, a 16-hour work package takes 2 days."
+          >
+            <Input
+              key={hoursKey}
+              inputMode="decimal"
+              defaultValue={String(draft.hoursPerDay)}
               disabled={!canEdit}
-              onCheckedChange={(value) => update((d) => ({ ...d, holidaysNonWorking: value }))}
-              label="Mark all holidays as non-working"
-              description="When off, holidays are listed but work continues on them."
+              trailing={<span className="text-xs font-medium text-muted-foreground">h/day</span>}
+              className="tabular-nums"
+              wrapperClassName="max-w-44"
+              onBlur={(event) => commitHours(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitHours(event.currentTarget.value);
+              }}
             />
-          </div>
+          </Field>
+          <Switch
+            checked={draft.holidaysNonWorking}
+            disabled={!canEdit}
+            onCheckedChange={(value) => update((d) => ({ ...d, holidaysNonWorking: value }))}
+            label="Mark all holidays as non-working"
+            description="When off, holidays stay listed but work continues on them."
+          />
         </div>
       </Card>
 

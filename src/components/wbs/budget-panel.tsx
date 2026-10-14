@@ -57,9 +57,9 @@ export const BudgetPanel = memo(function BudgetPanel({
       <div
         data-testid="wbs-budget"
         data-state={allocation.state}
-        className="grid gap-x-6 gap-y-5 rounded-lg border border-border bg-surface p-5 shadow-xs sm:grid-cols-3 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] sm:p-6"
+        className="grid grid-cols-3 gap-x-4 gap-y-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:gap-x-6 sm:p-6 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"
       >
-        <div className="flex min-w-0 flex-col gap-2 sm:col-span-3 lg:col-span-1">
+        <div className="col-span-3 flex min-w-0 flex-col gap-2 lg:col-span-1">
           <Meter
             allocated={totals.cost}
             budget={budget}
@@ -97,27 +97,33 @@ export const BudgetPanel = memo(function BudgetPanel({
           {formatPercent(totals.percent)}
           <Sub>Weighted by {weighting === "cost" ? "cost" : "hours"}</Sub>
         </Stat>
+        {totals.usedFallbackWeight ? (
+          <p
+            data-testid="wbs-fallback"
+            className="col-span-3 -mb-1 flex items-start gap-2 border-t border-border pt-3 text-xs leading-[1.125rem] text-muted-foreground lg:col-span-4"
+          >
+            <Scale aria-hidden className="mt-px size-3.5 shrink-0 text-primary-text" />
+            <span>
+              <span className="font-medium text-foreground">Progress is less precise for some work packages.</span>{" "}
+              They have no {weighting === "cost" ? "estimated cost" : "duration"} yet, so they are weighted by{" "}
+              {weighting === "cost" ? "hours" : "cost"} or equally. Add{" "}
+              {weighting === "cost" ? "costs" : "durations"} to make the percentages accurate.
+            </span>
+          </p>
+        ) : null}
       </div>
 
       {allocation.state === "exceeded" ? (
-        <Notice tone="danger" title="Allocated cost is over the project budget" data-testid="wbs-budget-warning">
-          Work packages add up to {formatPeso(totals.cost)}, which is {formatPeso(-allocation.remaining)} more than the{" "}
-          {formatPeso(budget)} budget. Changes still save — lower some costs or raise the budget in Project settings.
+        <Notice tone="danger" title={`Over budget by ${formatPeso(-allocation.remaining)}`} data-testid="wbs-budget-warning">
+          Changes still save. Lower some work package costs or raise the budget in Project settings.
         </Notice>
       ) : allocation.state === "near" ? (
         <Notice tone="warning" title="Close to the budget limit" data-testid="wbs-budget-warning">
-          {Math.round(allocation.ratio * 100)}% of the budget is allocated; {formatPeso(allocation.remaining)} is left
-          for the rest of the work.
+          {Math.round(allocation.ratio * 100)}% is allocated — {formatPeso(allocation.remaining)} is left for any work
+          not costed yet.
         </Notice>
       ) : null}
 
-      {totals.usedFallbackWeight ? (
-        <Notice tone="info" icon={<Scale />} title="Progress is less precise for some work packages" data-testid="wbs-fallback">
-          Progress is weighted by {weighting === "cost" ? "estimated cost" : "hours"}, but some work packages have no{" "}
-          {weighting === "cost" ? "cost" : "hours"} yet, so they count by {weighting === "cost" ? "hours" : "cost"} or
-          equally. Add {weighting === "cost" ? "estimated costs" : "durations"} to make the percentages accurate.
-        </Notice>
-      ) : null}
     </div>
   );
 });
@@ -127,13 +133,13 @@ function Stat({ icon, label, children }: { icon: React.ReactNode; label: string;
     <div className="flex min-w-0 items-start gap-3">
       <span
         aria-hidden
-        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-sunken text-muted-foreground [&_svg]:size-4"
+        className="hidden size-9 shrink-0 place-items-center rounded-md bg-surface-sunken text-muted-foreground sm:grid [&_svg]:size-4"
       >
         {icon}
       </span>
       <div className="flex min-w-0 flex-col">
         <span className="text-xs leading-4 font-medium text-muted-foreground">{label}</span>
-        <span className="mt-0.5 flex min-w-0 flex-col text-sm leading-5 font-semibold text-foreground tabular-nums">
+        <span className="mt-0.5 flex min-w-0 flex-col text-[13px] leading-5 font-semibold text-foreground tabular-nums sm:text-sm">
           {children}
         </span>
       </div>
@@ -142,5 +148,5 @@ function Stat({ icon, label, children }: { icon: React.ReactNode; label: string;
 }
 
 function Sub({ children }: { children: React.ReactNode }) {
-  return <span className="truncate text-xs leading-4 font-normal text-muted-foreground">{children}</span>;
+  return <span className="text-xs leading-4 font-normal text-pretty text-muted-foreground">{children}</span>;
 }

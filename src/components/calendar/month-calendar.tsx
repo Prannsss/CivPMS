@@ -204,7 +204,10 @@ export function MonthCalendar({
               const style = KIND_STYLES[info.kind];
               const isToday = cell.date === today;
               const inProject = cell.date >= projectStart && cell.date <= projectEnd;
-              const accessible = `${formatDate(cell.date)}, ${statusText(info)}${isToday ? ", today" : ""}`;
+              const marker =
+                cell.date === projectStart ? "Project start" : cell.date === projectEnd ? "Project end" : null;
+              const label = info.label ?? marker;
+              const accessible = `${formatDate(cell.date)}, ${statusText(info)}${marker ? `, ${marker.toLowerCase()}` : ""}${isToday ? ", today" : ""}`;
               return (
                 <div role="gridcell" key={cell.date} aria-selected={openDate === cell.date}>
                   <Popover open={openDate === cell.date} onOpenChange={(open) => setOpenDate(open ? cell.date : null)}>
@@ -226,8 +229,8 @@ export function MonthCalendar({
                           "relative flex h-14 w-full flex-col items-start gap-0.5 overflow-hidden rounded-md border border-transparent p-1.5 text-left transition-colors sm:h-[5.25rem] sm:p-2",
                           "focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
                           style.cell,
-                          !cell.inMonth && "opacity-45",
-                          inProject && cell.inMonth && "border-border",
+                          cell.inMonth ? "border-border" : "opacity-45",
+                          cell.inMonth && !inProject && "border-dashed",
                           openDate === cell.date && "border-primary ring-2 ring-primary/30",
                         )}
                       >
@@ -242,15 +245,15 @@ export function MonthCalendar({
                           </span>
                           {style.dot ? <span aria-hidden className={cn("size-1.5 rounded-full", style.dot)} /> : null}
                         </span>
-                        {info.label ? (
+                        {label ? (
                           <span
                             aria-hidden
                             className={cn(
                               "line-clamp-2 hidden w-full text-[11px] leading-[0.9rem] sm:block",
-                              style.label,
+                              info.label ? style.label : "font-medium text-primary-text",
                             )}
                           >
-                            {info.label}
+                            {label}
                           </span>
                         ) : null}
                         {info.kind !== "working" ? (

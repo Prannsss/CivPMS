@@ -6,11 +6,12 @@
  * Cards show code, name, progress, status, cost and hours; branches collapse and expand.
  */
 import "@xyflow/react/dist/style.css";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   Handle,
   MiniMap,
   Position,
@@ -21,8 +22,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { hierarchy, tree } from "d3-hierarchy";
-import { ChevronDown, ChevronUp, FolderKanban, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronUp, FolderKanban, Fullscreen, TriangleAlert } from "lucide-react";
 import { Progress, StatusBadge } from "@/components/ui";
 import {
   formatDuration,
@@ -34,14 +34,13 @@ import {
   type Rollup,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
+import { GRAPH_NODE, layoutTree, type LayoutInput } from "./graph-layout";
 import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
 
-const NODE_W = 248;
-const NODE_H = 148;
-const GAP_X = 28;
-const GAP_Y = 64;
+const NODE_W = GRAPH_NODE.width;
+const NODE_H = GRAPH_NODE.height;
 const ROOT_ID = "__project";
 
 type ActivityNodeData = {
@@ -49,6 +48,7 @@ type ActivityNodeData = {
   node: WbsNode;
   rollup: Rollup | undefined;
   collapsed: boolean;
+  stacksChildren: boolean;
 };
 type ProjectNodeData = {
   kind: "project";
@@ -60,26 +60,29 @@ type ProjectNodeData = {
 };
 type GraphNode = Node<ActivityNodeData, "activity"> | Node<ProjectNodeData, "project">;
 
-type LayoutItem = { id: string; node: WbsNode | null; children: LayoutItem[] };
-
-function toLayoutItems(nodes: WbsNode[], collapsed: ReadonlySet<string>): LayoutItem[] {
+function toLayoutInput(nodes: WbsNode[], collapsed: ReadonlySet<string>): LayoutInput[] {
   return nodes.map((node) => ({
     id: node.id,
-    node,
-    children: collapsed.has(node.id) ? [] : toLayoutItems(node.children, collapsed),
+    children: collapsed.has(node.id) ? [] : toLayoutInput(node.children, collapsed),
   }));
 }
 
-function layout(
+function indexNodes(nodes: WbsNode[], into = new Map<string, WbsNode>()): Map<string, WbsNode> {
+  for (const node of nodes) {
+    into.set(node.id, node);
+    indexNodes(node.children, into);
+  }
+  return into;
+}
+
+function buildGraph(
   projectName: string,
   roots: WbsNode[],
   rollups: RollupMap,
   collapsed: ReadonlySet<string>,
-): { nodes: GraphNode[]; edges: Edge[] } {
-  const root = hierarchy<LayoutItem>({ id: ROOT_ID, node: null, children: toLayoutItems(roots, collapsed) });
-  tree<LayoutItem>()
-    .nodeSize([NODE_W + GAP_X, NODE_H + GAP_Y])
-    .separation((a, b) => (a.parent === b.parent ? 1 : 1.12))(root);
+): { nodes: GraphNode[]; edges: Edge[]; width: number; height: number } {
+  const layout = layoutTree({ id: ROOT_ID, children: toLayoutInput(roots, collapsed) });
+  const byId = indexNodes(roots);
 
   let cost = 0;
   let hours = 0;
@@ -96,13 +99,14 @@ function layout(
 
   const nodes: GraphNode[] = [];
   const edges: Edge[] = [];
-  root.each((d) => {
-    const position = { x: (d.x ?? 0) - NODE_W / 2, y: (d.y ?? 0) };
-    if (d.data.node === null) {
+  for (const placed of layout.nodes) {
+    const position = { x: placed.x, y: placed.y };
+    const common = { position, width: NODE_W, height: NODE_H, draggable: false, selectable: false };
+    if (placed.id === ROOT_ID) {
       nodes.push({
+        ...common,
         id: ROOT_ID,
         type: "project",
-        position,
         data: {
           kind: "project",
           name: projectName,
@@ -111,32 +115,36 @@ function layout(
           percent: weight > 0 ? weighted / weight : 0,
           deliverables: roots.length,
         },
-        draggable: false,
-        selectable: false,
       });
     } else {
-      const node = d.data.node;
+      const node = byId.get(placed.id)!;
       nodes.push({
+        ...common,
         id: node.id,
         type: "activity",
-        position,
-        data: { kind: "activity", node, rollup: rollups.get(node.id), collapsed: collapsed.has(node.id) },
-        draggable: false,
-        selectable: false,
+        data: {
+          kind: "activity",
+          node,
+          rollup: rollups.get(node.id),
+          collapsed: collapsed.has(node.id),
+          stacksChildren: placed.stacksChildren,
+        },
       });
     }
-    if (d.parent) {
-      const hasDelayed = d.data.node ? rollups.get(d.data.node.id)?.hasDelayed : false;
+    if (placed.parentId) {
+      const hasDelayed = rollups.get(placed.id)?.hasDelayed;
       edges.push({
-        id: `${d.parent.data.id}->${d.data.id}`,
-        source: d.parent.data.id,
-        target: d.data.id,
-        type: "smoothstep",
-        style: hasDelayed ? { stroke: "var(--danger)", strokeOpacity: 0.55 } : undefined,
+        id: `${placed.parentId}->${placed.id}`,
+        source: placed.parentId,
+        target: placed.id,
+        sourceHandle: placed.edge === "stack" ? "stack" : "bottom",
+        targetHandle: placed.edge === "stack" ? "left" : "top",
+        type: placed.edge === "stack" ? "step" : "smoothstep",
+        style: hasDelayed ? { stroke: "var(--danger)", strokeOpacity: 0.6 } : undefined,
       });
     }
-  });
-  return { nodes, edges };
+  }
+  return { nodes, edges, width: layout.width, height: layout.height };
 }
 
 const nodeTypes = { activity: memo(ActivityCard), project: memo(ProjectCard) };
@@ -152,17 +160,19 @@ export function WbsGraph({
   rollups: RollupMap;
   collapsed: ReadonlySet<string>;
 }) {
-  const { nodes, edges } = useMemo(
-    () => layout(projectName, roots, rollups, collapsed),
+  const { nodes, edges, width, height } = useMemo(
+    () => buildGraph(projectName, roots, rollups, collapsed),
     [projectName, roots, rollups, collapsed],
   );
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
+      ref={containerRef}
       data-testid="wbs-graph"
       role="region"
       aria-label="Work breakdown graph"
-      className="wbs-graph h-[calc(100dvh-15rem)] min-h-[28rem] w-full overflow-hidden rounded-lg border border-border bg-surface-muted shadow-xs"
+      className="h-[calc(100dvh-14rem)] min-h-[30rem] w-full overflow-hidden rounded-lg border border-border bg-surface-muted shadow-xs"
       style={
         {
           "--xy-background-color": "var(--surface-muted)",
@@ -178,7 +188,6 @@ export function WbsGraph({
           "--xy-minimap-background-color": "var(--surface)",
           "--xy-minimap-mask-background-color": "color-mix(in oklab, var(--surface-sunken) 70%, transparent)",
           "--xy-minimap-node-background-color": "var(--border-strong)",
-          "--xy-attribution-background-color": "transparent",
         } as React.CSSProperties
       }
     >
@@ -187,28 +196,25 @@ export function WbsGraph({
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
-          minZoom={0.15}
+          minZoom={0.2}
           maxZoom={1.75}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
           edgesFocusable={false}
           proOptions={{ hideAttribution: true }}
-          panOnScroll={false}
           zoomOnDoubleClick={false}
         >
-          <FitOnShapeChange count={nodes.length} />
+          <TopFit containerRef={containerRef} width={width} height={height} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-          <Controls showInteractive={false} position="bottom-left" />
           <MiniMap
             pannable
             zoomable
             position="bottom-right"
             className="!hidden overflow-hidden rounded-md border border-border sm:!block"
-            nodeBorderRadius={8}
+            nodeBorderRadius={10}
             ariaLabel="Mini map of the work breakdown"
+            style={{ width: 168, height: 112 }}
           />
         </ReactFlow>
       </ReactFlowProvider>
@@ -216,16 +222,43 @@ export function WbsGraph({
   );
 }
 
-/** Re-fit when branches are collapsed/expanded or items are added/removed. */
-function FitOnShapeChange({ count }: { count: number }) {
-  const { fitView } = useReactFlow();
+/**
+ * Fits the tree into the view anchored at the top (the project card stays visible) and offers a
+ * "Fit" control. Re-fits when branches are collapsed or items are added/removed.
+ */
+function TopFit({
+  containerRef,
+  width,
+  height,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  width: number;
+  height: number;
+}) {
+  const { setViewport } = useReactFlow();
+  const fit = useCallback(
+    (duration: number) => {
+      const box = containerRef.current?.getBoundingClientRect();
+      if (!box || box.width === 0) return;
+      const pad = 32;
+      const zoom = Math.max(0.35, Math.min(1, (box.width - pad * 2) / width, (box.height - pad * 2) / height));
+      const x = width * zoom <= box.width - pad * 2 ? (box.width - width * zoom) / 2 : pad;
+      void setViewport({ x, y: pad, zoom }, { duration });
+    },
+    [containerRef, width, height, setViewport],
+  );
+  // `fit` changes only when the tree's size changes (collapse/expand, add/remove), not on value edits.
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      void fitView({ padding: 0.15, maxZoom: 1, duration: 200 });
-    });
+    const frame = requestAnimationFrame(() => fit(0));
     return () => cancelAnimationFrame(frame);
-  }, [count, fitView]);
-  return null;
+  }, [fit]);
+  return (
+    <Controls showInteractive={false} showFitView={false} position="bottom-left" aria-label="Zoom controls">
+      <ControlButton onClick={() => fit(200)} aria-label="Fit the whole tree" title="Fit the whole tree">
+        <Fullscreen />
+      </ControlButton>
+    </Controls>
+  );
 }
 
 const hiddenHandle = "!size-1 !min-h-0 !min-w-0 !border-0 !bg-transparent";
@@ -234,16 +267,16 @@ function ProjectCard({ data }: NodeProps<Node<ProjectNodeData, "project">>) {
   const wbs = useWbs();
   return (
     <div
-      className="flex flex-col gap-3 rounded-xl bg-primary p-4 text-primary-foreground shadow-md"
+      className="flex flex-col gap-2.5 rounded-xl bg-primary p-3.5 text-primary-foreground shadow-md"
       style={{ width: NODE_W, height: NODE_H }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white/15">
           <FolderKanban aria-hidden className="size-4" />
         </span>
         <div className="flex min-w-0 flex-col">
-          <span className="text-[11px] leading-4 font-medium tracking-wide text-white/85 uppercase">Project</span>
-          <span className="truncate text-sm leading-5 font-semibold" title={data.name}>
+          <span className="text-[11px] leading-4 font-medium text-white/85">Project</span>
+          <span className="truncate text-[13px] leading-5 font-semibold" title={data.name}>
             {data.name}
           </span>
         </div>
@@ -254,14 +287,14 @@ function ProjectCard({ data }: NodeProps<Node<ProjectNodeData, "project">>) {
         </div>
         <span className="text-xs font-semibold tabular-nums">{formatPercent(data.percent)}</span>
       </div>
-      <div className="mt-auto flex items-end justify-between gap-2 text-xs leading-4 tabular-nums">
+      <div className="mt-auto flex items-end justify-between gap-2 text-[11px] leading-4 tabular-nums">
         <span className="text-white/90">{pluralize(data.deliverables, "deliverable")}</span>
         <span className="flex flex-col items-end">
-          <span className="font-semibold">{formatPeso(data.cost)}</span>
+          <span className="text-xs font-semibold">{formatPeso(data.cost)}</span>
           <span className="text-white/90">{formatDuration(data.hours, wbs.unit, wbs.hoursPerDay)}</span>
         </span>
       </div>
-      <Handle type="source" position={Position.Bottom} isConnectable={false} className={hiddenHandle} />
+      <Handle id="bottom" type="source" position={Position.Bottom} isConnectable={false} className={hiddenHandle} />
     </div>
   );
 }
@@ -285,36 +318,41 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
       data-testid="wbs-graph-node"
       data-wbs-code={node.wbsCode}
       className={cn(
-        "relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border bg-surface p-3.5 pl-4 text-foreground shadow-sm",
-        "before:absolute before:inset-y-0 before:left-0 before:w-1",
-        LEVEL_ACCENT[node.level] ?? LEVEL_ACCENT[3],
+        "relative flex flex-col gap-1.5 rounded-xl border border-border bg-surface py-2.5 pr-2 pl-3.5 text-foreground shadow-sm",
+        "before:absolute before:inset-y-0 before:-left-px before:w-1 before:rounded-l-xl",
+        LEVEL_ACCENT[isLeaf && node.level > 1 ? 3 : node.level] ?? LEVEL_ACCENT[3],
       )}
       style={{ width: NODE_W, height: NODE_H }}
     >
-      <Handle type="target" position={Position.Top} isConnectable={false} className={hiddenHandle} />
-      <div className="flex items-start gap-2">
+      <Handle id="top" type="target" position={Position.Top} isConnectable={false} className={hiddenHandle} />
+      <Handle id="left" type="target" position={Position.Left} isConnectable={false} className={hiddenHandle} />
+      <div className="flex items-start gap-1">
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground">
             <span className="font-mono font-medium tabular-nums">{node.wbsCode}</span>
             <span aria-hidden>·</span>
-            <span className="truncate">{levelLabel(node.level)}</span>
+            <span className="truncate">{isLeaf && node.level > 1 ? "Work package" : levelLabel(node.level)}</span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0 tabular-nums">
+              {formatDuration(rollup?.hours ?? node.durationHours ?? 0, wbs.unit, wbs.hoursPerDay)}
+            </span>
           </span>
           <span
-            className={cn("line-clamp-2 text-[13px] leading-[1.15rem]", node.level === 1 ? "font-semibold" : "font-medium")}
+            className={cn("line-clamp-2 text-[13px] leading-[1.1rem]", node.level === 1 ? "font-semibold" : "font-medium")}
             title={node.name}
           >
             {node.name}
           </span>
         </div>
-        <RowActions node={node} className="-mt-1 -mr-1.5 shrink-0" />
+        <RowActions node={node} className="-mt-1 size-8 shrink-0" />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="mt-auto flex items-center gap-2 pr-1.5">
         <Progress value={rollup?.percent ?? 0} size="sm" className="flex-1" aria-label={`Progress of ${code}`} />
-        <span className="w-9 text-right text-xs font-medium text-muted-foreground tabular-nums">
+        <span className="w-8 text-right text-[11px] font-medium text-muted-foreground tabular-nums">
           {formatPercent(rollup?.percent ?? 0)}
         </span>
       </div>
-      <div className="mt-auto flex items-end justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 pr-1.5">
         <div className="flex min-w-0 items-center gap-1">
           <StatusBadge status={delayedLeaf ? "delayed" : status} size="sm" />
           {!isLeaf && rollup?.hasDelayed ? (
@@ -324,11 +362,8 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
             </span>
           ) : null}
         </div>
-        <span className="flex shrink-0 flex-col items-end text-[11px] leading-4 tabular-nums">
-          <span className="font-semibold text-foreground">{formatPeso(rollup?.cost ?? node.estCost ?? 0)}</span>
-          <span className="text-muted-foreground">
-            {formatDuration(rollup?.hours ?? node.durationHours ?? 0, wbs.unit, wbs.hoursPerDay)}
-          </span>
+        <span className="shrink-0 text-xs leading-4 font-semibold text-foreground tabular-nums">
+          {formatPeso(rollup?.cost ?? node.estCost ?? 0)}
         </span>
       </div>
       {!isLeaf ? (
@@ -337,7 +372,7 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
           onClick={() => wbs.toggle(node.id)}
           aria-expanded={!collapsed}
           aria-label={`${collapsed ? "Expand" : "Collapse"} ${code}`}
-          className="nodrag nopan absolute bottom-0 left-1/2 inline-flex h-5 -translate-x-1/2 items-center gap-1 rounded-t-md border border-b-0 border-border bg-surface-muted px-2 text-[11px] leading-none font-medium text-muted-foreground hover:bg-surface-sunken hover:text-foreground focus-ring"
+          className="nodrag nopan absolute -bottom-3 left-1/2 z-10 inline-flex h-6 min-w-6 -translate-x-1/2 items-center justify-center gap-0.5 rounded-full border border-border-strong bg-surface px-1.5 text-[11px] leading-none font-semibold text-muted-foreground shadow-xs hover:bg-surface-sunken hover:text-foreground focus-ring"
         >
           {collapsed ? (
             <>
@@ -348,7 +383,15 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
           )}
         </button>
       ) : null}
-      <Handle type="source" position={Position.Bottom} isConnectable={false} className={hiddenHandle} />
+      <Handle id="bottom" type="source" position={Position.Bottom} isConnectable={false} className={hiddenHandle} />
+      <Handle
+        id="stack"
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        className={hiddenHandle}
+        style={{ left: 14 }}
+      />
     </div>
   );
 }

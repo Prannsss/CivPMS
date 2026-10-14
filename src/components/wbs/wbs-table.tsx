@@ -43,7 +43,7 @@ import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
 
-const INDENT = 22;
+const INDENT = 18;
 
 export type WbsTableProps = {
   roots: WbsNode[];
@@ -160,27 +160,39 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
     >
       <div
         data-testid="wbs-table"
-        className="relative max-h-[calc(100dvh-13rem)] min-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-xs"
+        className="relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-xs sm:max-h-[calc(100dvh-12rem)] sm:min-h-64"
       >
-        <table className="w-full min-w-[68rem] border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-[72rem] table-fixed border-separate border-spacing-0 text-sm lg:min-w-[67.5rem]">
           <caption className="sr-only">
             Work breakdown: deliverables, sub-deliverables and work packages with dates, duration, hours, cost and
             progress. Parents roll up from their work packages.
           </caption>
+          <colgroup>
+            <col className="w-[4.5rem]" />
+            <col />
+            <col className="w-[7rem]" />
+            <col className="w-[5.5rem]" />
+            <col className="w-[7rem]" />
+            <col className="w-[5rem]" />
+            <col className="w-[8.25rem]" />
+            <col className="w-[5.75rem]" />
+            <col className="w-[7.5rem]" />
+            <col className="w-11" />
+          </colgroup>
           <thead className="sticky top-0 z-20">
             <tr className="bg-surface-muted text-xs font-semibold whitespace-nowrap text-muted-foreground">
-              <Th className="sticky left-0 z-30 w-[5.75rem] bg-surface-muted pl-3">WBS</Th>
-              <Th className="sticky left-[5.75rem] z-30 min-w-[17rem] bg-surface-muted shadow-[1px_0_0_var(--border)]">
+              <Th className="sticky left-0 z-30 bg-surface-muted pl-3">WBS</Th>
+              <Th className="z-30 bg-surface-muted md:sticky md:left-[4.5rem] md:shadow-[1px_0_0_var(--border)]">
                 Name
               </Th>
-              <Th className="w-[8.5rem]">Start</Th>
-              <Th className="w-[6.5rem] text-right">Duration</Th>
-              <Th className="w-[8.5rem]">End</Th>
-              <Th className="w-[6.5rem] text-right">Hours</Th>
-              <Th className="w-[10rem] text-right">Est. cost</Th>
-              <Th className="w-[8.5rem]">Progress</Th>
-              <Th className="w-[8.5rem]">Status</Th>
-              <Th className="w-12 pr-3">
+              <Th>Start</Th>
+              <Th className="text-right">Duration</Th>
+              <Th>End</Th>
+              <Th className="text-right">Hours</Th>
+              <Th className="text-right">Est. cost</Th>
+              <Th>Progress</Th>
+              <Th>Status</Th>
+              <Th className="pr-3">
                 <span className="sr-only">Actions</span>
               </Th>
             </tr>
@@ -291,7 +303,7 @@ const WbsRow = memo(function WbsRow({
       : null;
   const code = `${node.wbsCode} ${node.name}`;
   const derivedDelayed = isLeaf && r?.hasDelayed && node.status !== "delayed";
-  const levelText = levelLabel(node.level);
+  const levelText = isLeaf && node.level > 1 ? "Work package" : levelLabel(node.level);
 
   const cellBg = "bg-inherit";
   const parentValue = "font-medium text-foreground";
@@ -314,7 +326,7 @@ const WbsRow = memo(function WbsRow({
       )}
     >
       {/* WBS code + drag handle */}
-      <td className={cn("sticky left-0 z-10 h-11 border-b border-border pr-1 pl-1", cellBg)}>
+      <td className={cn("sticky left-0 z-10 h-11 border-b border-border pr-1 pl-1 whitespace-nowrap", cellBg)}>
         <div className="flex items-center gap-0.5">
           {dragEnabled ? (
             <button
@@ -337,7 +349,7 @@ const WbsRow = memo(function WbsRow({
       {/* Name (indented tree) */}
       <td
         className={cn(
-          "sticky left-[5.75rem] z-10 border-b border-border py-1.5 pr-3 shadow-[1px_0_0_var(--border)]",
+          "z-10 border-b border-border py-1.5 pr-3 md:sticky md:left-[4.5rem] md:shadow-[1px_0_0_var(--border)]",
           cellBg,
         )}
       >
@@ -390,7 +402,7 @@ const WbsRow = memo(function WbsRow({
       </td>
 
       {/* Start */}
-      <td className="border-b border-border px-3">
+      <td className="border-b border-border px-3 whitespace-nowrap">
         {isLeaf ? (
           <DateCell
             value={node.startDate}
@@ -404,7 +416,7 @@ const WbsRow = memo(function WbsRow({
       </td>
 
       {/* Duration */}
-      <td className="border-b border-border px-3 text-right">
+      <td className="border-b border-border px-3 text-right whitespace-nowrap">
         {isLeaf ? (
           <DurationCell
             hours={node.durationHours}
@@ -430,7 +442,7 @@ const WbsRow = memo(function WbsRow({
       </td>
 
       {/* End */}
-      <td className="border-b border-border px-3">
+      <td className="border-b border-border px-3 whitespace-nowrap">
         {isLeaf ? (
           <DateCell
             value={node.endDate}
@@ -446,14 +458,14 @@ const WbsRow = memo(function WbsRow({
       </td>
 
       {/* Hours */}
-      <td className="border-b border-border px-3 text-right text-[13px] tabular-nums">
+      <td className="border-b border-border px-3 text-right text-[13px] whitespace-nowrap tabular-nums">
         <span className={cn(isLeaf ? "text-muted-foreground" : parentValue)}>
           {r ? formatDuration(r.hours, "hours", hpd) : "—"}
         </span>
       </td>
 
       {/* Cost */}
-      <td className="border-b border-border px-3 text-right">
+      <td className="border-b border-border px-3 text-right whitespace-nowrap">
         {isLeaf ? (
           <CostCell
             value={node.estCost}
@@ -474,16 +486,18 @@ const WbsRow = memo(function WbsRow({
       </td>
 
       {/* Progress */}
-      <td className="border-b border-border px-3">
-        <div className="flex items-center gap-2">
-          <Progress value={r?.percent ?? 0} size="sm" className="w-14" aria-label={`Progress of ${code}`} />
-          <span className="w-10 text-xs text-muted-foreground tabular-nums">{formatPercent(r?.percent ?? 0)}</span>
+      <td className="border-b border-border px-2.5">
+        <div className="flex items-center gap-1.5">
+          <Progress value={r?.percent ?? 0} size="sm" className="min-w-0 flex-1" aria-label={`Progress of ${code}`} />
+          <span className="w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+            {formatPercent(r?.percent ?? 0)}
+          </span>
         </div>
       </td>
 
       {/* Status */}
-      <td className="border-b border-border px-3">
-        <div className="flex items-center gap-1.5">
+      <td className="border-b border-border px-2.5">
+        <div className="flex min-w-0 items-center gap-1">
           {derivedDelayed ? (
             <StatusBadge status="delayed" size="sm" title="Its start or end date has passed" />
           ) : (
