@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ColorSwatchPicker } from "@/components/ui/color-swatch-picker";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DateInput } from "@/components/ui/date-input";
+import { Field } from "@/components/ui/field";
 import { Form, FormError, FormField } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ChoiceCard, RadioGroup } from "@/components/ui/radio-group";
@@ -68,7 +69,7 @@ export function ProjectDetailsForm({
     mode: "onTouched",
     defaultValues: toFormDefaults(initial),
   });
-  const { isDirty, isSubmitting } = form.formState;
+  const { isDirty, isSubmitting, errors } = form.formState;
   const [budget, thresholdPercent] = useWatch({ control: form.control, name: ["budget", "thresholdPercent"] });
   const thresholdNumber = parseNumericInput(thresholdPercent);
   const budgetNumber = parseNumericInput(budget);
@@ -159,14 +160,10 @@ export function ProjectDetailsForm({
         ) : null}
         <FormError>{form.formState.errors.root?.serverError?.message}</FormError>
 
-        <FormField
-          control={form.control}
-          name="name"
-          label="Project name"
-          required
-          hint="3–120 characters, unique within your company."
-          render={({ field }) => <Input {...field} value={field.value ?? ""} autoComplete="off" />}
-        />
+        {/* Plain text fields use register() (uncontrolled): text typed before hydration is kept. */}
+        <Field label="Project name" required hint="3–120 characters, unique within your company." error={errors.name?.message}>
+          <Input {...form.register("name")} autoComplete="off" />
+        </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <FormField
@@ -209,29 +206,21 @@ export function ProjectDetailsForm({
         />
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="siteName"
+          <Field
             label="Site name or location"
             hint="Shown on the project card and to everyone on the project."
-            render={({ field }) => <Input {...field} value={field.value ?? ""} placeholder="e.g. Talisay, Cebu" />}
-          />
-          <FormField
-            control={form.control}
-            name="siteAddress"
-            label="Site address"
-            render={({ field }) => <Input {...field} value={field.value ?? ""} placeholder="Street, barangay, city" />}
-          />
+            error={errors.siteName?.message}
+          >
+            <Input {...form.register("siteName")} placeholder="e.g. Talisay, Cebu" />
+          </Field>
+          <Field label="Site address" error={errors.siteAddress?.message}>
+            <Input {...form.register("siteAddress")} placeholder="Street, barangay, city" />
+          </Field>
         </div>
 
-        <FormField
-          control={form.control}
-          name="description"
-          label="Description"
-          render={({ field }) => (
-            <Textarea {...field} value={field.value ?? ""} rows={3} placeholder="Scope, client, contract number…" />
-          )}
-        />
+        <Field label="Description" error={errors.description?.message}>
+          <Textarea {...form.register("description")} rows={3} placeholder="Scope, client, contract number…" />
+        </Field>
 
         <FormField
           control={form.control}
@@ -274,29 +263,23 @@ export function ProjectDetailsForm({
           />
         </fieldset>
 
-        <FormField
-          control={form.control}
-          name="thresholdPercent"
+        <Field
           label="Near Budget Limit warning"
+          error={errors.thresholdPercent?.message}
           hint={
             thresholdNumber !== null && budgetNumber !== null && thresholdNumber >= 50 && thresholdNumber <= 100
               ? `Warn when work packages add up to ${thresholdNumber}% of the budget (${formatPeso((budgetNumber * thresholdNumber) / 100)}).`
               : "Between 50% and 100% of the budget. 90% is the usual setting."
           }
           className="sm:max-w-xs"
-          render={({ field }) => (
-            <Input
-              name={field.name}
-              ref={field.ref}
-              onBlur={field.onBlur}
-              value={field.value === undefined || field.value === null ? "" : String(field.value)}
-              onChange={(event) => field.onChange(event.target.value)}
-              inputMode="numeric"
-              trailing={<span className="pr-2.5 text-sm text-muted-foreground">%</span>}
-              className="tabular-nums"
-            />
-          )}
-        />
+        >
+          <Input
+            {...form.register("thresholdPercent")}
+            inputMode="numeric"
+            trailing={<span className="pr-2.5 text-sm text-muted-foreground">%</span>}
+            className="tabular-nums"
+          />
+        </Field>
 
         <div className="flex flex-col-reverse gap-2 border-t border-border pt-5 sm:flex-row sm:justify-end">
           <Button

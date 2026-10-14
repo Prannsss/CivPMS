@@ -57,11 +57,15 @@ test("details save, and a concurrent edit offers Reload or Keep mine", async ({ 
     await budget.blur();
     await saveAndExpectConflict(page);
     await page.getByRole("button", { name: "Keep mine" }).click();
-    await expect(toastWith(page, "Project details saved")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Changed by someone else just now" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled();
     const { client } = await supabaseAs(F3.owner);
-    const saved = await client.from("projects").select("budget, near_budget_threshold").eq("id", id).single();
-    expect(Number(saved.data?.budget)).toBe(6_200_000);
-    expect(Number(saved.data?.near_budget_threshold)).toBe(0.85);
+    await expect
+      .poll(async () => {
+        const saved = await client.from("projects").select("budget, near_budget_threshold").eq("id", id).single();
+        return [Number(saved.data?.budget), Number(saved.data?.near_budget_threshold)];
+      })
+      .toEqual([6_200_000, 0.85]);
 
     // … and → Reload shows their version.
     await bumpVersion(id, { site_name: "[F3] Changed by a colleague" });
