@@ -184,6 +184,14 @@ confirmation emails. Connect Brevo:
 3. **Authentication → Rate Limits**: raise "Rate limit for sending emails" from the default to
    something like 100 per hour.
 
+Until this is done, sign-up mostly fails, and the app says so in plain language instead of crashing.
+Observed on 13 Oct 2026: addresses on reserved domains (`@example.com`, `@civpms.test`) are rejected
+as `email_address_invalid` ("This email address can't receive mail"). Real addresses hit the built-in
+mailer's hourly cap (`over_email_send_rate_limit`, shown as "We couldn't send your confirmation
+email just now, so your account wasn't created"). Addresses outside your Supabase organization get
+`email_address_not_authorized` ("email delivery is still being set up"). In every case no account is
+created. "Forgot password" behaves the same way.
+
 ### 6.4 Email and password rules
 
 **Authentication → Sign In / Providers → Email**: keep **Enable Email provider** and **Confirm
