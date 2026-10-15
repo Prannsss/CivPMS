@@ -130,3 +130,47 @@ export const getActivityTrash = cache(async (projectId: string): Promise<TrashIt
     parentDeleted: row.parent_deleted,
   }));
 });
+
+/**
+ * Why a project's plan (WBS + calendar) can't change right now, or null when it can.
+ * The database allows WBS and calendar edits on closed projects (CLAUDE.md pitfalls), so every
+ * WBS / calendar Server Action checks this before calling an RPC.
+ */
+export type PlanLock =
+  | { code: "NOT_FOUND"; message: string }
+  | { code: "FORBIDDEN"; message: string };
+
+export async function planLockFor(supabase: ServerSupabaseClient, projectId: string): Promise<PlanLock | null> {
+  const { data, error } = await supabase.from("projects").select("status").eq("id", projectId).maybeSingle();
+  if (error) throwRead(error);
+  if (!data) {
+    return { code: "NOT_FOUND", message: "We couldn't find this project. It may have been deleted, or you may no longer have access." };
+  }
+  if (data.status === "completed") {
+    return {
+      code: "FORBIDDEN",
+      message: "This project is completed, so its plan is locked. Reopen it from Project settings to make changes.",
+    };
+  }
+  if (data.status === "cancelled") {
+    return { code: "FORBIDDEN", message: "This project is cancelled, so its plan can't be changed." };
+  }
+  return null;
+}
+
+/** True when the (non-deleted) activity belongs to the project. */
+export async function activityInProject(
+  supabase: ServerSupabaseClient,
+  projectId: string,
+  activityId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("activities")
+    .select("id")
+    .eq("id", activityId)
+    .eq("project_id", projectId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throwRead(error);
+  return data !== null;
+}

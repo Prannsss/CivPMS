@@ -20,7 +20,7 @@ import {
 } from "@/lib/domain";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient, type ServerSupabaseClient } from "@/lib/supabase/server";
-import { fetchActivities } from "@/server/queries/wbs";
+import { fetchActivities, planLockFor } from "@/server/queries/wbs";
 
 const dateSchema = z.string().refine(isValidISODate, "Pick a valid date from the calendar.");
 
@@ -141,6 +141,8 @@ export async function previewCalendarChange(input: CalendarDraftInput): Promise<
     const parsed = draftSchema.safeParse(input);
     if (!parsed.success) return fromZodError(parsed.error);
     const supabase = await createClient();
+    const lock = await planLockFor(supabase, parsed.data.projectId);
+    if (lock) return fail(lock.code, lock.message);
     try {
       return ok({ moves: await computeMoves(supabase, parsed.data) });
     } catch (error) {
@@ -164,6 +166,8 @@ export async function saveCalendar(input: CalendarDraftInput): Promise<ActionRes
     if (!parsed.success) return fromZodError(parsed.error);
     const draft = parsed.data;
     const supabase = await createClient();
+    const lock = await planLockFor(supabase, draft.projectId);
+    if (lock) return fail(lock.code, lock.message);
 
     let moves: CalendarMove[];
     try {

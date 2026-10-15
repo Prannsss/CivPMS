@@ -15,7 +15,13 @@ import { hasAtMostDecimals, MAX_MONEY } from "@/lib/domain/money";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient, type ServerSupabaseClient } from "@/lib/supabase/server";
 import { fetchWorkingCalendar } from "@/server/queries/calendar";
-import { ACTIVITY_COLUMNS, toWbsActivity, type WbsActivity } from "@/server/queries/wbs";
+import {
+  ACTIVITY_COLUMNS,
+  activityInProject,
+  planLockFor,
+  toWbsActivity,
+  type WbsActivity,
+} from "@/server/queries/wbs";
 
 const uuid = (what: string) => z.uuid({ error: `Choose a valid ${what}.` });
 
@@ -53,6 +59,14 @@ function revalidateProject(projectId: string) {
 function nullableUuid(value: string | null): string {
   return value as string;
 }
+
+/** Fails when the project is missing, completed or cancelled (the DB alone would allow the edit). */
+async function guardOpenProject(supabase: ServerSupabaseClient, projectId: string) {
+  const lock = await planLockFor(supabase, projectId);
+  return lock ? fail(lock.code, lock.message) : null;
+}
+
+const MOVED_AWAY = "This item was deleted or moved to another project. Reload the page.";
 
 async function hasChildren(supabase: ServerSupabaseClient, activityId: string): Promise<boolean> {
   const { count, error } = await supabase
@@ -111,6 +125,8 @@ export async function createActivity(input: CreateActivityInput): Promise<Action
     if (!parsed.success) return fromZodError(parsed.error);
     const v = parsed.data;
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, v.projectId);
+    if (locked) return locked;
 
     let fields: Record<string, Json> = {};
     let carried = false;
@@ -202,6 +218,8 @@ export async function updateActivity(input: UpdateActivityInput): Promise<Action
     if (!parsed.success) return fromZodError(parsed.error);
     const { projectId, activityId, patch } = parsed.data;
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, projectId);
+    if (locked) return locked;
 
     const { data: row, error: readError } = await supabase
       .from("activities")
@@ -277,6 +295,9 @@ export async function moveActivity(input: MoveActivityInput): Promise<ActionResu
     if (!parsed.success) return fromZodError(parsed.error);
     const v = parsed.data;
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, v.projectId);
+    if (locked) return locked;
+    if (!(await activityInProject(supabase, v.projectId, v.activityId))) return fail("NOT_FOUND", MOVED_AWAY);
     const { data, error } = await supabase.rpc("move_activity", {
       p_activity_id: v.activityId,
       p_new_parent_id: nullableUuid(v.newParentId),
@@ -312,6 +333,11 @@ export async function deleteActivity(input: DeleteActivityInput): Promise<Action
     const parsed = deleteSchema.safeParse(input);
     if (!parsed.success) return fromZodError(parsed.error);
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, parsed.data.projectId);
+    if (locked) return locked;
+    if (!(await activityInProject(supabase, parsed.data.projectId, parsed.data.activityId))) {
+      return fail("NOT_FOUND", MOVED_AWAY);
+    }
     const { data, error } = await supabase.rpc("delete_activity", { p_activity_id: parsed.data.activityId });
     if (error) return failFrom(error);
     const result = (data ?? {}) as { batch_id?: string; name?: string; wbs_code?: string; total?: number };
@@ -336,6 +362,15 @@ export async function restoreActivity(
     const parsed = restoreSchema.safeParse(input);
     if (!parsed.success) return fromZodError(parsed.error);
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, parsed.data.projectId);
+    if (locked) return locked;
+    const { data: trash, error: trashError } = await supabase.rpc("activity_trash", {
+      p_project_id: parsed.data.projectId,
+    });
+    if (trashError) return failFrom(trashError);
+    if (!(trash ?? []).some((row) => row.batch_id === parsed.data.batchId)) {
+      return fail("NOT_FOUND", "This item is no longer in Recently deleted. It may have been restored already.");
+    }
     const { data, error } = await supabase.rpc("restore_activity", { p_batch_id: parsed.data.batchId });
     if (error) return failFrom(error);
     const result = (data ?? {}) as { name?: string; wbs_code?: string; total?: number };
@@ -362,6 +397,8 @@ export async function createSampleStructure(
     if (!parsed.success) return fromZodError(parsed.error);
     const { projectId } = parsed.data;
     const supabase = await createClient();
+    const locked = await guardOpenProject(supabase, projectId);
+    if (locked) return locked;
 
     const [{ data: project, error: projectError }, { count, error: countError }] = await Promise.all([
       supabase.from("projects").select("start_date").eq("id", projectId).maybeSingle(),

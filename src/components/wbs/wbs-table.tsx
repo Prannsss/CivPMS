@@ -28,6 +28,7 @@ import {
   canMoveMessage,
   countWorkingDays,
   flattenTree,
+  formatDate,
   formatDuration,
   formatPercent,
   formatPeso,
@@ -411,7 +412,7 @@ const WbsRow = memo(function WbsRow({
             onCommit={(startDate) => wbs.update(node, { startDate })}
           />
         ) : (
-          <DerivedText className={parentValue}>{r?.startDate ? formatShort(r.startDate) : "—"}</DerivedText>
+          <DerivedText className={parentValue}>{r?.startDate ? formatDate(r.startDate) : "—"}</DerivedText>
         )}
       </td>
 
@@ -453,7 +454,7 @@ const WbsRow = memo(function WbsRow({
             onCommit={(endDate) => wbs.update(node, { endDate })}
           />
         ) : (
-          <DerivedText className={parentValue}>{r?.endDate ? formatShort(r.endDate) : "—"}</DerivedText>
+          <DerivedText className={parentValue}>{r?.endDate ? formatDate(r.endDate) : "—"}</DerivedText>
         )}
       </td>
 
@@ -529,11 +530,4 @@ function DerivedText({ className, children }: { className?: string; children: Re
       {children}
     </span>
   );
-}
-
-/** Compact date for dense cells: "26 Oct 2026". */
-function formatShort(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m) - 1];
-  return `${Number(d)} ${month} ${y}`;
 }

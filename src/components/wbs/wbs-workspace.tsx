@@ -34,8 +34,8 @@ import { WbsTable } from "./wbs-table";
 
 const VIEWS = ["list", "graph"] as const;
 const VIEW_OPTIONS = [
-  { value: "list" as const, label: "List", icon: <List /> },
   { value: "graph" as const, label: "Graph", icon: <Network /> },
+  { value: "list" as const, label: "List", icon: <List /> },
 ];
 const UNIT_OPTIONS = [
   { value: "hours" as const, label: "Hours" },
