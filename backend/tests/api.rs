@@ -367,6 +367,33 @@ async fn rejects_non_images_bombs_and_oversized_files() {
     );
 }
 
+#[tokio::test]
+async fn accepts_webp_gif_and_avif_sources() {
+    let app = TestApp::start(None, &[]).await;
+    let avif_supported = app
+        .state
+        .media
+        .capabilities()
+        .supports(civpms_media::media::sniff::ImageKind::Avif);
+    for ext in ["webp", "gif", "png", "avif"] {
+        if ext == "avif" && !avif_supported {
+            eprintln!("SKIPPED (avif part): this ffmpeg cannot decode AVIF");
+            continue;
+        }
+        let form = Multipart::new().file("file", &format!("in.{ext}"), image(500, 300, ext));
+        let response = app.upload("/v1/media/avatar", &form).await;
+        assert_eq!(
+            response.status,
+            StatusCode::CREATED,
+            "{ext}: {}",
+            String::from_utf8_lossy(&response.bytes)
+        );
+        assert_eq!(response.json()["width"], 256, "{ext}");
+    }
+    let stored = app.supabase.uploads("avatars").await;
+    assert!(stored.iter().all(|(_, _, bytes)| probe(bytes).0 == "webp"));
+}
+
 // ---------------------------------------------------------------------------
 // Project images
 // ---------------------------------------------------------------------------

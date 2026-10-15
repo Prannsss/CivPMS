@@ -50,6 +50,8 @@ pub struct Job<'a> {
     pub orientation: Option<u16>,
     pub preset: Preset,
     pub max_pixels: u64,
+    /// Which video stream of the input is the picture (`[0:v:N]`); see [`super::pick_primary`].
+    pub stream: usize,
     pub main_out: &'a Path,
     pub thumb_out: Option<&'a Path>,
 }
@@ -70,16 +72,18 @@ pub fn filter_graph(job: &Job<'_>) -> String {
     let prefix = orient.map(|f| format!("{f},")).unwrap_or_default();
     match job.preset {
         Preset::Avatar { size, .. } => format!(
-            "[0:v]{prefix}crop=w='min(iw,ih)':h='min(iw,ih)',scale={size}:{size}:flags=lanczos,setsar=1[main]"
+            "[0:v:{stream}]{prefix}crop=w='min(iw,ih)':h='min(iw,ih)',scale={size}:{size}:flags=lanczos,setsar=1[main]",
+            stream = job.stream,
         ),
         Preset::Photo {
             max_edge,
             thumb_edge,
             ..
         } => format!(
-            "[0:v]{prefix}{},setsar=1,split=2[main][t0];[t0]{}[thumb]",
+            "[0:v:{stream}]{prefix}{},setsar=1,split=2[main][t0];[t0]{}[thumb]",
             bounded_scale(max_edge),
             bounded_scale(thumb_edge),
+            stream = job.stream,
         ),
     }
 }
@@ -183,7 +187,12 @@ pub fn ffprobe_args(input: &Path, kind: ImageKind, max_pixels: u64) -> Vec<OsStr
         "-f",
         kind.demuxer(),
         "-select_streams",
-        "v:0",
+        // HEIF/AVIF may carry several pictures (thumbnail, tiles): list them all.
+        if kind.container_orientation() {
+            "v"
+        } else {
+            "v:0"
+        },
         "-show_entries",
         "stream=codec_name,width,height",
         "-of",
@@ -245,6 +254,7 @@ mod tests {
             orientation,
             preset,
             max_pixels: 50_000_000,
+            stream: 0,
             main_out: &main,
             thumb_out: preset.has_thumbnail().then_some(thumb.as_path()),
         };
@@ -282,7 +292,7 @@ mod tests {
         assert!(args.contains(&"file:/tmp/w/thumb.webp".to_owned()));
         let graph = value_after(&args, "-filter_complex").unwrap();
         assert!(
-            graph.starts_with("[0:v]transpose=clock,scale=w='min(1600,iw)'"),
+            graph.starts_with("[0:v:0]transpose=clock,scale=w='min(1600,iw)'"),
             "{graph}"
         );
         assert!(graph.contains("[t0]scale=w='min(400,iw)'"), "{graph}");
@@ -294,7 +304,7 @@ mod tests {
         let graph = value_after(&args, "-filter_complex").unwrap();
         assert_eq!(
             graph,
-            "[0:v]crop=w='min(iw,ih)':h='min(iw,ih)',scale=256:256:flags=lanczos,setsar=1[main]"
+            "[0:v:0]crop=w='min(iw,ih)':h='min(iw,ih)',scale=256:256:flags=lanczos,setsar=1[main]"
         );
         assert_eq!(value_after(&args, "-quality"), Some("82"));
         assert!(!args.iter().any(|a| a.contains("thumb")));

@@ -558,6 +558,11 @@ pub fn image(width: u32, height: u32, ext: &str) -> Vec<u8> {
         ])
         .arg(format!("testsrc2=size={width}x{height}:rate=1"))
         .args(["-frames:v", "1"])
+        .args(if ext == "avif" {
+            &["-c:v", "libaom-av1", "-still-picture", "1"][..]
+        } else {
+            &[]
+        })
         .arg(&out)
         .status()
         .expect("ffmpeg is installed");

@@ -72,18 +72,59 @@ pub enum SelfTest {
     Skipped,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ProbeOutput {
     #[serde(default)]
     streams: Vec<ProbeStream>,
 }
 
-#[derive(Deserialize)]
-struct ProbeStream {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct ProbeStream {
     #[serde(default)]
-    width: u32,
+    pub width: u32,
     #[serde(default)]
-    height: u32,
+    pub height: u32,
+}
+
+/// The picture to decode, chosen from the video streams ffprobe listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Primary {
+    /// Position among the input's video streams (`[0:v:N]`).
+    pub stream: usize,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Why no single picture could be chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickError {
+    /// No decodable picture.
+    Empty,
+    /// A HEIF/AVIF "grid" (iPhone HEIC photos are 512×512 tiles): decoding one stream would
+    /// silently produce a single tile, so it is refused instead.
+    Tiled,
+}
+
+/// Picks the primary picture: the only stream, or the larger of a picture + its embedded
+/// thumbnail. More than two pictures means a tiled image ([`PickError::Tiled`]).
+pub fn pick_primary(streams: &[ProbeStream]) -> Result<Primary, PickError> {
+    let usable: Vec<(usize, &ProbeStream)> = streams
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.width > 0 && s.height > 0)
+        .collect();
+    if usable.len() > 2 {
+        return Err(PickError::Tiled);
+    }
+    usable
+        .into_iter()
+        .max_by_key(|(_, s)| u64::from(s.width) * u64::from(s.height))
+        .map(|(stream, s)| Primary {
+            stream,
+            width: s.width,
+            height: s.height,
+        })
+        .ok_or(PickError::Empty)
 }
 
 impl MediaProcessor {
@@ -241,7 +282,8 @@ impl MediaProcessor {
         };
 
         // Bomb guard #2: ffprobe with -max_pixels (also the only size source for HEIF/AVIF).
-        let (src_w, src_h) = self.probe(input, kind).await?;
+        let primary = self.probe(input, kind).await?;
+        let (src_w, src_h) = (primary.width, primary.height);
         self.check_pixels(src_w, src_h)?;
 
         let orientation = if kind.container_orientation() {
@@ -257,6 +299,7 @@ impl MediaProcessor {
             orientation,
             preset,
             max_pixels: self.max_pixels,
+            stream: primary.stream,
             main_out: &main_out,
             thumb_out: preset.has_thumbnail().then_some(thumb_out.as_path()),
         };
@@ -314,7 +357,7 @@ impl MediaProcessor {
         Ok(())
     }
 
-    async fn probe(&self, input: &Path, kind: ImageKind) -> Result<(u32, u32), AppError> {
+    async fn probe(&self, input: &Path, kind: ImageKind) -> Result<Primary, AppError> {
         let args = transcode::ffprobe_args(input, kind, self.max_pixels);
         let output = tools::run(&self.ffprobe, &args, self.timeout)
             .await
@@ -322,10 +365,23 @@ impl MediaProcessor {
                 tracing::warn!(error = %e, "ffprobe did not finish");
                 AppError::new(ErrorCode::ProcessingFailed, "The image could not be read.")
             })?;
-        let parsed: Option<ProbeOutput> = serde_json::from_slice(&output.stdout).ok();
-        match parsed.and_then(|p| p.streams.into_iter().next()) {
-            Some(s) if s.width > 0 && s.height > 0 => Ok((s.width, s.height)),
-            _ => {
+        let streams = serde_json::from_slice::<ProbeOutput>(&output.stdout)
+            .map(|p| p.streams)
+            .unwrap_or_default();
+        match pick_primary(&streams) {
+            Ok(primary) => Ok(primary),
+            Err(PickError::Tiled) => {
+                tracing::info!(
+                    streams = streams.len(),
+                    kind = kind.label(),
+                    "tiled image refused"
+                );
+                Err(AppError::new(
+                    ErrorCode::UnsupportedMediaType,
+                    "This photo is stored as tiles (common for iPhone HEIC), which this server can't convert yet. Export it as JPEG and try again.",
+                ))
+            }
+            Err(PickError::Empty) => {
                 tracing::info!(stderr = %output.stderr, kind = kind.label(), "ffprobe found no decodable image");
                 if output.stderr.contains("exceeds specified max pixel count") {
                     return Err(AppError::new(
@@ -372,4 +428,50 @@ async fn read_output(path: &Path) -> Result<Encoded, AppError> {
         width,
         height,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const fn stream(width: u32, height: u32) -> ProbeStream {
+        ProbeStream { width, height }
+    }
+
+    #[test]
+    fn picks_the_single_picture() {
+        assert_eq!(
+            pick_primary(&[stream(4032, 3024)]),
+            Ok(Primary {
+                stream: 0,
+                width: 4032,
+                height: 3024
+            })
+        );
+    }
+
+    #[test]
+    fn prefers_the_picture_over_its_thumbnail_in_any_order() {
+        let expected = Ok(Primary {
+            stream: 1,
+            width: 4032,
+            height: 3024,
+        });
+        assert_eq!(
+            pick_primary(&[stream(320, 240), stream(4032, 3024)]),
+            expected
+        );
+        assert_eq!(
+            pick_primary(&[stream(4032, 3024), stream(320, 240)]).map(|p| p.stream),
+            Ok(0)
+        );
+    }
+
+    #[test]
+    fn refuses_tiled_grids_and_empty_probes() {
+        let tiles: Vec<ProbeStream> = (0..48).map(|_| stream(512, 512)).collect();
+        assert_eq!(pick_primary(&tiles), Err(PickError::Tiled));
+        assert_eq!(pick_primary(&[]), Err(PickError::Empty));
+        assert_eq!(pick_primary(&[stream(0, 0)]), Err(PickError::Empty));
+    }
 }
