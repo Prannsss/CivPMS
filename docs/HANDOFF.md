@@ -59,3 +59,20 @@ These exist only inside this cloud container as local commits. If the container 
 4. Run the full e2e suite on the merged branch, walk the golden path (onboard → company → project → WBS → calendar → invite → accept → audit trail), fix.
 5. QA review pass (security/RLS, spec conformance, UX/visual, a11y) and fixes.
 6. Start Phase 2.
+
+## 7. Backend (media + cache service)
+
+Rust service in `backend/` (crate `civpms-media`), owner-deployed to Render; decisions D40–D47, full guide in `backend/README.md`.
+
+| What | State |
+|---|---|
+| Endpoints | `GET /healthz`, `GET /readyz`, `POST /v1/media/avatar`, `POST /v1/media/images` (idempotent `client_id`), `GET /v1/media/signed-url`, cached `GET /v1/projects`, `GET /v1/projects/{id}/summary`, `GET /v1/holidays?year=` |
+| Security | Verifies the Supabase JWT (ES256/JWKS) and forwards the user's own token; no secret key (refused at startup); CORS allow-list; RLS + Storage policies are the boundary |
+| Database | Migration `20261015100000_project_media_bucket.sql` **applied** to `bxfohhwvzbvmyokcsmwq` (version renamed to match the file, statements byte-identical); `supabase/tests/10_project_media_storage.sql` passes on the live DB |
+| Ops | `backend/Dockerfile` (rust:1.97.0-slim-trixie → debian:trixie-slim + ffmpeg + tini, non-root, digests pinned), `render.yaml` (web `civpms-media` + Key Value `civpms-cache`, Singapore, free, auto-deploy off, `KEEPALIVE_ENABLED=false`), `.github/workflows/backend.yml` |
+| Verified | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (84 unit + 23 integration, real redis-server + ffmpeg, wiremock as Supabase), `cargo build --release` (9.4 MB binary), local run (`/healthz` 200, `/readyz` 200 → 503 when Redis stops, clean SIGTERM exit), `backend/scripts/smoke-live.sh` against the live project (avatar 870 KB JPEG → 6.6 KB WebP; 12 MP 7.7 MB JPEG → 359 KB WebP 1600×1200 + 3.6 KB thumb; replay, signed URLs, cleanup) |
+| Not verified | `docker build` (no Docker daemon in the container: layers reproduced by hand), a real Render deploy, HEIC on ffmpeg 7.1 (local ffmpeg is 6.1) |
+
+Owner actions to go live: create the Blueprint from `render.yaml`, set `SUPABASE_PUBLISHABLE_KEY` + `APP_ORIGINS`, then add `NEXT_PUBLIC_MEDIA_API_URL` to Vercel (steps in `backend/README.md` → "Deploy on Render"). Keep-alive stays off unless this becomes the only free service that must stay awake.
+
+Next: F5's profile page should call `POST /v1/media/avatar` when `NEXT_PUBLIC_MEDIA_API_URL` is set and fall back to the direct Supabase upload (contract and snippet in the README); Phase 3 photo features use `/v1/media/images` with a `client_id` per queued item.
