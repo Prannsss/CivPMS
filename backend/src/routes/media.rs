@@ -46,8 +46,21 @@ struct UploadForm {
     kind: Option<String>,
 }
 
+/// True when a body-size limit (ours or axum's) cut the stream, however deeply the
+/// `LengthLimitError` is wrapped.
+fn hit_length_limit(error: &MultipartError) -> bool {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(current) = source {
+        if current.is::<http_body_util::LengthLimitError>() {
+            return true;
+        }
+        source = current.source();
+    }
+    false
+}
+
 fn multipart_error(error: &MultipartError) -> AppError {
-    if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
+    if error.status() == StatusCode::PAYLOAD_TOO_LARGE || hit_length_limit(error) {
         AppError::new(ErrorCode::PayloadTooLarge, "The upload is too large.")
     } else {
         tracing::debug!(error = %error.body_text(), "invalid multipart body");

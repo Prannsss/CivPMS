@@ -23,6 +23,7 @@ bytes = "1.12"
 fastrand = "2.5"
 hex = "0.4"
 http = "1.5"
+http-body-util = "0.1.5"
 infer = { version = "0.22", default-features = false, features = ["std"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
 lru = "0.18"
@@ -45,7 +46,6 @@ uuid = { version = "1.28", features = ["serde", "v4"] }
 
 [dev-dependencies]
 base64 = "0.23"
-http-body-util = "0.1.5"
 p256 = { version = "0.14", features = ["ecdsa", "pkcs8"] }
 wiremock = "0.6.5"
 
