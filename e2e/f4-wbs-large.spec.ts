@@ -52,13 +52,19 @@ test("560 rows render windowed and stay responsive", async ({ page, context }) =
     const table = page.getByTestId("wbs-table");
     await expect(table).toHaveAttribute("data-virtual", "true");
     await expect(page.getByTestId("wbs-allocated")).toHaveText("₱5,000,000.00");
+    await expect(page.locator('[data-testid=wbs-row][data-wbs-code="1.1.1"]')).toBeVisible();
     const rendered = await page.getByTestId("wbs-row").count();
     expect(rendered).toBeGreaterThan(5);
     expect(rendered).toBeLessThan(120);
 
     // Scrolling to the end brings the last rows in.
-    await table.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-    await expect(page.locator('[data-testid=wbs-row][data-wbs-code="10.5.10"]')).toBeVisible();
+    const lastRow = page.locator('[data-testid=wbs-row][data-wbs-code="10.5.10"]');
+    await expect
+      .poll(async () => {
+        await table.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+        return lastRow.isVisible();
+      })
+      .toBe(true);
 
     await page.getByRole("button", { name: "Collapse all" }).click();
     await expect(page.getByTestId("wbs-row")).toHaveCount(10);

@@ -105,6 +105,8 @@ export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filt
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 52,
     overscan: 12,
+    // Render the first screenful on the server and before the container is measured (no empty flash).
+    initialRect: { width: 1080, height: 900 },
     getItemKey: (i) => rows[i]?.id ?? i,
   });
   const virtualItems = virtual ? virtualizer.getVirtualItems() : [];
