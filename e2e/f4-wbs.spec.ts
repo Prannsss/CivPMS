@@ -51,6 +51,21 @@ async function openWbs(page: Page, projectId: string, view: "list" | "graph" = "
   await expect(page.getByRole("heading", { level: 1, name: "Work Breakdown" })).toBeVisible();
 }
 
+/** Drags a row's handle onto another row (dy: offset inside the target row, dx: sideways = level). */
+async function drag(page: Page, fromCode: string, toCode: string, offset: { dx?: number; dy: number }) {
+  const handle = row(page, fromCode).getByRole("button", { name: new RegExp(`^Drag ${fromCode.replace(/\./g, "\\.")} `) });
+  await row(page, toCode).scrollIntoViewIfNeeded();
+  await handle.scrollIntoViewIfNeeded();
+  const from = (await handle.boundingBox())!;
+  const to = (await row(page, toCode).boundingBox())!;
+  const x = from.x + from.width / 2;
+  await page.mouse.move(x, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, from.y + from.height / 2 + (to.y > from.y ? 10 : -10), { steps: 5 });
+  await page.mouse.move(x + (offset.dx ?? 0), to.y + offset.dy, { steps: 12 });
+  await page.mouse.up();
+}
+
 async function addViaDialog(page: Page, fields: { name: string; duration?: string; cost?: string }) {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(fields.name);
@@ -69,6 +84,9 @@ test.describe("WBS — managers", () => {
 
   test.beforeAll(async () => {
     project = await createF4Project("WBS flows", 1_000_000);
+    // Durations typed in these specs are hours; a previous run may have left "days" on the profile.
+    const owner = await supabaseAs(F4_OWNER);
+    await owner.client.rpc("update_profile", { p_patch: { duration_unit: "hours" } });
   });
   test.afterAll(async () => {
     if (project) await deleteF4Project(project.id);
@@ -195,6 +213,7 @@ test.describe("WBS — managers", () => {
     await rowMenu(page, "1.2", /Delete/);
     await page.getByRole("alertdialog").getByRole("button", { name: /^Delete/ }).click();
     await expect(row(page, "1.2")).toHaveCount(0);
+    await expect(toastWith(page, "Deleted 1.2 [F4] Drainage")).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: /Recently deleted/ }).click();
     const trash = page.getByTestId("wbs-trash");
@@ -213,28 +232,16 @@ test.describe("WBS — managers", () => {
     await expect(row(page, "2")).toContainText("[F4] Roadworks");
 
     // Drag deliverable 2 above deliverable 1.
-    const handle = row(page, "2").getByRole("button", { name: /^Drag 2 / });
-    const target = row(page, "1");
-    const from = (await handle.boundingBox())!;
-    const to = (await target.boundingBox())!;
-    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-    console.log("DBG", await page.evaluate(([x, y]) => {
-      const el = document.elementFromPoint(x, y);
-      (window as unknown as { __ev: string[] }).__ev = [];
-      for (const t of ["pointerdown", "pointermove", "pointerup", "mousedown"]) {
-        document.addEventListener(t, (e) => (window as unknown as { __ev: string[] }).__ev.push(t + ":" + (e as PointerEvent).button), true);
-      }
-      return el?.outerHTML.slice(0, 200);
-    }, [from.x + from.width / 2, from.y + from.height / 2]));
-    await page.mouse.down();
-    await page.mouse.move(from.x + from.width / 2, from.y - 10, { steps: 5 });
-    await page.mouse.move(from.x + from.width / 2, to.y + 4, { steps: 12 });
-    console.log("DBG2", await page.evaluate(() => (window as unknown as { __ev: string[] }).__ev.slice(0, 8).join(",")));
-    await page.mouse.up();
+    await drag(page, "2", "1", { dy: 4 });
     await expect(toastWith(page, "Moved to 1")).toBeVisible();
     await expect(row(page, "1")).toContainText("[F4] Roadworks");
     await toastWith(page, "Moved to 1").getByRole("button", { name: "Undo" }).click();
     await expect(row(page, "2")).toContainText("[F4] Roadworks");
+
+    // 1 [F4] Earthworks has three levels, so it can't go under another deliverable.
+    await drag(page, "1", "2", { dy: 40, dx: 60 });
+    await expect(toastWith(page, "Can't move it there")).toBeVisible();
+    await expect(row(page, "1")).toContainText("[F4] Earthworks");
   });
 
   test("Hours | Days is saved to the profile; graph view is remembered", async ({ page, context }) => {

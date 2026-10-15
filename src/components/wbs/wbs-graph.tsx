@@ -101,7 +101,16 @@ function buildGraph(
   const edges: Edge[] = [];
   for (const placed of layout.nodes) {
     const position = { x: placed.x, y: placed.y };
-    const common = { position, width: NODE_W, height: NODE_H, draggable: false, selectable: false };
+    // React Flow turns pointer events off for nodes that are neither draggable nor selectable;
+    // the cards still need them for the actions menu and the collapse toggle.
+    const common = {
+      position,
+      width: NODE_W,
+      height: NODE_H,
+      draggable: false,
+      selectable: false,
+      style: { pointerEvents: "all" as const },
+    };
     if (placed.id === ROOT_ID) {
       nodes.push({
         ...common,
