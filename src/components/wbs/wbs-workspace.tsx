@@ -240,7 +240,7 @@ export function WbsWorkspace({
         <PageHeader
           className="pb-0 sm:pb-0"
           title="Work Breakdown"
-          description="Deliverables, sub-deliverables and work packages. Parents roll up dates, hours, cost and progress from their work packages."
+          description="Deliverables, sub-deliverables and work packages. Parents roll up from their work packages."
           actions={
             <>
               <SegmentedControl
@@ -298,6 +298,11 @@ export function WbsWorkspace({
               onOpenTrash={() => setTrashOpen(true)}
               showFilter={view === "list"}
             />
+            {view === "list" ? (
+              <p className="-mt-1 text-xs leading-4 text-muted-foreground sm:hidden">
+                Swipe the table sideways to see and edit every column.
+              </p>
+            ) : null}
             {view === "list" ? (
               <WbsTable
                 roots={roots}

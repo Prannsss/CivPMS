@@ -245,25 +245,34 @@ function TopFit({
   height: number;
 }) {
   const { setViewport } = useReactFlow();
+  /**
+   * "width": readable cards (≥ 50 % zoom) anchored at the top with the project card centred; the
+   * rest of the tree is a pan or scroll away. "all": the whole tree, however small.
+   */
   const fit = useCallback(
-    (duration: number) => {
+    (mode: "width" | "all", duration: number) => {
       const box = containerRef.current?.getBoundingClientRect();
       if (!box || box.width === 0) return;
       const pad = 32;
-      const zoom = Math.max(0.35, Math.min(1, (box.width - pad * 2) / width, (box.height - pad * 2) / height));
-      const x = width * zoom <= box.width - pad * 2 ? (box.width - width * zoom) / 2 : pad;
+      const zoomW = (box.width - pad * 2) / width;
+      const zoomH = (box.height - pad * 2) / height;
+      const zoom =
+        mode === "all"
+          ? Math.max(0.2, Math.min(1, zoomW, zoomH))
+          : Math.max(0.5, Math.min(1, zoomW));
+      const x = (box.width - width * zoom) / 2;
       void setViewport({ x, y: pad, zoom }, { duration });
     },
     [containerRef, width, height, setViewport],
   );
   // `fit` changes only when the tree's size changes (collapse/expand, add/remove), not on value edits.
   useEffect(() => {
-    const frame = requestAnimationFrame(() => fit(0));
+    const frame = requestAnimationFrame(() => fit("width", 0));
     return () => cancelAnimationFrame(frame);
   }, [fit]);
   return (
     <Controls showInteractive={false} showFitView={false} position="bottom-left" aria-label="Zoom controls">
-      <ControlButton onClick={() => fit(200)} aria-label="Fit the whole tree" title="Fit the whole tree">
+      <ControlButton onClick={() => fit("all", 200)} aria-label="Fit the whole tree" title="Fit the whole tree">
         <Fullscreen />
       </ControlButton>
     </Controls>

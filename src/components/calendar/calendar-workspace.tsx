@@ -210,7 +210,7 @@ export function CalendarWorkspace({
       <PageHeader
         className="pb-0 sm:pb-0"
         title="Calendar"
-        description="Working days, hours per day, holidays and site exceptions. Work package end dates follow this calendar."
+        description="Working days, hours, holidays and site exceptions. Work package end dates follow this calendar."
       />
 
       {lock ? (
@@ -228,14 +228,14 @@ export function CalendarWorkspace({
         </div>
         <fieldset className="flex min-w-0 flex-col gap-3">
           <legend className="mb-3 text-[13px] leading-5 font-medium text-foreground">Working days</legend>
-          <div className="grid max-w-3xl grid-cols-4 gap-2 sm:grid-cols-7">
+          <div className="grid max-w-3xl grid-cols-4 gap-1.5 sm:grid-cols-7 sm:gap-2">
             {WEEKDAYS.map((w) => {
               const checked = draft.workDays.includes(w.day);
               return (
                 <label
                   key={w.day}
                   className={cn(
-                    "flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                    "flex min-h-11 items-center gap-1.5 rounded-md border px-2 text-sm font-medium sm:gap-2 sm:px-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
                     checked ? "border-primary/40 bg-primary-soft text-foreground" : "border-border bg-surface text-muted-foreground",
                     canEdit ? "cursor-pointer" : "cursor-default",
                   )}

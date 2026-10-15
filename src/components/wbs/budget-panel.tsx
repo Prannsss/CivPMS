@@ -5,7 +5,7 @@
  * Recomputes while a cost is being typed, so the bar moves before anything is saved.
  */
 import { memo, useMemo } from "react";
-import { CalendarRange, Layers, Scale, TrendingUp } from "lucide-react";
+import { CalendarRange, Layers, Scale, TrendingUp, TriangleAlert } from "lucide-react";
 import { Meter } from "@/components/ui";
 import {
   budgetAllocation,
@@ -21,7 +21,6 @@ import {
   type ISODate,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
-import { Notice } from "./notice";
 import type { WbsActivity } from "./types";
 
 export type BudgetPanelProps = {
@@ -54,7 +53,7 @@ export const BudgetPanel = memo(function BudgetPanel({
       : `${formatPeso(-allocation.remaining)} over budget`;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col">
       <div
         data-testid="wbs-budget"
         data-state={allocation.state}
@@ -102,36 +101,63 @@ export const BudgetPanel = memo(function BudgetPanel({
           {formatPercent(totals.percent)}
           <Sub>Weighted by {weighting === "cost" ? "cost" : "hours"}</Sub>
         </Stat>
-        {totals.usedFallbackWeight ? (
-          <p
-            data-testid="wbs-fallback"
-            className="col-span-3 -mb-1 flex items-start gap-2 border-t border-border pt-3 text-xs leading-[1.125rem] text-muted-foreground lg:col-span-4"
-          >
-            <Scale aria-hidden className="mt-px size-3.5 shrink-0 text-primary-text" />
-            <span>
-              <span className="font-medium text-foreground">Progress is less precise for some work packages.</span>{" "}
-              They have no {weighting === "cost" ? "estimated cost" : "duration"} yet, so they are weighted by{" "}
-              {weighting === "cost" ? "hours" : "cost"} or equally. Add{" "}
-              {weighting === "cost" ? "costs" : "durations"} to make the percentages accurate.
-            </span>
-          </p>
+        {allocation.state !== "ok" || totals.usedFallbackWeight ? (
+          <ul className="col-span-3 -mb-1 flex flex-col gap-2 border-t border-border pt-3 lg:col-span-4">
+            {allocation.state === "exceeded" ? (
+              <Note tone="danger" testId="wbs-budget-warning" title={`Over budget by ${formatPeso(-allocation.remaining)}.`}>
+                Changes still save. Lower some work package costs or raise the budget in Project settings.
+              </Note>
+            ) : allocation.state === "near" ? (
+              <Note tone="warning" testId="wbs-budget-warning" title="Close to the budget limit.">
+                {Math.round(allocation.ratio * 100)}% is allocated, so {formatPeso(allocation.remaining)} is left for any
+                work not costed yet.
+              </Note>
+            ) : null}
+            {totals.usedFallbackWeight ? (
+              <Note tone="info" testId="wbs-fallback" title="Progress is less precise for some work packages.">
+                They have no {weighting === "cost" ? "estimated cost" : "duration"} yet, so they are weighted by{" "}
+                {weighting === "cost" ? "hours" : "cost"} or equally. Add {weighting === "cost" ? "costs" : "durations"}{" "}
+                to make the percentages accurate.
+              </Note>
+            ) : null}
+          </ul>
         ) : null}
       </div>
-
-      {allocation.state === "exceeded" ? (
-        <Notice tone="danger" title={`Over budget by ${formatPeso(-allocation.remaining)}`} data-testid="wbs-budget-warning">
-          Changes still save. Lower some work package costs or raise the budget in Project settings.
-        </Notice>
-      ) : allocation.state === "near" ? (
-        <Notice tone="warning" title="Close to the budget limit" data-testid="wbs-budget-warning">
-          {Math.round(allocation.ratio * 100)}% is allocated — {formatPeso(allocation.remaining)} is left for any work
-          not costed yet.
-        </Notice>
-      ) : null}
-
     </div>
   );
 });
+
+const NOTE_TONES = {
+  danger: { Icon: TriangleAlert, icon: "text-danger-text", title: "text-danger-text" },
+  warning: { Icon: TriangleAlert, icon: "text-warning-text", title: "text-warning-text" },
+  info: { Icon: Scale, icon: "text-primary-text", title: "text-foreground" },
+} as const;
+
+function Note({
+  tone,
+  title,
+  testId,
+  children,
+}: {
+  tone: keyof typeof NOTE_TONES;
+  title: string;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  const t = NOTE_TONES[tone];
+  return (
+    <li
+      data-testid={testId}
+      role={tone === "info" ? undefined : "status"}
+      className="flex items-start gap-2 text-xs leading-[1.125rem] text-muted-foreground"
+    >
+      <t.Icon aria-hidden className={cn("mt-px size-3.5 shrink-0", t.icon)} />
+      <span>
+        <span className={cn("font-medium", t.title)}>{title}</span> {children}
+      </span>
+    </li>
+  );
+}
 
 function Stat({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (

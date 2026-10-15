@@ -29,6 +29,7 @@ import {
   countWorkingDays,
   flattenTree,
   formatDate,
+  formatDateRange,
   formatDuration,
   formatPercent,
   formatPeso,
@@ -305,6 +306,16 @@ const WbsRow = memo(function WbsRow({
   const code = `${node.wbsCode} ${node.name}`;
   const derivedDelayed = isLeaf && r?.hasDelayed && node.status !== "delayed";
   const levelText = isLeaf && node.level > 1 ? "Work package" : levelLabel(node.level);
+  // Phones see only the first columns without scrolling, so repeat the key values under the name.
+  const mobileSummary = r
+    ? [
+        r.startDate && r.endDate ? formatDateRange(r.startDate, r.endDate) : null,
+        r.hours > 0 ? formatDuration(r.hours, wbs.unit, hpd) : null,
+        r.cost > 0 ? formatPeso(r.cost) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   const cellBg = "bg-inherit";
   const parentValue = "font-medium text-foreground";
@@ -382,7 +393,7 @@ const WbsRow = memo(function WbsRow({
             >
               <span
                 className={cn(
-                  "min-w-0 truncate",
+                  "line-clamp-2 min-w-0 leading-5 break-words",
                   node.level === 1 && "font-semibold text-foreground",
                   node.level === 2 && "font-medium text-foreground",
                   node.level >= 3 && "text-foreground",
@@ -396,6 +407,11 @@ const WbsRow = memo(function WbsRow({
             {!isLeaf && r ? (
               <span className="truncate pl-0 text-xs leading-4 text-muted-foreground italic">
                 from {pluralize(r.leafCount, "work package")}
+              </span>
+            ) : null}
+            {mobileSummary ? (
+              <span className="truncate text-xs leading-4 text-muted-foreground tabular-nums sm:hidden">
+                {mobileSummary}
               </span>
             ) : null}
           </div>
