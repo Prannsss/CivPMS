@@ -1,0 +1,48 @@
+# Render Blueprint for the CivPMS media + cache service (backend/).
+# The Next.js app is deployed on Vercel and is NOT part of this Blueprint.
+# Step-by-step deploy guide: backend/README.md → "Deploy on Render".
+services:
+  - type: web
+    name: civpms-media
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: singapore # same region as the Supabase project (ap-southeast-1)
+    plan: free
+    healthCheckPath: /healthz
+    # Deploys are manual (Render Dashboard → Manual Deploy). If you turn auto-deploy on
+    # (commit | checksPass), only changes under backend/ trigger a build:
+    autoDeployTrigger: "off"
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      - key: SUPABASE_URL
+        value: https://bxfohhwvzbvmyokcsmwq.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY # publishable key only; the service refuses secret keys
+        sync: false
+      - key: APP_ORIGINS # e.g. https://civpms.vercel.app,https://www.your-domain.ph
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: civpms-cache
+          property: connectionString
+      # Off on the free plan: the 750 free instance-hours/month are shared with the owner's
+      # other free services. See backend/README.md → "Keep-alive".
+      - key: KEEPALIVE_ENABLED
+        value: "false"
+      - key: MAX_UPLOAD_MB
+        value: "15"
+      # The free instance has 512 MB RAM: decode one photo at a time.
+      - key: FFMPEG_CONCURRENCY
+        value: "1"
+      - key: RUST_LOG
+        value: info
+
+  - type: keyvalue
+    name: civpms-cache
+    region: singapore
+    plan: free # 25 MB, no persistence: everything stored is a cache or a 24 h replay record
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # no external access; reachable only from services in this workspace
