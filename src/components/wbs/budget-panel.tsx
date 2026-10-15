@@ -10,6 +10,7 @@ import { Meter } from "@/components/ui";
 import {
   budgetAllocation,
   buildTree,
+  formatDate,
   formatDateRange,
   formatDuration,
   formatPercent,
@@ -90,7 +91,11 @@ export const BudgetPanel = memo(function BudgetPanel({
           <Sub>{pluralize(totals.leafCount, "work package")}</Sub>
         </Stat>
         <Stat icon={<CalendarRange />} label="Schedule">
-          {totals.startDate ? formatDateRange(totals.startDate, totals.endDate) : "Not scheduled yet"}
+          {totals.startDate && totals.endDate
+            ? formatDateRange(totals.startDate, totals.endDate)
+            : totals.startDate
+              ? `From ${formatDate(totals.startDate)}`
+              : "Not scheduled yet"}
           <Sub>{totals.hours > 0 ? `${formatDuration(totals.hours, unit, hoursPerDay)} of work` : "No durations yet"}</Sub>
         </Stat>
         <Stat icon={<TrendingUp />} label="Progress">

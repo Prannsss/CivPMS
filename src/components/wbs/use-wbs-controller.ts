@@ -82,7 +82,10 @@ export function useWbsController({
   }, []);
 
   const replaceRecord = useCallback((activity: WbsActivity) => {
-    setRecords((prev) => prev.map((r) => (r.id === activity.id ? { ...r, ...activity } : r)));
+    // Update the ref right away: a queued save on the same row reads the new version next.
+    const next = recordsRef.current.map((r) => (r.id === activity.id ? { ...r, ...activity } : r));
+    recordsRef.current = next;
+    setRecords(next);
   }, []);
 
   const warnIfBudgetCrossed = useCallback(
@@ -103,38 +106,46 @@ export function useWbsController({
   );
 
   /** Inline edit of one activity (name, dates, duration, cost). Returns true when saved. */
+  /** Saves on the same activity run one after another, so each uses the version the last one returned. */
+  const queues = useRef(new Map<string, Promise<boolean>>());
+
   const update = useCallback(
     (activity: WbsActivity, patch: ActivityPatch): Promise<boolean> => {
-      const attempt = async (overwrite: boolean): Promise<boolean> => {
-        const before = recordsRef.current;
-        // Instant feedback: apply the same schedule rules the server will apply.
-        let optimistic: WbsActivity = { ...activity };
-        if (patch.name !== undefined) optimistic.name = patch.name;
-        if (patch.estCost !== undefined) optimistic.estCost = patch.estCost;
-        const schedulePatch: SchedulePatch = {};
-        if (patch.startDate !== undefined) schedulePatch.startDate = patch.startDate;
-        if (patch.durationHours !== undefined) schedulePatch.durationHours = patch.durationHours;
-        if (patch.endDate !== undefined) schedulePatch.endDate = patch.endDate;
-        if (calendarIndex && Object.keys(schedulePatch).length > 0) {
-          const resolved = resolveLeafSchedule(calendarIndex, activity, schedulePatch);
-          if (!resolved.ok) {
-            toast.error("Couldn't save that change", { description: resolved.message });
-            return false;
-          }
-          optimistic = { ...optimistic, ...resolved.schedule };
-        }
-        const after = before.map((r) => (r.id === activity.id ? optimistic : r));
-        setRecords(after);
-        setBusy(activity.id, true);
+      const id = activity.id;
+      const latest = () => recordsRef.current.find((r) => r.id === id) ?? activity;
+      const original = latest();
 
+      // Instant feedback: apply the same schedule rules the server will apply.
+      let optimistic: WbsActivity = { ...original };
+      if (patch.name !== undefined) optimistic.name = patch.name;
+      if (patch.estCost !== undefined) optimistic.estCost = patch.estCost;
+      const schedulePatch: SchedulePatch = {};
+      if (patch.startDate !== undefined) schedulePatch.startDate = patch.startDate;
+      if (patch.durationHours !== undefined) schedulePatch.durationHours = patch.durationHours;
+      if (patch.endDate !== undefined) schedulePatch.endDate = patch.endDate;
+      if (calendarIndex && Object.keys(schedulePatch).length > 0) {
+        const resolved = resolveLeafSchedule(calendarIndex, original, schedulePatch);
+        if (!resolved.ok) {
+          toast.error("Couldn't save that change", { description: resolved.message });
+          return Promise.resolve(false);
+        }
+        optimistic = { ...optimistic, ...resolved.schedule };
+      }
+      const before = recordsRef.current;
+      const after = before.map((r) => (r.id === id ? optimistic : r));
+      recordsRef.current = after;
+      setRecords(after);
+
+      const attempt = async (overwrite: boolean): Promise<boolean> => {
+        setBusy(id, true);
         const result = await updateActivity({
           projectId: project.id,
-          activityId: activity.id,
-          expectedVersion: activity.version,
+          activityId: id,
+          expectedVersion: latest().version,
           overwrite,
           patch,
         });
-        setBusy(activity.id, false);
+        setBusy(id, false);
 
         if (result.ok) {
           replaceRecord(result.data.activity);
@@ -147,7 +158,7 @@ export function useWbsController({
           return true;
         }
 
-        setRecords((prev) => prev.map((r) => (r.id === activity.id ? activity : r)));
+        setRecords((prev) => prev.map((r) => (r.id === id ? { ...original, version: latest().version } : r)));
         if (result.error.code === "STALE_VERSION") {
           const keepMine = await confirm({
             title: "Changed by someone else just now",
@@ -155,14 +166,24 @@ export function useWbsController({
             confirmLabel: "Keep mine",
             cancelLabel: "Reload",
           });
-          if (keepMine) return attempt(true);
+          if (keepMine) {
+            setRecords((prev) => prev.map((r) => (r.id === id ? { ...optimistic, version: latest().version } : r)));
+            return attempt(true);
+          }
           startTransition(() => router.refresh());
           return false;
         }
         toast.error("Couldn't save that change", { description: result.error.message });
         return false;
       };
-      return attempt(false);
+
+      const previous = queues.current.get(id) ?? Promise.resolve(true);
+      const next = previous.then(
+        () => attempt(false),
+        () => attempt(false),
+      );
+      queues.current.set(id, next);
+      return next;
     },
     [calendarIndex, confirm, project.id, replaceRecord, router, setBusy, warnIfBudgetCrossed],
   );

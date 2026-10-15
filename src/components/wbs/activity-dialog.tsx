@@ -104,7 +104,10 @@ function ActivityForm({
   const childLabel = parent ? (childLevelLabel(parent.level) ?? "Work package") : "Deliverable";
 
   const [name, setName] = useState(isRename ? mode.node.name : "");
-  const [startDate, setStartDate] = useState(parent?.startDate ?? projectStart);
+  // Empty by default so an item without a schedule doesn't get a stray start date; a duration
+  // without a start date starts on the parent's (or the project's) start.
+  const defaultStart = parent?.startDate ?? projectStart;
+  const [startDate, setStartDate] = useState("");
   const [duration, setDuration] = useState("");
   const [cost, setCost] = useState<number | null>(null);
   const [carry, setCarry] = useState(true);
@@ -147,7 +150,7 @@ function ActivityForm({
       ...(carryNow
         ? {}
         : {
-            startDate: startDate || null,
+            startDate: startDate || (durationHours !== null ? defaultStart : null),
             durationHours,
             estCost: cost,
           }),
@@ -219,7 +222,11 @@ function ActivityForm({
             Add them now or later in the list. The end date is worked out from the project calendar.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Start date" error={errors.startDate || undefined}>
+            <Field
+              label="Start date"
+              error={errors.startDate || undefined}
+              hint={`Empty = ${formatDate(defaultStart)} when a duration is set`}
+            >
               <DateInput value={startDate} onValueChange={setStartDate} />
             </Field>
             <Field
