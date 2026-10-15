@@ -8,3 +8,6 @@ target/
 scripts/
 Dockerfile
 .dockerignore
+tests/
+README.md
+*.md
