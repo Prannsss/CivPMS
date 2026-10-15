@@ -1,0 +1,10 @@
+# Keep the Docker build context small and free of local state.
+target/
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+scripts/
+Dockerfile
+.dockerignore
