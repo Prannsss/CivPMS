@@ -5,7 +5,7 @@
  * live budget allocation, read-only banners, the list (inline edit, drag & drop) or graph view,
  * add / rename dialogs, delete with Undo and the "Recently deleted" panel.
  */
-import { memo, useCallback, useMemo, useState, useTransition } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronsDownUp, ChevronsUpDown, History, List, Network, Plus, Search, X } from "lucide-react";
 import { Button, IconButton, Input, PageHeader, SegmentedControl, toast } from "@/components/ui";
 import {
@@ -88,6 +88,16 @@ export function WbsWorkspace({
     [roots, project.weighting, today],
   );
 
+  // Handlers read the latest tree through refs, so they stay stable across edits and the memoised
+  // rows don't all re-render after every save (500+ rows stay smooth).
+  const rootsRef = useRef(roots);
+  const recordsRef = useRef(records);
+  useEffect(() => {
+    rootsRef.current = roots;
+    recordsRef.current = records;
+  }, [roots, records]);
+  const fresh = useCallback((node: WbsNode): WbsNode => findNode(rootsRef.current, node.id) ?? node, []);
+
   const [view, setView] = useStoredChoice<WbsView>("civpms.wbs.view", VIEWS, "list");
   const [unit, setUnit] = useState<DurationUnit>(durationUnit);
   const [, startUnitTransition] = useTransition();
@@ -147,7 +157,9 @@ export function WbsWorkspace({
   const { move, remove, update, create } = controller;
 
   const moveAvailability = useCallback(
-    (node: WbsNode): MoveAvailability => {
+    (stale: WbsNode): MoveAvailability => {
+      const roots = rootsRef.current;
+      const node = fresh(stale);
       const siblings = siblingList(roots, node.parentId);
       const index = siblings.findIndex((s) => s.id === node.id);
       const previous = index > 0 ? siblings[index - 1] : undefined;
@@ -169,11 +181,14 @@ export function WbsWorkspace({
             : { ok: true },
       };
     },
-    [roots],
+    [fresh],
   );
 
   const moveBy = useCallback(
-    (node: WbsNode, command: MoveCommand) => {
+    (stale: WbsNode, command: MoveCommand) => {
+      const roots = rootsRef.current;
+      const records = recordsRef.current;
+      const node = fresh(stale);
       const availability = moveAvailability(node);
       const state = availability[command];
       if (!state.ok) {
@@ -193,7 +208,7 @@ export function WbsWorkspace({
         void move(node, parent.parentId, parentIndex + 1);
       }
     },
-    [moveAvailability, move, records, roots],
+    [moveAvailability, move, fresh],
   );
 
   const onMove = useCallback(
@@ -208,22 +223,24 @@ export function WbsWorkspace({
       hoursPerDay: calendar.hoursPerDay,
       calendarIndex,
       update: (activity, patch) => update(activity, patch),
-      addChild: (node) => setDialog({ kind: "create", parent: node }),
-      addSibling: (node) =>
+      addChild: (node) => setDialog({ kind: "create", parent: fresh(node) }),
+      addSibling: (stale) => {
+        const node = fresh(stale);
         setDialog({
           kind: "create",
-          parent: node.parentId ? findNode(roots, node.parentId) : null,
-          index: indexAmongSiblings(records, node.id) + 1,
+          parent: node.parentId ? findNode(rootsRef.current, node.parentId) : null,
+          index: indexAmongSiblings(recordsRef.current, node.id) + 1,
           label: node.parentId ? nodeLabel(node) : undefined,
-        }),
-      rename: (node) => setDialog({ kind: "rename", node }),
-      remove: (node) => void remove(node),
+        });
+      },
+      rename: (node) => setDialog({ kind: "rename", node: fresh(node) }),
+      remove: (node) => void remove(fresh(node)),
       moveBy,
       moveAvailability,
       toggle,
       draftCost,
     }),
-    [canEdit, unit, calendar.hoursPerDay, calendarIndex, update, roots, records, remove, moveBy, moveAvailability, toggle, draftCost],
+    [canEdit, unit, calendar.hoursPerDay, calendarIndex, update, fresh, remove, moveBy, moveAvailability, toggle, draftCost],
   );
 
   const projectRecords = useMemo(() => {

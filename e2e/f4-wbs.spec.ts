@@ -105,7 +105,7 @@ test.describe("WBS — managers", () => {
     await expect(row(page, "1")).toContainText("[F4] Earthworks");
 
     // Child work package: 16 h starting Mon 12 Oct 2026 ends Tue 13 Oct (D20).
-    await rowMenu(page, "1", /Add sub-deliverable/);
+    await rowMenu(page, "1", /Add sub-deliverable inside/);
     await addViaDialog(page, { name: "[F4] Excavation", duration: "16", cost: "250000" });
     await expect(row(page, "1.1")).toContainText("13 Oct 2026");
     await expect(row(page, "1.1")).toContainText("₱250,000.00");
@@ -148,7 +148,7 @@ test.describe("WBS — managers", () => {
   test("D21: a work package's first child can take over its values", async ({ page, context }) => {
     await loginAs(context, F4_OWNER);
     await openWbs(page, project.id);
-    await rowMenu(page, "1.1", /Add work package/);
+    await rowMenu(page, "1.1", /Add work package inside/);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("will become a parent");
     await expect(dialog.getByRole("checkbox", { name: /Move them to this new/ })).toBeChecked();

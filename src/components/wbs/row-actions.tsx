@@ -38,7 +38,6 @@ export function RowActions({ node, className, size = "sm" }: { node: WbsNode; cl
   if (!wbs.canEdit) return null;
   const childLabel = childLevelLabel(node.level);
   const ownLabel = nodeLabel(node);
-  const availability = wbs.moveAvailability(node);
 
   return (
     <DropdownMenu>
@@ -59,7 +58,7 @@ export function RowActions({ node, className, size = "sm" }: { node: WbsNode; cl
         </DropdownMenuLabel>
         {childLabel ? (
           <DropdownMenuItem onSelect={() => wbs.addChild(node)}>
-            <Plus /> Add {childLabel.toLowerCase()}
+            <Plus /> Add {childLabel.toLowerCase()} inside
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onSelect={() => wbs.addSibling(node)}>
@@ -69,28 +68,39 @@ export function RowActions({ node, className, size = "sm" }: { node: WbsNode; cl
           <Pencil /> Rename
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {MOVE_ITEMS.map((item) => {
-          const state = availability[item.command];
-          return (
-            <DropdownMenuItem
-              key={item.command}
-              disabled={!state.ok}
-              onSelect={() => wbs.moveBy(node, item.command)}
-              title={state.ok ? undefined : state.reason}
-            >
-              {item.icon}
-              <span className="flex min-w-0 flex-col">
-                <span>{item.label}</span>
-                {!state.ok ? <span className="text-xs text-pretty text-muted-foreground">{state.reason}</span> : null}
-              </span>
-            </DropdownMenuItem>
-          );
-        })}
+        <MoveItems node={node} />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="danger" onSelect={() => wbs.remove(node)}>
           <Trash2 /> Delete {ownLabel.toLowerCase()}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Rendered only while the menu is open, so the move checks don't run for every row on every render. */
+function MoveItems({ node }: { node: WbsNode }) {
+  const wbs = useWbs();
+  const availability = wbs.moveAvailability(node);
+  return (
+    <>
+      {MOVE_ITEMS.map((item) => {
+        const state = availability[item.command];
+        return (
+          <DropdownMenuItem
+            key={item.command}
+            disabled={!state.ok}
+            onSelect={() => wbs.moveBy(node, item.command)}
+            title={state.ok ? undefined : state.reason}
+          >
+            {item.icon}
+            <span className="flex min-w-0 flex-col">
+              <span>{item.label}</span>
+              {!state.ok ? <span className="text-xs text-pretty text-muted-foreground">{state.reason}</span> : null}
+            </span>
+          </DropdownMenuItem>
+        );
+      })}
+    </>
   );
 }

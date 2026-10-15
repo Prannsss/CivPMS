@@ -139,7 +139,11 @@ export function TextCell({
             invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
             className="h-9 sm:h-9"
-            onFocus={(event) => event.currentTarget.select()}
+            onFocus={(event) => {
+            // After CurrencyInput swaps in its unformatted draft, so typing replaces the old value.
+            const input = event.currentTarget;
+            requestAnimationFrame(() => input.select());
+          }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -302,7 +306,11 @@ export function DurationCell({
             trailing={<span className="text-xs font-medium text-muted-foreground">{unit === "days" ? "d" : "h"}</span>}
             wrapperClassName="w-[5.25rem]"
             className="h-9 pr-8 text-right tabular-nums sm:h-9"
-            onFocus={(event) => event.currentTarget.select()}
+            onFocus={(event) => {
+            // After CurrencyInput swaps in its unformatted draft, so typing replaces the old value.
+            const input = event.currentTarget;
+            requestAnimationFrame(() => input.select());
+          }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -367,6 +375,11 @@ export function CostCell({
           aria-label={label}
           wrapperClassName="w-40"
           className="h-9 text-right sm:h-9"
+          onFocus={(event) => {
+            // After CurrencyInput swaps in its unformatted draft, so typing replaces the old value.
+            const input = event.currentTarget;
+            requestAnimationFrame(() => input.select());
+          }}
           onValueChange={(next) => {
             setDraft(next);
             onDraft?.(next);

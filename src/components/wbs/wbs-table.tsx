@@ -6,7 +6,8 @@
  * Rows are re-ordered and re-parented by drag and drop (dnd-kit): dragging sideways changes the
  * level, `canMove` explains invalid drops, and every move gets an Undo snackbar.
  */
-import { memo, useId, useMemo, useState } from "react";
+import { memo, useCallback, useId, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   closestCenter,
   DndContext,
@@ -46,6 +47,8 @@ import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
 
 const INDENT = 18;
+/** Above this many visible rows the list renders only what is on screen (500+ rows stay smooth). */
+const VIRTUALIZE_AT = 150;
 
 export type WbsTableProps = {
   roots: WbsNode[];
@@ -75,7 +78,8 @@ function visibleForFilter(roots: WbsNode[], filter: string): Set<string> {
   return keep;
 }
 
-export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }: WbsTableProps) {
+/** Memoised: typing a cost (live budget bar) re-renders the workspace but not the 500+ rows. */
+export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }: WbsTableProps) {
   const wbs = useWbs();
   const dndId = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -92,6 +96,25 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
   }, [roots, collapsed, activeId, filter]);
 
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtual = rows.length > VIRTUALIZE_AT;
+  // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer's own state drives these renders
+  const virtualizer = useVirtualizer({
+    count: virtual ? rows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 52,
+    overscan: 12,
+    getItemKey: (i) => rows[i]?.id ?? i,
+  });
+  const virtualItems = virtual ? virtualizer.getVirtualItems() : [];
+  const padTop = virtual && virtualItems.length > 0 ? virtualItems[0]!.start : 0;
+  const padBottom =
+    virtual && virtualItems.length > 0 ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1]!.end : 0;
+  const visible = virtual
+    ? virtualItems.map((item) => ({ row: rows[item.index]!, index: item.index }))
+    : rows.map((row, index) => ({ row, index }));
+  const measure = virtual ? virtualizer.measureElement : undefined;
   const dragEnabled = wbs.canEdit && !filter;
 
   const projection: Projection | null = useMemo(() => {
@@ -161,8 +184,13 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
       }}
     >
       <div
+        ref={scrollRef}
         data-testid="wbs-table"
-        className="relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-xs sm:max-h-[calc(100dvh-12rem)] sm:min-h-64"
+        data-virtual={virtual || undefined}
+        className={cn(
+          "relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-xs",
+          virtual ? "h-[calc(100dvh-10rem)] min-h-96" : "sm:max-h-[calc(100dvh-12rem)] sm:min-h-64",
+        )}
       >
         <table className="w-full min-w-[69.75rem] table-fixed border-separate border-spacing-0 text-sm sm:min-w-[72rem] lg:min-w-[67.5rem]">
           <caption className="sr-only">
@@ -209,19 +237,25 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
                   </td>
                 </tr>
               ) : (
-                rows.map((row, index) => (
+                <>
+                  {padTop > 0 ? <Spacer height={padTop} columns={totalColumns} /> : null}
+                  {visible.map(({ row, index }) => (
                   <WbsRow
                     key={row.id}
+                    index={index}
+                    measure={measure}
+                    zebra={index % 2 === 1}
                     row={row}
                     rollup={rollups.get(row.id)}
-                    zebra={index % 2 === 1}
                     busy={busyIds.has(row.id)}
                     dragEnabled={dragEnabled}
                     isCollapsed={collapsed.has(row.id) && !filter}
                     projectedDepth={row.id === activeId && projection ? projection.depth : null}
                     invalidDrop={row.id === activeId && dropCheck !== null && !dropCheck.ok}
                   />
-                ))
+                  ))}
+                  {padBottom > 0 ? <Spacer height={padBottom} columns={totalColumns} /> : null}
+                </>
               )}
             </tbody>
           </SortableContext>
@@ -252,6 +286,14 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
       </DragOverlay>
     </DndContext>
   );
+});
+
+function Spacer({ height, columns }: { height: number; columns: number }) {
+  return (
+    <tr aria-hidden style={{ height }}>
+      <td colSpan={columns} className="p-0" />
+    </tr>
+  );
 }
 
 function Th({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -264,8 +306,11 @@ function Th({ className, children }: { className?: string; children?: React.Reac
 
 type WbsRowProps = {
   row: FlatWbsRow<WbsNode>;
-  rollup: Rollup | undefined;
+  /** Position in the visible list (zebra stripes, virtual measuring). */
+  index: number;
   zebra: boolean;
+  measure: ((element: Element | null) => void) | undefined;
+  rollup: Rollup | undefined;
   busy: boolean;
   dragEnabled: boolean;
   isCollapsed: boolean;
@@ -273,92 +318,149 @@ type WbsRowProps = {
   invalidDrop: boolean;
 };
 
-const WbsRow = memo(function WbsRow({
-  row,
-  rollup,
-  zebra,
-  busy,
-  dragEnabled,
-  isCollapsed,
-  projectedDepth,
-  invalidDrop,
-}: WbsRowProps) {
-  const wbs = useWbs();
-  const { node } = row;
-  const isLeaf = node.children.length === 0;
-  const editable = wbs.canEdit && isLeaf;
-  const depth = projectedDepth ?? row.depth;
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: node.id,
-    disabled: !dragEnabled,
-  });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-  };
-
-  const r = rollup;
-  const hpd = wbs.hoursPerDay;
-  const spanHours =
-    !isLeaf && r?.startDate && r.endDate && wbs.calendarIndex
-      ? countWorkingDays(wbs.calendarIndex, r.startDate, r.endDate) * hpd
-      : null;
-  const code = `${node.wbsCode} ${node.name}`;
-  const derivedDelayed = isLeaf && r?.hasDelayed && node.status !== "delayed";
-  const levelText = nodeLabel(node);
-  // Phones see only the first columns without scrolling, so repeat the key values under the name.
-  const mobileSummary = r
-    ? [
-        r.startDate && r.endDate ? formatDateRange(r.startDate, r.endDate) : null,
-        r.hours > 0 ? formatDuration(r.hours, wbs.unit, hpd) : null,
-        r.cost > 0 ? formatPeso(r.cost) : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
-
-  const cellBg = "bg-inherit";
-  const parentValue = "font-medium text-foreground";
-
+/**
+ * Re-render guards for 500+ rows: the tree is rebuilt (new node and rollup objects) after every
+ * edit, so rows compare what they display instead of object identity.
+ */
+function sameNode(a: WbsNode, b: WbsNode): boolean {
   return (
-    <tr
-      ref={setNodeRef}
-      style={style}
-      data-testid="wbs-row"
-      data-wbs-code={node.wbsCode}
-      data-level={node.level}
-      aria-busy={busy || undefined}
-      className={cn(
-        "group/row align-middle transition-colors",
-        zebra ? "bg-surface-muted" : "bg-surface",
-        "hover:bg-surface-sunken",
-        isDragging && "relative z-10 bg-primary-soft opacity-80 outline-2 -outline-offset-2 outline-dashed outline-primary",
-        isDragging && invalidDrop && "bg-danger-soft outline-danger",
-        busy && "opacity-70",
-      )}
-    >
-      {/* WBS code + drag handle */}
-      <td className={cn("sticky left-0 z-10 h-11 border-b border-border pr-1 pl-1 whitespace-nowrap", cellBg)}>
-        <div className="flex items-center gap-0.5">
-          {dragEnabled ? (
-            <button
-              type="button"
-              ref={setActivatorNodeRef}
-              {...attributes}
-              {...listeners}
-              aria-label={`Drag ${code}`}
-              className="grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded-sm text-muted-foreground opacity-60 transition-opacity group-hover/row:opacity-100 hover:bg-surface-sunken hover:text-foreground focus-visible:opacity-100 focus-ring-inset active:cursor-grabbing"
-            >
-              <GripVertical aria-hidden className="size-4" />
-            </button>
-          ) : (
-            <span className="w-2" aria-hidden />
-          )}
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">{node.wbsCode}</span>
-        </div>
-      </td>
+    a === b ||
+    (a.id === b.id &&
+      a.parentId === b.parentId &&
+      a.name === b.name &&
+      a.wbsCode === b.wbsCode &&
+      a.level === b.level &&
+      a.startDate === b.startDate &&
+      a.durationHours === b.durationHours &&
+      a.endDate === b.endDate &&
+      a.estCost === b.estCost &&
+      a.status === b.status &&
+      a.version === b.version &&
+      a.children.length === b.children.length)
+  );
+}
 
+function sameRollup(a: Rollup | undefined, b: Rollup | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keys = Object.keys(a) as (keyof Rollup)[];
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
+const WbsRow = memo(
+  function WbsRow({
+    row,
+    index,
+    zebra,
+    measure,
+    rollup,
+    busy,
+    dragEnabled,
+    isCollapsed,
+    projectedDepth,
+    invalidDrop,
+  }: WbsRowProps) {
+    const { node } = row;
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+      id: node.id,
+      disabled: !dragEnabled,
+    });
+    const ref = useCallback(
+      (element: HTMLTableRowElement | null) => {
+        setNodeRef(element);
+        measure?.(element);
+      },
+      [setNodeRef, measure],
+    );
+    const style: React.CSSProperties = { transform: CSS.Translate.toString(transform), transition };
+
+    return (
+      <tr
+        ref={ref}
+        style={style}
+        data-index={index}
+        data-testid="wbs-row"
+        data-wbs-code={node.wbsCode}
+        data-level={node.level}
+        aria-busy={busy || undefined}
+        className={cn(
+          "group/row align-middle transition-colors hover:bg-surface-sunken",
+          zebra ? "bg-surface-muted" : "bg-surface",
+          isDragging && "relative z-10 bg-primary-soft opacity-80 outline-2 -outline-offset-2 outline-dashed outline-primary",
+          isDragging && invalidDrop && "bg-danger-soft outline-danger",
+          busy && "opacity-70",
+        )}
+      >
+        {/* WBS code + drag handle */}
+        <td className="sticky left-0 z-10 h-11 border-b border-border bg-inherit pr-1 pl-1 whitespace-nowrap">
+          <div className="flex items-center gap-0.5">
+            {dragEnabled ? (
+              <button
+                type="button"
+                ref={setActivatorNodeRef}
+                {...attributes}
+                {...listeners}
+                aria-label={`Drag ${node.wbsCode} ${node.name}`}
+                className="grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded-sm text-muted-foreground opacity-60 transition-opacity group-hover/row:opacity-100 hover:bg-surface-sunken hover:text-foreground focus-visible:opacity-100 focus-ring-inset active:cursor-grabbing"
+              >
+                <GripVertical aria-hidden className="size-4" />
+              </button>
+            ) : (
+              <span className="w-2" aria-hidden />
+            )}
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">{node.wbsCode}</span>
+          </div>
+        </td>
+        <RowCells node={node} rollup={rollup} depth={projectedDepth ?? row.depth} isCollapsed={isCollapsed} />
+      </tr>
+    );
+  },
+  (a, b) =>
+    sameNode(a.row.node, b.row.node) &&
+    a.index === b.index &&
+    a.zebra === b.zebra &&
+    a.measure === b.measure &&
+    a.row.depth === b.row.depth &&
+    sameRollup(a.rollup, b.rollup) &&
+    a.busy === b.busy &&
+    a.dragEnabled === b.dragEnabled &&
+    a.isCollapsed === b.isCollapsed &&
+    a.projectedDepth === b.projectedDepth &&
+    a.invalidDrop === b.invalidDrop,
+);
+
+type RowCellsProps = { node: WbsNode; rollup: Rollup | undefined; depth: number; isCollapsed: boolean };
+
+/** Everything after the WBS code, memoised apart from the sortable wrapper (which re-renders on every drag). */
+const RowCells = memo(
+  function RowCells({ node, rollup, depth, isCollapsed }: RowCellsProps) {
+    const wbs = useWbs();
+    const isLeaf = node.children.length === 0;
+    const editable = wbs.canEdit && isLeaf;
+    const r = rollup;
+    const hpd = wbs.hoursPerDay;
+    const spanHours =
+      !isLeaf && r?.startDate && r.endDate && wbs.calendarIndex
+        ? countWorkingDays(wbs.calendarIndex, r.startDate, r.endDate) * hpd
+        : null;
+    const code = `${node.wbsCode} ${node.name}`;
+    const derivedDelayed = isLeaf && r?.hasDelayed && node.status !== "delayed";
+    const levelText = nodeLabel(node);
+    // Phones see only the first columns without scrolling, so repeat the key values under the name.
+    const mobileSummary = r
+      ? [
+          r.startDate && r.endDate ? formatDateRange(r.startDate, r.endDate) : null,
+          r.hours > 0 ? formatDuration(r.hours, wbs.unit, hpd) : null,
+          r.cost > 0 ? formatPeso(r.cost) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
+    const cellBg = "bg-inherit";
+    const parentValue = "font-medium text-foreground";
+
+    return (
+      <>
       {/* Name (indented tree) */}
       <td
         className={cn(
@@ -534,9 +636,13 @@ const WbsRow = memo(function WbsRow({
       <td className="border-b border-border pr-2 pl-1 text-right">
         <RowActions node={node} />
       </td>
-    </tr>
-  );
-});
+      </>
+    );
+  },
+  (a, b) =>
+    sameNode(a.node, b.node) && sameRollup(a.rollup, b.rollup) && a.depth === b.depth && a.isCollapsed === b.isCollapsed,
+);
+
 
 function DerivedText({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
