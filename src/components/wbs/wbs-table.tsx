@@ -40,7 +40,7 @@ import {
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 import { CostCell, DateCell, DurationCell, TextCell } from "./inline-edit";
-import { getProjection, type Projection } from "./model";
+import { getProjection, nodeLabel, type Projection } from "./model";
 import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
@@ -164,18 +164,19 @@ export function WbsTable({ roots, rollups, collapsed, filter, busyIds, onMove }:
         data-testid="wbs-table"
         className="relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-xs sm:max-h-[calc(100dvh-12rem)] sm:min-h-64"
       >
-        <table className="w-full min-w-[72rem] table-fixed border-separate border-spacing-0 text-sm lg:min-w-[67.5rem]">
+        <table className="w-full min-w-[69.75rem] table-fixed border-separate border-spacing-0 text-sm sm:min-w-[72rem] lg:min-w-[67.5rem]">
           <caption className="sr-only">
             Work breakdown: deliverables, sub-deliverables and work packages with dates, duration, hours, cost and
             progress. Parents roll up from their work packages.
           </caption>
           <colgroup>
             <col className="w-[4.5rem]" />
-            <col />
+            {/* Phones: WBS + Name fill the screen (the summary line under the name shows the rest). */}
+            <col className="w-[16.5rem] sm:w-auto" />
             <col className="w-[7rem]" />
-            <col className="w-[5.5rem]" />
+            <col className="w-[6rem]" />
             <col className="w-[7rem]" />
-            <col className="w-[5rem]" />
+            <col className="w-[4.5rem]" />
             <col className="w-[8.25rem]" />
             <col className="w-[5.75rem]" />
             <col className="w-[7.5rem]" />
@@ -305,7 +306,7 @@ const WbsRow = memo(function WbsRow({
       : null;
   const code = `${node.wbsCode} ${node.name}`;
   const derivedDelayed = isLeaf && r?.hasDelayed && node.status !== "delayed";
-  const levelText = isLeaf && node.level > 1 ? "Work package" : levelLabel(node.level);
+  const levelText = nodeLabel(node);
   // Phones see only the first columns without scrolling, so repeat the key values under the name.
   const mobileSummary = r
     ? [
@@ -410,7 +411,7 @@ const WbsRow = memo(function WbsRow({
               </span>
             ) : null}
             {mobileSummary ? (
-              <span className="truncate text-xs leading-4 text-muted-foreground tabular-nums sm:hidden">
+              <span className="text-xs leading-4 text-pretty text-muted-foreground tabular-nums sm:hidden">
                 {mobileSummary}
               </span>
             ) : null}

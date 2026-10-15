@@ -45,9 +45,17 @@ function CellButton({ label, children, align = "left", disabled, onOpen, classNa
   );
 }
 
-function ErrorText({ id, children }: { id: string; children: React.ReactNode }) {
+/** Floats under the editor so a long message never squeezes the table column. */
+function ErrorText({ id, align = "left", children }: { id: string; align?: "left" | "right"; children: React.ReactNode }) {
   return (
-    <p id={id} role="alert" className="mt-1 max-w-64 text-left text-xs leading-4 font-medium whitespace-normal text-danger-text">
+    <p
+      id={id}
+      role="alert"
+      className={cn(
+        "absolute top-full z-30 mt-1 w-60 rounded-md border border-danger/30 bg-surface px-2.5 py-1.5 text-left text-xs leading-4 font-medium whitespace-normal text-danger-text shadow-popover",
+        align === "right" ? "right-0" : "left-0",
+      )}
+    >
       {children}
     </p>
   );
@@ -122,7 +130,7 @@ export function TextCell({
   return (
     <div ref={wrapperRef} className="min-w-0 flex-1">
       {editing ? (
-        <div>
+        <div className="relative">
           <Input
             autoFocus
             defaultValue={value}
@@ -191,7 +199,7 @@ export function DateCell({
   return (
     <div ref={wrapperRef}>
       {editing ? (
-        <div>
+        <div className="relative">
           <DateInput
             autoFocus
             value={draft}
@@ -283,7 +291,7 @@ export function DurationCell({
   return (
     <div ref={wrapperRef} className="flex justify-end">
       {editing ? (
-        <div className="flex flex-col items-end">
+        <div className="relative flex flex-col items-end">
           <Input
             autoFocus
             defaultValue={initial}
@@ -292,7 +300,7 @@ export function DurationCell({
             invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
             trailing={<span className="text-xs font-medium text-muted-foreground">{unit === "days" ? "d" : "h"}</span>}
-            wrapperClassName="w-24"
+            wrapperClassName="w-[5.25rem]"
             className="h-9 pr-8 text-right tabular-nums sm:h-9"
             onFocus={(event) => event.currentTarget.select()}
             onKeyDown={(event) => {
@@ -308,7 +316,7 @@ export function DurationCell({
             }}
             onBlur={(event) => commit(event.currentTarget.value, false)}
           />
-          {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
+          {error ? <ErrorText id={errorId} align="right">{error}</ErrorText> : null}
         </div>
       ) : (
         <CellButton label={label} disabled={disabled} onOpen={open} align="right">

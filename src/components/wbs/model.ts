@@ -11,6 +11,7 @@ import {
   durationHoursFromDates,
   formatDate,
   isValidISODate,
+  levelLabel,
   nextWorkingDay,
   type CalendarIndex,
   type ISODate,
@@ -259,4 +260,16 @@ export function buildSampleStructure(index: CalendarIndex, projectStart: ISODate
       return { name: pkg.name, startDate, durationHours, endDate };
     }),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
+
+/**
+ * What an item is called on screen: a leaf below the top level is a work package (it carries the
+ * schedule and cost), even at level 2; parents use their level's name (D22).
+ */
+export function nodeLabel(node: { level: number; children: ReadonlyArray<unknown> }): string {
+  return node.children.length === 0 && node.level > 1 ? "Work package" : levelLabel(node.level);
 }

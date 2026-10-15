@@ -28,13 +28,13 @@ import {
   formatDuration,
   formatPercent,
   formatPeso,
-  levelLabel,
   pluralize,
   type ActivityStatus,
   type Rollup,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 import { GRAPH_NODE, layoutTree, type LayoutInput } from "./graph-layout";
+import { nodeLabel } from "./model";
 import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
@@ -349,7 +349,7 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
           <span className="flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground">
             <span className="font-mono font-medium tabular-nums">{node.wbsCode}</span>
             <span aria-hidden>·</span>
-            <span className="truncate">{isLeaf && node.level > 1 ? "Work package" : levelLabel(node.level)}</span>
+            <span className="truncate">{nodeLabel(node)}</span>
             <span aria-hidden>·</span>
             <span className="shrink-0 tabular-nums">
               {formatDuration(rollup?.hours ?? node.durationHours ?? 0, wbs.unit, wbs.hoursPerDay)}

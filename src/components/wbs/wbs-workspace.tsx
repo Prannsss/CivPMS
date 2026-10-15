@@ -21,7 +21,7 @@ import {
 import { setDurationUnit } from "@/server/actions/wbs";
 import { ActivityDialog, type ActivityDialogMode } from "./activity-dialog";
 import { BudgetPanel } from "./budget-panel";
-import { indexAmongSiblings } from "./model";
+import { indexAmongSiblings, nodeLabel } from "./model";
 import { Notice } from "./notice";
 import { TrashSheet } from "./trash-sheet";
 import type { WbsNode, WbsView, WbsWorkspaceProps } from "./types";
@@ -214,6 +214,7 @@ export function WbsWorkspace({
           kind: "create",
           parent: node.parentId ? findNode(roots, node.parentId) : null,
           index: indexAmongSiblings(records, node.id) + 1,
+          label: node.parentId ? nodeLabel(node) : undefined,
         }),
       rename: (node) => setDialog({ kind: "rename", node }),
       remove: (node) => void remove(node),

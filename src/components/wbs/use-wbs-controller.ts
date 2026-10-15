@@ -13,7 +13,6 @@ import {
   buildTree,
   describeDeleteImpact,
   formatPeso,
-  levelLabel,
   pluralize,
   projectRollup,
   type CalendarIndex,
@@ -27,7 +26,7 @@ import {
   updateActivity,
   type UpdateActivityInput,
 } from "@/server/actions/wbs";
-import { applyMove, indexAmongSiblings, resolveLeafSchedule, type SchedulePatch } from "./model";
+import { applyMove, indexAmongSiblings, nodeLabel, resolveLeafSchedule, type SchedulePatch } from "./model";
 import type { WbsActivity, WbsNode, WbsProjectInfo } from "./types";
 
 export type ActivityPatch = NonNullable<UpdateActivityInput["patch"]>;
@@ -207,7 +206,7 @@ export function useWbsController({
           : prev;
         return applyMove([...withoutParentValues, activity], activity.id, activity.parentId, values.index ?? null);
       });
-      toast.success(`${levelLabel(activity.level)} added`, {
+      toast.success(`${nodeLabel({ level: activity.level, children: [] })} added`, {
         description: result.data.carried
           ? `${activity.wbsCode} ${activity.name} now carries the cost, hours and dates.`
           : `${activity.wbsCode} ${activity.name}`,
@@ -272,7 +271,7 @@ export function useWbsController({
   const remove = useCallback(
     async (node: WbsNode) => {
       const impact = describeDeleteImpact(node);
-      const label = levelLabel(node.level).toLowerCase();
+      const label = nodeLabel(node).toLowerCase();
       const ok = await confirm({
         title: `Delete "${node.wbsCode} ${node.name}"?`,
         description: `${impact}. You can restore it from "Recently deleted" for 30 days.`,

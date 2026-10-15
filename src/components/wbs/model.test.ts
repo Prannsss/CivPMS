@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCalendarIndex, DEFAULT_WORKING_CALENDAR } from "@/lib/domain";
-import { applyMove, buildSampleStructure, getProjection, indexAmongSiblings, resolveLeafSchedule } from "./model";
+import { applyMove, buildSampleStructure, getProjection, indexAmongSiblings, nodeLabel, resolveLeafSchedule } from "./model";
 
 const index = createCalendarIndex({ ...DEFAULT_WORKING_CALENDAR, holidays: [], overrides: [] });
 
@@ -92,5 +92,14 @@ describe("buildSampleStructure", () => {
     expect(first).toMatchObject({ startDate: "2026-10-19", durationHours: 40, endDate: "2026-10-23" });
     expect(sample[0]!.workPackages[1]!.startDate).toBe("2026-10-26");
     expect(buildSampleStructure(index, "nope")).toEqual([]);
+  });
+});
+
+describe("nodeLabel", () => {
+  it("calls leaves below the top level work packages", () => {
+    expect(nodeLabel({ level: 1, children: [] })).toBe("Deliverable");
+    expect(nodeLabel({ level: 2, children: [] })).toBe("Work package");
+    expect(nodeLabel({ level: 2, children: [{}] })).toBe("Sub-deliverable");
+    expect(nodeLabel({ level: 3, children: [] })).toBe("Work package");
   });
 });

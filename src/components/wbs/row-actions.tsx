@@ -19,7 +19,8 @@ import {
   DropdownMenuTrigger,
   IconButton,
 } from "@/components/ui";
-import { childLevelLabel, levelLabel } from "@/lib/domain";
+import { childLevelLabel } from "@/lib/domain";
+import { nodeLabel } from "./model";
 import { cn } from "@/lib/utils";
 import { useWbs, type MoveCommand } from "./wbs-context";
 import type { WbsNode } from "./types";
@@ -36,7 +37,7 @@ export function RowActions({ node, className, size = "sm" }: { node: WbsNode; cl
   const wbs = useWbs();
   if (!wbs.canEdit) return null;
   const childLabel = childLevelLabel(node.level);
-  const ownLabel = levelLabel(node.level);
+  const ownLabel = nodeLabel(node);
   const availability = wbs.moveAvailability(node);
 
   return (
@@ -80,7 +81,7 @@ export function RowActions({ node, className, size = "sm" }: { node: WbsNode; cl
               {item.icon}
               <span className="flex min-w-0 flex-col">
                 <span>{item.label}</span>
-                {!state.ok ? <span className="truncate text-xs text-muted-foreground">{state.reason}</span> : null}
+                {!state.ok ? <span className="text-xs text-pretty text-muted-foreground">{state.reason}</span> : null}
               </span>
             </DropdownMenuItem>
           );

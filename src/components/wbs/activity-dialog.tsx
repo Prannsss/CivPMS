@@ -25,16 +25,16 @@ import {
   formatDate,
   formatDuration,
   formatPeso,
-  levelLabel,
   parseDurationInput,
   type DurationUnit,
 } from "@/lib/domain";
+import { nodeLabel } from "./model";
 import { Notice } from "./notice";
 import type { WbsNode } from "./types";
 import type { CreateValues } from "./use-wbs-controller";
 
 export type ActivityDialogMode =
-  | { kind: "create"; parent: WbsNode | null; index?: number | null }
+  | { kind: "create"; parent: WbsNode | null; index?: number | null; /** "Work package" when adding next to one. */ label?: string }
   | { kind: "rename"; node: WbsNode };
 
 export type ActivityDialogProps = {
@@ -78,9 +78,9 @@ function modeKey(mode: ActivityDialogMode): string {
 }
 
 function dialogTitle(mode: ActivityDialogMode): string {
-  if (mode.kind === "rename") return `Rename ${levelLabel(mode.node.level).toLowerCase()}`;
+  if (mode.kind === "rename") return `Rename ${nodeLabel(mode.node).toLowerCase()}`;
   if (!mode.parent) return "Add deliverable";
-  return `Add ${(childLevelLabel(mode.parent.level) ?? "work package").toLowerCase()}`;
+  return `Add ${(mode.label ?? childLevelLabel(mode.parent.level) ?? "work package").toLowerCase()}`;
 }
 
 function dialogDescription(mode: ActivityDialogMode): string {
@@ -101,7 +101,9 @@ function ActivityForm({
   const isRename = mode.kind === "rename";
   const parent = mode.kind === "create" ? mode.parent : null;
   const parentHasValues = parent ? hasOwnValues(parent) : false;
-  const childLabel = parent ? (childLevelLabel(parent.level) ?? "Work package") : "Deliverable";
+  const childLabel = parent
+    ? ((mode.kind === "create" ? mode.label : undefined) ?? childLevelLabel(parent.level) ?? "Work package")
+    : "Deliverable";
 
   const [name, setName] = useState(isRename ? mode.node.name : "");
   // Empty by default so an item without a schedule doesn't get a stray start date; a duration
