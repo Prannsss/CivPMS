@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
-import { UserRound } from "lucide-react";
-import { ScreenPlaceholder } from "@/components/app-shell/screen-placeholder";
-import { requireOnboarded } from "@/server/context";
+import { ProfileView } from "@/components/profile/profile-view";
+import { PageHeader } from "@/components/ui/page-header";
+import { getProfilePageData } from "@/server/queries/profile";
 
 export const metadata: Metadata = { title: "Profile" };
 
-/** Placeholder: the profile team replaces this page. */
+/** Your profile (spec §2, §14): photo, name, display preferences, notifications, password. */
 export default async function ProfilePage() {
-  const context = await requireOnboarded();
+  const data = await getProfilePageData();
   return (
-    <ScreenPlaceholder
-      title="Profile"
-      description={context.profile.email ?? context.user.email ?? undefined}
-      icon={<UserRound />}
-      upcoming="Change your name and photo, choose hours or days for durations, and pick which notifications reach you in the app and by email."
-    />
+    <div className="flex flex-col">
+      <PageHeader title="Profile" description="Your photo, name, display preferences, notifications and password." />
+      <ProfileView data={data} />
+    </div>
   );
 }
