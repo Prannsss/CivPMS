@@ -142,6 +142,22 @@ When the pool runs out, the specs skip with a message. Run the script again with
 `select set_config('civpms.f1_pool_size', '120', false);`. Re-running it is safe: existing accounts keep
 their data. `demo-cleanup.sql` removes these accounts too.
 
+## E2E accounts for the project workspace (`f3-e2e.sql`)
+
+The dashboard, project settings, collaborators and audit-trail specs (`e2e/f3-*.spec.ts`) never change
+the demo company. `f3-e2e.sql` creates three confirmed accounts (same password as the demo accounts, set
+the same way as for `demo.sql`):
+
+| Email | Role |
+|---|---|
+| `f3-owner@civpms.test` | Owner PM of "[F3] Workspace QA" with "[F3] Base Project" |
+| `f3-pm@civpms.test` | Company PM, project PM on the base project (joined by email invitation) |
+| `f3-inspector@civpms.test` | Inspector on the base project (joined by email invitation) |
+
+`e2e/helpers/f3-tenant.ts` creates the company, base project and memberships through the app's RPCs on
+first use. Each spec creates its own timestamped `[F3] …` project and moves it to the trash afterwards
+(the daily job purges it after 30 days). `demo-cleanup.sql` removes these accounts too.
+
 ## Removing the demo data
 
 `demo-cleanup.sql` deletes every `@civpms.test` account, the companies they own with everything
