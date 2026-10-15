@@ -134,6 +134,8 @@ begin
   end;
   raise exception 'ASSERTION FAILED: expected SQLSTATE % but [%] succeeded', p_state, p_sql;
 end $$;
+grant execute on all functions in schema tests to anon, authenticated, service_role;
+
 -- ===========================================================================
 -- 09 · email digest
 -- ===========================================================================
