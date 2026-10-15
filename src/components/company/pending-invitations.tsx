@@ -49,10 +49,10 @@ export function PendingInvitations({
       ) : (
         <ul className="flex flex-col divide-y divide-border border-t border-border">
           {invitations.map((invitation) => (
-            <li key={invitation.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:px-6">
+            <li key={invitation.id} className="flex flex-col gap-x-4 gap-y-1 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6">
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate text-sm font-medium text-foreground">{invitation.email}</span>
+                  <span className="min-w-0 text-sm font-medium break-all text-foreground">{invitation.email}</span>
                   <Badge size="sm" tone={invitation.role === "pm" ? "info" : "neutral"} icon={invitation.role === "pm" ? <UserRound /> : <HardHat />}>
                     {invitation.role === "pm" ? "Project Manager" : "Inspector"}
                   </Badge>
@@ -66,7 +66,7 @@ export function PendingInvitations({
               {invitation.projectId ? (
                 <Link
                   href={`/projects/${invitation.projectId}/collaborators`}
-                  className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-md text-[13px] font-medium text-primary-text focus-ring hover:underline sm:min-h-9"
+                  className="inline-flex min-h-11 max-w-full items-center gap-1.5 self-start rounded-md sm:self-auto text-[13px] font-medium text-primary-text focus-ring hover:underline sm:min-h-9"
                 >
                   <span className="truncate">{invitation.projectName ?? "Open project"}</span>
                   <ArrowUpRight aria-hidden className="size-4 shrink-0" />

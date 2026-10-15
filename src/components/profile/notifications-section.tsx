@@ -146,7 +146,7 @@ export function NotificationsSection({ initial }: { initial: ResolvedPrefs }) {
         </RadioGroup>
         {initial.upcoming.length > 0 ? (
           <p className="text-xs leading-5 text-muted-foreground">
-            Coming with site inspections and progress updates: {initial.upcoming.join(", ").toLowerCase()}.
+            Notifications for site inspections, activity progress and offline sync arrive with those features.
           </p>
         ) : null}
       </div>

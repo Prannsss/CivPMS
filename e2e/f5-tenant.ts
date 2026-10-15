@@ -105,8 +105,7 @@ async function joinWithCompanyCode(who: Who): Promise<string> {
     error_code?: string;
   };
   if (!redeemed.ok) throw new Error(`redeem_invite_code failed: ${redeemed.error_code}`);
-  // Leave nothing usable behind: the single-use code is exhausted now, but revoke anyway.
-  await owner.client.rpc("revoke_invite_code", { p_id: code.id });
+  // The single-use code is "Used up" now; nothing usable is left behind.
   return member.userId;
 }
 
@@ -190,6 +189,21 @@ export async function ensureF5Tenant(): Promise<F5Tenant> {
       await owner.client.rpc("invite_to_project", { p_project_id: project.id, p_email: F5_PENDING_EMAIL, p_role: "inspector" }),
       "invite pending",
     );
+  }
+
+  // One active company-wide code (the screenshots show it; specs create their own).
+  const activeCodes = check(
+    await owner.client
+      .from("invite_codes")
+      .select("id, expires_at, max_uses, use_count, revoked_at")
+      .is("project_id", null)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString())
+      .eq("max_uses", 25),
+    "read showcase code",
+  );
+  if (!activeCodes || activeCodes.length === 0) {
+    check(await owner.client.rpc("create_invite_code", { p_expires_in_days: 90, p_max_uses: 25 }), "create showcase code");
   }
 
   // The profile sandbox: a separate one-person company.

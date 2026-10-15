@@ -38,22 +38,41 @@ function RenameForm({ name }: { name: string }) {
       return;
     }
     form.reset({ name: result.data.name });
-    toast.success("Company renamed", { description: `Everyone in the company now sees “${result.data.name}”.` });
+    toast.success("Company renamed", {
+      description: `Everyone in the company now sees “${result.data.name}”.`,
+    });
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate aria-label="Rename company" className="flex flex-col gap-3">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate
+      aria-label="Rename company"
+      className="flex flex-col gap-3"
+    >
       <FormError>{errors.root?.serverError?.message}</FormError>
-      <Field
-        label="Company name"
-        required
-        hint="Shown on the projects home, invitations and emails. Must be unique on CivPMS."
-        error={errors.name?.message}
-      >
-        <Input {...form.register("name")} autoComplete="organization" maxLength={120} />
-      </Field>
-      <div className="flex justify-end">
-        <Button type="submit" loading={isSubmitting} loadingText="Saving…" disabled={!isDirty && !isSubmitting}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <Field
+          className="min-w-0 flex-1"
+          label="Company name"
+          required
+          hint="Shown on the projects home, invitations and emails. Must be unique on CivPMS."
+          error={errors.name?.message}
+        >
+          <Input
+            {...form.register("name")}
+            autoComplete="organization"
+            maxLength={120}
+          />
+        </Field>
+        <Button
+          type="submit"
+          variant={isDirty ? "primary" : "outline"}
+          className="self-end sm:mt-7 sm:self-start"
+          loading={isSubmitting}
+          loadingText="Saving…"
+          disabled={!isDirty && !isSubmitting}
+        >
           Save name
         </Button>
       </div>
@@ -61,11 +80,19 @@ function RenameForm({ name }: { name: string }) {
   );
 }
 
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+function InfoRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
       <dt className="text-[13px] leading-5 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm leading-6 font-medium break-words text-foreground sm:text-right">{children}</dd>
+      <dd className="min-w-0 text-sm leading-6 font-medium break-words text-foreground sm:text-right">
+        {children}
+      </dd>
     </div>
   );
 }
@@ -88,7 +115,11 @@ export function CompanyGeneral({
     <SettingsCard
       id="general"
       title="General"
-      description={canEdit ? "Your company's name and owner." : "Only the Owner PM can change company details."}
+      description={
+        canEdit
+          ? "Your company's name and owner."
+          : "Only the Owner PM can change company details."
+      }
     >
       <div className="flex flex-col gap-5">
         {canEdit ? <RenameForm name={name} /> : null}
@@ -99,7 +130,9 @@ export function CompanyGeneral({
             <span className="tabular-nums">{memberCount}</span>
           </InfoRow>
           <InfoRow label="Created">
-            <span className="tabular-nums">{formatDate(todayInManila(new Date(createdAt)))}</span>
+            <span className="tabular-nums">
+              {formatDate(todayInManila(new Date(createdAt)))}
+            </span>
           </InfoRow>
         </dl>
       </div>

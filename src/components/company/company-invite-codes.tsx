@@ -73,6 +73,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   function openDialog() {
     setExpiry("7");
@@ -126,7 +127,10 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
     router.refresh();
   }
 
-  const activeCount = codes.filter((code) => code.state === "active").length;
+  const active = codes.filter((code) => code.state === "active");
+  const inactive = codes.filter((code) => code.state !== "active");
+  const activeCount = active.length;
+  const visible = showInactive || active.length === 0 ? [...active, ...inactive] : active;
 
   return (
     <SettingsCard
@@ -166,7 +170,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
             {pluralize(activeCount, "active code")}
           </p>
           <ul className="flex flex-col divide-y divide-border border-t border-border">
-            {codes.map((code) => {
+            {visible.map((code) => {
               const badge = STATE_BADGE[code.state];
               const isActive = code.state === "active";
               return (
@@ -178,7 +182,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span
                       className={cn(
-                        "rounded-md border px-3 py-1.5 font-mono text-[15px] font-semibold tracking-[0.12em] tabular-nums",
+                        "rounded-md border px-3 py-1.5 font-mono whitespace-nowrap text-[15px] font-semibold tracking-[0.12em] tabular-nums",
                         isActive ? "border-border-strong bg-surface-sunken text-foreground" : "border-border text-muted-foreground line-through",
                       )}
                     >
@@ -221,6 +225,13 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
               );
             })}
           </ul>
+          {inactive.length > 0 && active.length > 0 ? (
+            <div className="border-t border-border px-5 py-2.5 sm:px-6">
+              <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground max-sm:h-11" onClick={() => setShowInactive((v) => !v)} aria-expanded={showInactive}>
+                {showInactive ? "Hide used and turned-off codes" : `Show ${pluralize(inactive.length, "used or turned-off code")}`}
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
 

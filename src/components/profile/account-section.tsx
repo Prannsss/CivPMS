@@ -55,22 +55,42 @@ function NameForm({ initialName }: { initialName: string }) {
       return;
     }
     form.reset({ fullName: result.data.fullName });
-    toast.success("Name updated", { description: "Teammates see the new name everywhere, including the audit trail." });
+    toast.success("Name updated", {
+      description:
+        "Teammates see the new name everywhere, including the audit trail.",
+    });
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate aria-label="Your name" className="flex flex-col gap-3">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate
+      aria-label="Your name"
+      className="flex flex-col gap-3"
+    >
       <FormError>{errors.root?.serverError?.message}</FormError>
-      <Field
-        label="Full name"
-        required
-        hint="Shown to your teammates, on invitations and in the audit trail."
-        error={errors.fullName?.message}
-      >
-        <Input {...form.register("fullName")} autoComplete="name" maxLength={120} />
-      </Field>
-      <div className="flex justify-end">
-        <Button type="submit" loading={isSubmitting} loadingText="Saving…" disabled={!isDirty && !isSubmitting}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <Field
+          className="min-w-0 flex-1"
+          label="Full name"
+          required
+          hint="Shown to your teammates, on invitations and in the audit trail."
+          error={errors.fullName?.message}
+        >
+          <Input
+            {...form.register("fullName")}
+            autoComplete="name"
+            maxLength={120}
+          />
+        </Field>
+        <Button
+          type="submit"
+          variant={isDirty ? "primary" : "outline"}
+          className="self-end sm:mt-7 sm:self-start"
+          loading={isSubmitting}
+          loadingText="Saving…"
+          disabled={!isDirty && !isSubmitting}
+        >
           Save name
         </Button>
       </div>
@@ -97,7 +117,11 @@ export function AccountSection({
   rolePref: string | null;
 }) {
   return (
-    <SettingsCard id="account" title="Account" description="How you appear to your company and teammates.">
+    <SettingsCard
+      id="account"
+      title="Account"
+      description="How you appear to your company and teammates."
+    >
       <div className="flex flex-col gap-6">
         <AvatarEditor userId={userId} name={fullName} initialUrl={avatarUrl} />
         <Separator />
@@ -111,12 +135,24 @@ export function AccountSection({
               : "You sign in with this address. It can't be changed yet."
           }
         >
-          <Input value={email} readOnly aria-readonly trailing={<span aria-hidden className="grid size-9 place-items-center"><Lock className="size-4" /></span>} className="text-muted-foreground" />
+          <Input
+            value={email}
+            readOnly
+            aria-readonly
+            trailing={
+              <span aria-hidden className="grid size-9 place-items-center">
+                <Lock className="size-4" />
+              </span>
+            }
+            className="text-muted-foreground"
+          />
         </Field>
         <Separator />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-sm leading-6 font-medium text-foreground">Company and role</span>
+            <span className="text-sm leading-6 font-medium text-foreground">
+              Company and role
+            </span>
             <span className="text-[13px] leading-5 text-muted-foreground">
               {company
                 ? company.role === "owner_pm"
@@ -128,21 +164,43 @@ export function AccountSection({
           {company ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
               <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
-                <Building2 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <Building2
+                  aria-hidden
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
                 <span className="truncate">{company.name}</span>
               </span>
-              <Badge tone={company.role === "owner_pm" ? "primary" : company.role === "pm" ? "info" : "neutral"} icon={ROLE_ICON[company.role]}>
+              <Badge
+                tone={
+                  company.role === "owner_pm"
+                    ? "primary"
+                    : company.role === "pm"
+                      ? "info"
+                      : "neutral"
+                }
+                icon={ROLE_ICON[company.role]}
+              >
                 {companyRoleLabel(company.role)}
               </Badge>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               {rolePref ? (
-                <Badge tone="neutral" icon={rolePref === "pm" ? <UserRound /> : <HardHat />}>
-                  {rolePref === "pm" ? "Project Manager" : "Inspector / QA / QC"}
+                <Badge
+                  tone="neutral"
+                  icon={rolePref === "pm" ? <UserRound /> : <HardHat />}
+                >
+                  {rolePref === "pm"
+                    ? "Project Manager"
+                    : "Inspector / QA / QC"}
                 </Badge>
               ) : null}
-              <Button variant="outline" size="sm" asChild className="max-sm:h-11">
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="max-sm:h-11"
+              >
                 <Link href="/">Join a company</Link>
               </Button>
             </div>
