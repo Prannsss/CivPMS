@@ -197,6 +197,7 @@ export function WbsGraph({
           "--xy-minimap-background-color": "var(--surface)",
           "--xy-minimap-mask-background-color": "color-mix(in oklab, var(--surface-sunken) 70%, transparent)",
           "--xy-minimap-node-background-color": "var(--border-strong)",
+          "--xy-attribution-background-color": "transparent",
         } as React.CSSProperties
       }
     >
@@ -211,7 +212,7 @@ export function WbsGraph({
           nodesConnectable={false}
           elementsSelectable={false}
           edgesFocusable={false}
-          proOptions={{ hideAttribution: true }}
+          attributionPosition="top-right"
           zoomOnDoubleClick={false}
         >
           <TopFit containerRef={containerRef} width={width} height={height} />

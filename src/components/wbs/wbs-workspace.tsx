@@ -318,7 +318,7 @@ export function WbsWorkspace({
             />
             {view === "list" ? (
               <p className="-mt-1 text-xs leading-4 text-muted-foreground sm:hidden">
-                Swipe the table sideways to see and edit every column.
+                {canEdit ? "Swipe the table sideways to see and edit every column." : "Swipe the table sideways to see every column."}
               </p>
             ) : null}
             {view === "list" ? (

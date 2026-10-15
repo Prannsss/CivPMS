@@ -336,6 +336,13 @@ test.describe("WBS — access", () => {
     await expect(page.getByRole("button", { name: /Add (first )?deliverable/ })).toHaveCount(0);
   });
 
+  test("someone who hasn't finished onboarding is sent to onboarding", async ({ page, context }) => {
+    await loginAs(context, "newbie");
+    await page.goto(`/projects/${tenant.showcaseId}/wbs`);
+    await expect(page).toHaveURL(/\/onboarding/);
+    await expect(page.getByText("[F4] Metro Drainage Upgrade")).toHaveCount(0);
+  });
+
   test("another company gets a 404", async ({ page, context }) => {
     await loginAs(context, "rival");
     await page.goto(`/projects/${tenant.showcaseId}/wbs`);
