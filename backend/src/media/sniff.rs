@@ -14,7 +14,14 @@ pub enum ImageKind {
 }
 
 impl ImageKind {
-    pub const ALL: [Self; 6] = [Self::Jpeg, Self::Png, Self::Webp, Self::Gif, Self::Heif, Self::Avif];
+    pub const ALL: [Self; 6] = [
+        Self::Jpeg,
+        Self::Png,
+        Self::Webp,
+        Self::Gif,
+        Self::Heif,
+        Self::Avif,
+    ];
 
     pub const fn label(self) -> &'static str {
         match self {
@@ -93,11 +100,15 @@ pub fn header_dimensions(kind: ImageKind, head: &[u8]) -> Option<(u32, u32)> {
 }
 
 fn be16(b: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from(u16::from_be_bytes(b.get(at..at + 2)?.try_into().ok()?)))
+    Some(u32::from(u16::from_be_bytes(
+        b.get(at..at + 2)?.try_into().ok()?,
+    )))
 }
 
 fn le16(b: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from(u16::from_le_bytes(b.get(at..at + 2)?.try_into().ok()?)))
+    Some(u32::from(u16::from_le_bytes(
+        b.get(at..at + 2)?.try_into().ok()?,
+    )))
 }
 
 fn le24(b: &[u8], at: usize) -> Option<u32> {
@@ -216,8 +227,15 @@ mod tests {
         let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
         png.extend_from_slice(&100_000u32.to_be_bytes());
         png.extend_from_slice(&80_000u32.to_be_bytes());
-        assert_eq!(header_dimensions(ImageKind::Png, &png), Some((100_000, 80_000)));
-        assert_eq!(header_dimensions(ImageKind::Png, &png[..18]), None, "truncated");
+        assert_eq!(
+            header_dimensions(ImageKind::Png, &png),
+            Some((100_000, 80_000))
+        );
+        assert_eq!(
+            header_dimensions(ImageKind::Png, &png[..18]),
+            None,
+            "truncated"
+        );
     }
 
     #[test]
@@ -227,15 +245,24 @@ mod tests {
         jpeg.extend_from_slice(&[0xFF, 0xFF]); // fill byte
         jpeg.extend_from_slice(&[0xC0, 0x00, 0x11, 0x08, 0x01, 0xE0, 0x02, 0x80]); // SOF0 640x480
         assert_eq!(header_dimensions(ImageKind::Jpeg, &jpeg), Some((640, 480)));
-        assert_eq!(header_dimensions(ImageKind::Jpeg, &[0xFF, 0xD8, 0xFF, 0xDA, 0, 2]), None);
-        assert_eq!(header_dimensions(ImageKind::Jpeg, &[0xFF, 0xD8, 0x00, 0x00, 0, 0]), None);
+        assert_eq!(
+            header_dimensions(ImageKind::Jpeg, &[0xFF, 0xD8, 0xFF, 0xDA, 0, 2]),
+            None
+        );
+        assert_eq!(
+            header_dimensions(ImageKind::Jpeg, &[0xFF, 0xD8, 0x00, 0x00, 0, 0]),
+            None
+        );
     }
 
     #[test]
     fn webp_headers() {
         let mut vp8x = b"RIFF\0\0\0\0WEBPVP8X\x0a\0\0\0\0\0\0\0".to_vec();
         vp8x.extend_from_slice(&[0x3F, 0x06, 0x00, 0x9F, 0x04, 0x00]); // 1600 x 1184
-        assert_eq!(header_dimensions(ImageKind::Webp, &vp8x), Some((1600, 1184)));
+        assert_eq!(
+            header_dimensions(ImageKind::Webp, &vp8x),
+            Some((1600, 1184))
+        );
 
         let mut vp8l = b"RIFF\0\0\0\0WEBPVP8L\0\0\0\0\x2f".to_vec();
         let bits: u32 = 255 | (127 << 14); // 256 x 128
@@ -245,7 +272,10 @@ mod tests {
 
     #[test]
     fn gif_header() {
-        assert_eq!(header_dimensions(ImageKind::Gif, b"GIF89a\x40\x01\xc8\x00"), Some((320, 200)));
+        assert_eq!(
+            header_dimensions(ImageKind::Gif, b"GIF89a\x40\x01\xc8\x00"),
+            Some((320, 200))
+        );
     }
 
     #[test]

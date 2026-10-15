@@ -61,35 +61,37 @@ impl CircuitBreaker {
         self.inner.lock().state
     }
 
-    /// Asks permission for one call. Every `Ok` must be followed by exactly one
-    /// [`CircuitBreaker::record_success`] or [`CircuitBreaker::record_failure`].
-    pub fn acquire(&self) -> Result<(), CircuitOpen> {
+    /// Asks permission for one call. The returned [`Permit`] must be resolved with
+    /// [`Permit::success`], [`Permit::failure`] or [`Permit::healthy`]; dropping it unresolved
+    /// (the caller was cancelled) releases the slot without judging the upstream, so a
+    /// cancelled half-open probe can never wedge the circuit open.
+    pub fn acquire(&self) -> Result<Permit<'_>, CircuitOpen> {
         let mut inner = self.inner.lock();
         match inner.state {
-            BreakerState::Closed => Ok(()),
+            BreakerState::Closed => {}
             BreakerState::Open => {
                 let now = self.clock.now_ms();
-                if now.saturating_sub(inner.opened_at_ms) >= self.cooldown.as_millis() as u64 {
-                    inner.state = BreakerState::HalfOpen;
-                    inner.probe_in_flight = true;
-                    tracing::info!(breaker = self.name, "circuit half-open; probing upstream");
-                    Ok(())
-                } else {
-                    Err(CircuitOpen)
+                if now.saturating_sub(inner.opened_at_ms) < self.cooldown.as_millis() as u64 {
+                    return Err(CircuitOpen);
                 }
+                inner.state = BreakerState::HalfOpen;
+                inner.probe_in_flight = true;
+                tracing::info!(breaker = self.name, "circuit half-open; probing upstream");
             }
             BreakerState::HalfOpen => {
                 if inner.probe_in_flight {
-                    Err(CircuitOpen)
-                } else {
-                    inner.probe_in_flight = true;
-                    Ok(())
+                    return Err(CircuitOpen);
                 }
+                inner.probe_in_flight = true;
             }
         }
+        Ok(Permit {
+            breaker: self,
+            resolved: false,
+        })
     }
 
-    pub fn record_success(&self) {
+    fn record_success(&self) {
         let mut inner = self.inner.lock();
         if inner.state != BreakerState::Closed {
             tracing::info!(breaker = self.name, "circuit closed; upstream recovered");
@@ -99,7 +101,7 @@ impl CircuitBreaker {
         inner.probe_in_flight = false;
     }
 
-    pub fn record_failure(&self) {
+    fn record_failure(&self) {
         let mut inner = self.inner.lock();
         inner.probe_in_flight = false;
         match inner.state {
@@ -124,10 +126,44 @@ impl CircuitBreaker {
         }
     }
 
-    /// Releases a permit without judging the upstream (e.g. the caller was cancelled or the
-    /// upstream gave a definitive 4xx answer, which means it is healthy).
-    pub fn record_neutral(&self) {
-        self.record_success();
+    fn release(&self) {
+        self.inner.lock().probe_in_flight = false;
+    }
+}
+
+/// Permission for one upstream call (see [`CircuitBreaker::acquire`]).
+#[derive(Debug)]
+#[must_use = "resolve the permit with success(), failure() or healthy()"]
+pub struct Permit<'a> {
+    breaker: &'a CircuitBreaker,
+    resolved: bool,
+}
+
+impl Permit<'_> {
+    /// The call succeeded.
+    pub fn success(mut self) {
+        self.resolved = true;
+        self.breaker.record_success();
+    }
+
+    /// The call failed in a way that says the upstream is unhealthy (timeout, 5xx, …).
+    pub fn failure(mut self) {
+        self.resolved = true;
+        self.breaker.record_failure();
+    }
+
+    /// The upstream answered definitively (e.g. 401/404): it is healthy even though the call
+    /// did not succeed.
+    pub fn healthy(self) {
+        self.success();
+    }
+}
+
+impl Drop for Permit<'_> {
+    fn drop(&mut self) {
+        if !self.resolved {
+            self.breaker.release();
+        }
     }
 }
 
@@ -138,62 +174,74 @@ mod tests {
 
     fn breaker() -> (CircuitBreaker, std::sync::Arc<ManualClock>) {
         let clock = ManualClock::new(0);
-        (CircuitBreaker::new("test", 3, Duration::from_secs(10), clock.clone()), clock)
+        (
+            CircuitBreaker::new("test", 3, Duration::from_secs(10), clock.clone()),
+            clock,
+        )
+    }
+
+    fn fail(b: &CircuitBreaker, times: usize) {
+        for _ in 0..times {
+            b.acquire().unwrap().failure();
+        }
     }
 
     #[test]
     fn opens_after_threshold_and_fails_fast() {
         let (b, _) = breaker();
-        for _ in 0..2 {
-            b.acquire().unwrap();
-            b.record_failure();
-        }
+        fail(&b, 2);
         assert_eq!(b.state(), BreakerState::Closed);
-        b.acquire().unwrap();
-        b.record_failure();
+        fail(&b, 1);
         assert_eq!(b.state(), BreakerState::Open);
-        assert_eq!(b.acquire(), Err(CircuitOpen));
+        assert_eq!(b.acquire().unwrap_err(), CircuitOpen);
     }
 
     #[test]
-    fn success_resets_the_failure_count() {
+    fn success_and_definitive_answers_reset_the_failure_count() {
         let (b, _) = breaker();
-        for _ in 0..2 {
-            b.acquire().unwrap();
-            b.record_failure();
-        }
-        b.acquire().unwrap();
-        b.record_success();
-        for _ in 0..2 {
-            b.acquire().unwrap();
-            b.record_failure();
-        }
+        fail(&b, 2);
+        b.acquire().unwrap().success();
+        fail(&b, 2);
+        b.acquire().unwrap().healthy();
+        fail(&b, 2);
         assert_eq!(b.state(), BreakerState::Closed);
     }
 
     #[test]
     fn half_open_allows_one_probe() {
         let (b, clock) = breaker();
-        for _ in 0..3 {
-            b.acquire().unwrap();
-            b.record_failure();
-        }
+        fail(&b, 3);
         clock.advance(Duration::from_secs(10));
-        b.acquire().unwrap();
+        let probe = b.acquire().unwrap();
         assert_eq!(b.state(), BreakerState::HalfOpen);
-        assert_eq!(b.acquire(), Err(CircuitOpen), "only one probe at a time");
+        assert_eq!(
+            b.acquire().unwrap_err(),
+            CircuitOpen,
+            "only one probe at a time"
+        );
 
         // Failed probe: open again for a full cool-down.
-        b.record_failure();
+        probe.failure();
         assert_eq!(b.state(), BreakerState::Open);
         clock.advance(Duration::from_secs(5));
-        assert_eq!(b.acquire(), Err(CircuitOpen));
+        assert_eq!(b.acquire().unwrap_err(), CircuitOpen);
 
         // Successful probe closes it.
         clock.advance(Duration::from_secs(5));
-        b.acquire().unwrap();
-        b.record_success();
+        b.acquire().unwrap().success();
         assert_eq!(b.state(), BreakerState::Closed);
-        b.acquire().unwrap();
+        b.acquire().unwrap().success();
+    }
+
+    #[test]
+    fn cancelled_probe_does_not_wedge_the_circuit() {
+        let (b, clock) = breaker();
+        fail(&b, 3);
+        clock.advance(Duration::from_secs(10));
+        drop(b.acquire().unwrap()); // e.g. the request was cancelled mid-probe
+        assert_eq!(b.state(), BreakerState::HalfOpen);
+        let probe = b.acquire().expect("a new probe is allowed");
+        probe.success();
+        assert_eq!(b.state(), BreakerState::Closed);
     }
 }

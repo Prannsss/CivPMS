@@ -58,7 +58,10 @@ fn multipart_error(error: &MultipartError) -> AppError {
 fn too_large(max_bytes: u64) -> AppError {
     AppError::new(
         ErrorCode::PayloadTooLarge,
-        format!("The file is larger than {} MB. Choose a smaller photo.", max_bytes / (1024 * 1024)),
+        format!(
+            "The file is larger than {} MB. Choose a smaller photo.",
+            max_bytes / (1024 * 1024)
+        ),
     )
 }
 
@@ -73,9 +76,18 @@ async fn read_form(
         tracing::debug!(error = %rejection.body_text(), "multipart rejected");
         AppError::validation("Send the image as multipart/form-data in a field named \"file\".")
     })?;
-    let mut form = UploadForm { file: None, project_id: None, client_id: None, kind: None };
+    let mut form = UploadForm {
+        file: None,
+        project_id: None,
+        client_id: None,
+        kind: None,
+    };
     let mut fields = 0;
-    while let Some(mut field) = multipart.next_field().await.map_err(|e| multipart_error(&e))? {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| multipart_error(&e))?
+    {
         fields += 1;
         if fields > MAX_FIELDS {
             return Err(AppError::validation("The form has too many fields."));
@@ -86,7 +98,9 @@ async fn read_form(
                 return Err(AppError::validation("Send exactly one file per request."));
             }
             let path = dir.join("input");
-            let mut out = tokio::fs::File::create(&path).await.map_err(AppError::internal)?;
+            let mut out = tokio::fs::File::create(&path)
+                .await
+                .map_err(AppError::internal)?;
             let mut size: u64 = 0;
             while let Some(chunk) = field.chunk().await.map_err(|e| multipart_error(&e))? {
                 size += chunk.len() as u64;
@@ -105,7 +119,9 @@ async fn read_form(
             while let Some(chunk) = field.chunk().await.map_err(|e| multipart_error(&e))? {
                 value.extend_from_slice(&chunk);
                 if value.len() > MAX_TEXT_FIELD {
-                    return Err(AppError::validation(format!("The {name} field is too long.")));
+                    return Err(AppError::validation(format!(
+                        "The {name} field is too long."
+                    )));
                 }
             }
             let value = String::from_utf8(value)
@@ -128,7 +144,10 @@ async fn read_form(
 }
 
 fn temp_dir() -> Result<tempfile::TempDir, AppError> {
-    tempfile::Builder::new().prefix("civpms-upload-").tempdir().map_err(AppError::internal)
+    tempfile::Builder::new()
+        .prefix("civpms-upload-")
+        .tempdir()
+        .map_err(AppError::internal)
 }
 
 fn missing_file() -> AppError {
@@ -157,12 +176,22 @@ pub async fn upload_avatar(
     let form = read_form(multipart, dir.path(), state.config.max_upload_bytes, &[]).await?;
     let (input, input_bytes) = form.file.ok_or_else(missing_file)?;
 
-    let processed = state.media.process(&input, dir.path(), Preset::AVATAR).await?;
+    let processed = state
+        .media
+        .process(&input, dir.path(), Preset::AVATAR)
+        .await?;
     let path = format!("{}/{}.webp", user.id, Uuid::new_v4());
     let bucket = &state.config.avatar_bucket;
     state
         .supabase
-        .upload(user.token(), bucket, &path, processed.main.bytes.clone(), WEBP, IMMUTABLE_CACHE_SECS)
+        .upload(
+            user.token(),
+            bucket,
+            &path,
+            processed.main.bytes.clone(),
+            WEBP,
+            IMMUTABLE_CACHE_SECS,
+        )
         .await?;
     tracing::info!(
         kind = processed.source_kind.label(),
@@ -204,14 +233,20 @@ struct StoredImage {
 fn valid_kind(kind: &str) -> bool {
     (1..=32).contains(&kind.len())
         && kind.as_bytes()[0].is_ascii_lowercase()
-        && kind.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+        && kind
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }
 
 fn client_id_from(form: Option<String>, headers: &HeaderMap) -> Result<Option<String>, AppError> {
     let header = ["idempotency-key", "x-client-id"]
         .iter()
         .find_map(|name| headers.get(*name))
-        .map(|v| v.to_str().map(str::to_owned).map_err(|_| AppError::validation("Invalid idempotency key.")))
+        .map(|v| {
+            v.to_str()
+                .map(str::to_owned)
+                .map_err(|_| AppError::validation("Invalid idempotency key."))
+        })
         .transpose()?;
     let id = form.filter(|s| !s.is_empty()).or(header);
     match id {
@@ -231,37 +266,58 @@ pub async fn upload_image(
 ) -> Result<Response, AppError> {
     state.limiter.check(RateClass::Upload, user.id).await?;
     let dir = temp_dir()?;
-    let form = read_form(multipart, dir.path(), state.config.max_upload_bytes, &["project_id", "client_id", "kind"]).await?;
+    let form = read_form(
+        multipart,
+        dir.path(),
+        state.config.max_upload_bytes,
+        &["project_id", "client_id", "kind"],
+    )
+    .await?;
 
     let project_id = form
         .project_id
         .as_deref()
         .ok_or_else(|| AppError::validation("Add the project_id field."))
-        .and_then(|raw| Uuid::parse_str(raw).map_err(|_| AppError::validation("project_id must be a UUID.")))?;
+        .and_then(|raw| {
+            Uuid::parse_str(raw).map_err(|_| AppError::validation("project_id must be a UUID."))
+        })?;
     let kind = form.kind.filter(|k| !k.is_empty());
     if kind.as_deref().is_some_and(|k| !valid_kind(k)) {
-        return Err(AppError::validation("kind must be a short lowercase word such as \"progress\"."));
+        return Err(AppError::validation(
+            "kind must be a short lowercase word such as \"progress\".",
+        ));
     }
     let client_id = client_id_from(form.client_id, &headers)?;
     let (input, input_bytes) = form.file.ok_or_else(missing_file)?;
 
     let reservation = match &client_id {
         None => None,
-        Some(id) => match state.idempotency.begin("images", user.id, id).await {
-            Begin::Started(reservation) => Some(reservation),
-            Begin::Replay(stored) => return replay(&state, &user, project_id, stored).await,
-            Begin::InProgress => return wait_for_in_flight(&state, &user, project_id, id).await,
+        Some(id) => match reserve(&state, &user, project_id, id).await? {
+            Reserved::Fresh(reservation) => Some(reservation),
+            Reserved::Replayed(response) => return Ok(response),
         },
     };
 
-    let result = store_image(&state, &user, project_id, kind, client_id, &input, input_bytes, dir.path()).await;
+    let result = store_image(
+        &state,
+        &user,
+        project_id,
+        kind,
+        client_id,
+        &input,
+        input_bytes,
+        dir.path(),
+    )
+    .await;
     match (result, reservation) {
         (Ok(stored), Some(reservation)) => {
             let value = serde_json::to_value(&stored).map_err(AppError::internal)?;
             reservation.commit(&value).await;
             respond_with_urls(&state, &user, &stored, StatusCode::CREATED, false).await
         }
-        (Ok(stored), None) => respond_with_urls(&state, &user, &stored, StatusCode::CREATED, false).await,
+        (Ok(stored), None) => {
+            respond_with_urls(&state, &user, &stored, StatusCode::CREATED, false).await
+        }
         (Err(error), reservation) => {
             if let Some(reservation) = reservation {
                 Reservation::release(reservation).await;
@@ -284,30 +340,57 @@ async fn store_image(
 ) -> Result<StoredImage, AppError> {
     ensure_project_visible(state, user, project_id).await?;
     let processed = state.media.process(input, work_dir, Preset::PHOTO).await?;
-    let thumb = processed.thumb.clone().ok_or_else(|| AppError::internal("thumbnail missing"))?;
+    let thumb = processed
+        .thumb
+        .clone()
+        .ok_or_else(|| AppError::internal("thumbnail missing"))?;
 
-    let now = OffsetDateTime::from_unix_timestamp_nanos(i128::from(state.clock.now_ms()) * 1_000_000)
-        .map_err(AppError::internal)?;
+    let now =
+        OffsetDateTime::from_unix_timestamp_nanos(i128::from(state.clock.now_ms()) * 1_000_000)
+            .map_err(AppError::internal)?;
     let manila = now.to_offset(offset!(+8));
-    let base = format!("{project_id}/{:04}/{:02}/{}", manila.year(), u8::from(manila.month()), Uuid::new_v4());
+    let base = format!(
+        "{project_id}/{:04}/{:02}/{}",
+        manila.year(),
+        u8::from(manila.month()),
+        Uuid::new_v4()
+    );
     let path = format!("{base}.webp");
     let thumb_path = format!("{base}_thumb.webp");
     let bucket = &state.config.media_bucket;
 
-    let main_upload = state.supabase.upload(user.token(), bucket, &path, processed.main.bytes.clone(), WEBP, IMMUTABLE_CACHE_SECS);
-    let thumb_upload = state.supabase.upload(user.token(), bucket, &thumb_path, thumb.bytes.clone(), WEBP, IMMUTABLE_CACHE_SECS);
+    let main_upload = state.supabase.upload(
+        user.token(),
+        bucket,
+        &path,
+        processed.main.bytes.clone(),
+        WEBP,
+        IMMUTABLE_CACHE_SECS,
+    );
+    let thumb_upload = state.supabase.upload(
+        user.token(),
+        bucket,
+        &thumb_path,
+        thumb.bytes.clone(),
+        WEBP,
+        IMMUTABLE_CACHE_SECS,
+    );
     let (main_result, thumb_result) = tokio::join!(main_upload, thumb_upload);
     if let Err(error) = main_result.as_ref().and(thumb_result.as_ref()) {
         // Best-effort cleanup of the half that succeeded (Storage RLS lets only project
         // managers delete; other users' orphans are tiny and swept with the project later).
-        let stored: Vec<String> = [(main_result.is_ok(), &path), (thumb_result.is_ok(), &thumb_path)]
-            .into_iter()
-            .filter_map(|(ok, p)| ok.then(|| p.clone()))
-            .collect();
-        if !stored.is_empty() {
-            if let Err(e) = state.supabase.remove(user.token(), bucket, &stored).await {
-                tracing::warn!(error = %e, "could not remove partial upload");
-            }
+        let stored: Vec<String> = [
+            (main_result.is_ok(), &path),
+            (thumb_result.is_ok(), &thumb_path),
+        ]
+        .into_iter()
+        .filter(|(ok, _)| *ok)
+        .map(|(_, p)| p.clone())
+        .collect();
+        if !stored.is_empty()
+            && let Err(e) = state.supabase.remove(user.token(), bucket, &stored).await
+        {
+            tracing::warn!(error = %e, "could not remove partial upload");
         }
         return Err(error.clone());
     }
@@ -341,10 +424,17 @@ async fn store_image(
 }
 
 /// 404 unless the caller can see the project (RLS on `project_overview`).
-async fn ensure_project_visible(state: &AppState, user: &AuthUser, project_id: Uuid) -> Result<(), AppError> {
+async fn ensure_project_visible(
+    state: &AppState,
+    user: &AuthUser,
+    project_id: Uuid,
+) -> Result<(), AppError> {
     let rows = state
         .supabase
-        .rest_get(user.token(), &format!("/rest/v1/project_overview?select=id&id=eq.{project_id}&limit=1"))
+        .rest_get(
+            user.token(),
+            &format!("/rest/v1/project_overview?select=id&id=eq.{project_id}&limit=1"),
+        )
         .await
         .map_err(|e| match e {
             FetchError::Rejected(error) => error,
@@ -355,11 +445,18 @@ async fn ensure_project_visible(state: &AppState, user: &AuthUser, project_id: U
         })?;
     match rows {
         Value::Array(items) if !items.is_empty() => Ok(()),
-        _ => Err(AppError::not_found("This project does not exist or you no longer have access to it.")),
+        _ => Err(AppError::not_found(
+            "This project does not exist or you no longer have access to it.",
+        )),
     }
 }
 
-async fn replay(state: &AppState, user: &AuthUser, project_id: Uuid, stored: Value) -> Result<Response, AppError> {
+async fn replay(
+    state: &AppState,
+    user: &AuthUser,
+    project_id: Uuid,
+    stored: Value,
+) -> Result<Response, AppError> {
     let stored: StoredImage = serde_json::from_value(stored).map_err(AppError::internal)?;
     if stored.project_id != project_id {
         return Err(AppError::new(
@@ -370,15 +467,43 @@ async fn replay(state: &AppState, user: &AuthUser, project_id: Uuid, stored: Val
     respond_with_urls(state, user, &stored, StatusCode::OK, true).await
 }
 
-async fn wait_for_in_flight(state: &AppState, user: &AuthUser, project_id: Uuid, client_id: &str) -> Result<Response, AppError> {
+enum Reserved {
+    /// This request owns the key: do the work, then commit.
+    Fresh(Reservation),
+    /// An earlier request with the same key finished: its result, replayed.
+    Replayed(Response),
+}
+
+/// Reserves `client_id` for this request. A duplicate that arrives while the first attempt
+/// is still running waits for it (up to [`IN_PROGRESS_WAIT`]) and then replays its result;
+/// if the first attempt fails and releases the key, the waiting duplicate takes over.
+async fn reserve(
+    state: &AppState,
+    user: &AuthUser,
+    project_id: Uuid,
+    client_id: &str,
+) -> Result<Reserved, AppError> {
     let deadline = tokio::time::Instant::now() + IN_PROGRESS_WAIT;
-    while tokio::time::Instant::now() < deadline {
-        tokio::time::sleep(Duration::from_millis(250)).await;
-        if let Some(stored) = state.idempotency.peek("images", user.id, client_id).await {
-            return replay(state, user, project_id, stored).await;
+    loop {
+        match state.idempotency.begin("images", user.id, client_id).await {
+            Begin::Started(reservation) => return Ok(Reserved::Fresh(reservation)),
+            Begin::Replay(stored) => {
+                return replay(state, user, project_id, stored)
+                    .await
+                    .map(Reserved::Replayed);
+            }
+            Begin::InProgress if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            Begin::InProgress => {
+                return Err(AppError::new(
+                    ErrorCode::Conflict,
+                    "This upload is still being processed. Try again in a moment.",
+                )
+                .with_retry_after(2));
+            }
         }
     }
-    Err(AppError::new(ErrorCode::Conflict, "This upload is still being processed. Try again in a moment.").with_retry_after(2))
 }
 
 async fn respond_with_urls(
@@ -391,7 +516,12 @@ async fn respond_with_urls(
     let ttl = state.config.signed_url_ttl;
     let signed = state
         .supabase
-        .sign(user.token(), &state.config.media_bucket, &[&stored.path, &stored.thumb_path], ttl)
+        .sign(
+            user.token(),
+            &state.config.media_bucket,
+            &[&stored.path, &stored.thumb_path],
+            ttl,
+        )
         .await;
     let (signed_url, thumb_signed_url, expires_at) = match signed {
         Ok(urls) if urls.len() == 2 => {
@@ -412,21 +542,30 @@ async fn respond_with_urls(
     }
     let mut response = (status, Json(body)).into_response();
     if replayed {
-        response.headers_mut().insert("idempotent-replayed", HeaderValue::from_static("true"));
+        response
+            .headers_mut()
+            .insert("idempotent-replayed", HeaderValue::from_static("true"));
     }
     Ok(response)
 }
 
 fn expiry_rfc3339(state: &AppState, ttl: Duration) -> Option<String> {
     let at_ms = state.clock.now_ms() + ttl.as_millis() as u64;
-    OffsetDateTime::from_unix_timestamp_nanos(i128::from(at_ms) * 1_000_000).ok()?.format(&Rfc3339).ok()
+    OffsetDateTime::from_unix_timestamp_nanos(i128::from(at_ms) * 1_000_000)
+        .ok()?
+        .format(&Rfc3339)
+        .ok()
 }
 
 /// Accepts only object names this service generates: `<uuid>/<yyyy>/<mm>/<uuid>[_thumb].webp`.
 pub fn valid_media_path(path: &str) -> bool {
     let parts: Vec<&str> = path.split('/').collect();
-    let [project, year, month, file] = parts.as_slice() else { return false };
-    let Some(stem) = file.strip_suffix(".webp") else { return false };
+    let [project, year, month, file] = parts.as_slice() else {
+        return false;
+    };
+    let Some(stem) = file.strip_suffix(".webp") else {
+        return false;
+    };
     let stem = stem.strip_suffix("_thumb").unwrap_or(stem);
     let is_uuid = |s: &str| s.len() == 36 && Uuid::parse_str(s).is_ok();
     is_uuid(project)
@@ -450,22 +589,38 @@ pub async fn signed_url(
 ) -> Result<Response, AppError> {
     let path = query.path.unwrap_or_default();
     if !valid_media_path(&path) {
-        return Err(AppError::validation("path must be an image path returned by /v1/media/images."));
+        return Err(AppError::validation(
+            "path must be an image path returned by /v1/media/images.",
+        ));
     }
     state.limiter.check(RateClass::Read, user.id).await?;
 
     let key = format!("c:v1:sign:{}:{path}", user.id);
     let now_ms = state.clock.now_ms();
     if let Some(cached) = state.cache.get_raw(&key).await {
-        let still_valid = cached.get("expires_at_ms").and_then(Value::as_u64).is_some_and(|exp| exp > now_ms + 60_000);
+        let still_valid = cached
+            .get("expires_at_ms")
+            .and_then(Value::as_u64)
+            .is_some_and(|exp| exp > now_ms + 60_000);
         if still_valid {
             return Ok(signed_body(&cached, CacheStatus::Hit));
         }
     }
 
     let ttl = state.config.signed_url_ttl;
-    let urls = state.supabase.sign(user.token(), &state.config.media_bucket, &[path.as_str()], ttl).await?;
-    let url = urls.into_iter().next().ok_or_else(|| AppError::internal("empty sign response"))?;
+    let urls = state
+        .supabase
+        .sign(
+            user.token(),
+            &state.config.media_bucket,
+            &[path.as_str()],
+            ttl,
+        )
+        .await?;
+    let url = urls
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::internal("empty sign response"))?;
     let expires_at_ms = now_ms + ttl.as_millis() as u64;
     let value = json!({
         "path": path,
@@ -474,7 +629,10 @@ pub async fn signed_url(
         "expires_at": expiry_rfc3339(&state, ttl),
     });
     // Reuse the URL until a minute before it expires.
-    state.cache.put(&key, &value, ttl.saturating_sub(Duration::from_secs(60))).await;
+    state
+        .cache
+        .put(&key, &value, ttl.saturating_sub(Duration::from_mins(1)))
+        .await;
     Ok(signed_body(&value, CacheStatus::Miss))
 }
 
@@ -483,7 +641,11 @@ fn signed_body(value: &Value, status: CacheStatus) -> Response {
     if let Value::Object(map) = &mut public {
         map.remove("expires_at_ms");
     }
-    cached_response(&CacheResult { value: Arc::new(public), status, age: Duration::ZERO })
+    cached_response(&CacheResult {
+        value: Arc::new(public),
+        status,
+        age: Duration::ZERO,
+    })
 }
 
 #[cfg(test)]
@@ -514,9 +676,20 @@ mod tests {
         assert!(!valid_kind("Progress"));
         assert!(!valid_kind("../x"));
         let mut headers = HeaderMap::new();
-        headers.insert("idempotency-key", HeaderValue::from_static("0b6c2c1e-3f4f-4d8e"));
-        assert_eq!(client_id_from(None, &headers).unwrap().as_deref(), Some("0b6c2c1e-3f4f-4d8e"));
-        assert_eq!(client_id_from(Some("form-value-123".into()), &headers).unwrap().as_deref(), Some("form-value-123"));
+        headers.insert(
+            "idempotency-key",
+            HeaderValue::from_static("0b6c2c1e-3f4f-4d8e"),
+        );
+        assert_eq!(
+            client_id_from(None, &headers).unwrap().as_deref(),
+            Some("0b6c2c1e-3f4f-4d8e")
+        );
+        assert_eq!(
+            client_id_from(Some("form-value-123".into()), &headers)
+                .unwrap()
+                .as_deref(),
+            Some("form-value-123")
+        );
         assert!(client_id_from(Some("bad id".into()), &HeaderMap::new()).is_err());
         assert_eq!(client_id_from(None, &HeaderMap::new()).unwrap(), None);
     }

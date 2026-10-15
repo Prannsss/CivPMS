@@ -16,12 +16,25 @@ pub enum Preset {
     /// Center-cropped square avatar.
     Avatar { size: u32, quality: u8 },
     /// Photo bounded by `max_edge` (never upscaled) plus a thumbnail bounded by `thumb_edge`.
-    Photo { max_edge: u32, thumb_edge: u32, quality: u8, thumb_quality: u8 },
+    Photo {
+        max_edge: u32,
+        thumb_edge: u32,
+        quality: u8,
+        thumb_quality: u8,
+    },
 }
 
 impl Preset {
-    pub const AVATAR: Self = Self::Avatar { size: 256, quality: 82 };
-    pub const PHOTO: Self = Self::Photo { max_edge: 1600, thumb_edge: 400, quality: 80, thumb_quality: 75 };
+    pub const AVATAR: Self = Self::Avatar {
+        size: 256,
+        quality: 82,
+    };
+    pub const PHOTO: Self = Self::Photo {
+        max_edge: 1600,
+        thumb_edge: 400,
+        quality: 80,
+        thumb_quality: 75,
+    };
 
     pub const fn has_thumbnail(self) -> bool {
         matches!(self, Self::Photo { .. })
@@ -59,7 +72,11 @@ pub fn filter_graph(job: &Job<'_>) -> String {
         Preset::Avatar { size, .. } => format!(
             "[0:v]{prefix}crop=w='min(iw,ih)':h='min(iw,ih)',scale={size}:{size}:flags=lanczos,setsar=1[main]"
         ),
-        Preset::Photo { max_edge, thumb_edge, .. } => format!(
+        Preset::Photo {
+            max_edge,
+            thumb_edge,
+            ..
+        } => format!(
             "[0:v]{prefix}{},setsar=1,split=2[main][t0];[t0]{}[thumb]",
             bounded_scale(max_edge),
             bounded_scale(thumb_edge),
@@ -103,7 +120,17 @@ fn file_url(path: &Path) -> OsString {
 /// The full ffmpeg argument list.
 pub fn ffmpeg_args(job: &Job<'_>) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::with_capacity(48);
-    for a in ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-threads", "1", "-filter_threads", "1"] {
+    for a in [
+        "-hide_banner",
+        "-nostdin",
+        "-loglevel",
+        "error",
+        "-y",
+        "-threads",
+        "1",
+        "-filter_threads",
+        "1",
+    ] {
         args.push(a.into());
     }
     // Input options.
@@ -123,7 +150,11 @@ pub fn ffmpeg_args(job: &Job<'_>) -> Vec<OsString> {
     args.push(filter_graph(job).into());
     match job.preset {
         Preset::Avatar { quality, .. } => webp_output(&mut args, "[main]", quality, job.main_out),
-        Preset::Photo { quality, thumb_quality, .. } => {
+        Preset::Photo {
+            quality,
+            thumb_quality,
+            ..
+        } => {
             webp_output(&mut args, "[main]", quality, job.main_out);
             if let Some(thumb) = job.thumb_out {
                 webp_output(&mut args, "[thumb]", thumb_quality, thumb);
@@ -137,11 +168,27 @@ pub fn ffmpeg_args(job: &Job<'_>) -> Vec<OsString> {
 /// huge frame is allocated).
 pub fn ffprobe_args(input: &Path, kind: ImageKind, max_pixels: u64) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::with_capacity(20);
-    for a in ["-v", "error", "-hide_banner", "-protocol_whitelist", "file", "-max_pixels"] {
+    for a in [
+        "-v",
+        "error",
+        "-hide_banner",
+        "-protocol_whitelist",
+        "file",
+        "-max_pixels",
+    ] {
         args.push(a.into());
     }
     args.push(max_pixels.to_string().into());
-    for a in ["-f", kind.demuxer(), "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height", "-of", "json"] {
+    for a in [
+        "-f",
+        kind.demuxer(),
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=codec_name,width,height",
+        "-of",
+        "json",
+    ] {
         args.push(a.into());
     }
     args.push(file_url(input));
@@ -164,7 +211,10 @@ pub fn fit_within(width: u32, height: u32, edge: u32) -> (u32, u32) {
     }
     let (w, h) = (f64::from(width), f64::from(height));
     let scale = (f64::from(edge) / w).min(f64::from(edge) / h);
-    (((w * scale).round() as u32).clamp(1, edge), ((h * scale).round() as u32).clamp(1, edge))
+    (
+        ((w * scale).round() as u32).clamp(1, edge),
+        ((h * scale).round() as u32).clamp(1, edge),
+    )
 }
 
 #[cfg(test)]
@@ -172,8 +222,19 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn job(kind: ImageKind, orientation: Option<u16>, preset: Preset) -> (PathBuf, PathBuf, PathBuf, ImageKind, Option<u16>, Preset) {
-        (PathBuf::from("/tmp/w/in"), PathBuf::from("/tmp/w/main.webp"), PathBuf::from("/tmp/w/thumb.webp"), kind, orientation, preset)
+    fn job(
+        kind: ImageKind,
+        orientation: Option<u16>,
+        preset: Preset,
+    ) -> (PathBuf, PathBuf, PathBuf, ImageKind, Option<u16>, Preset) {
+        (
+            PathBuf::from("/tmp/w/in"),
+            PathBuf::from("/tmp/w/main.webp"),
+            PathBuf::from("/tmp/w/thumb.webp"),
+            kind,
+            orientation,
+            preset,
+        )
     }
 
     fn args_for(kind: ImageKind, orientation: Option<u16>, preset: Preset) -> Vec<String> {
@@ -187,27 +248,43 @@ mod tests {
             main_out: &main,
             thumb_out: preset.has_thumbnail().then_some(thumb.as_path()),
         };
-        ffmpeg_args(&job).into_iter().map(|a| a.to_string_lossy().into_owned()).collect()
+        ffmpeg_args(&job)
+            .into_iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
     }
 
     fn value_after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-        args.iter().position(|a| a == flag).map(|i| args[i + 1].as_str())
+        args.iter()
+            .position(|a| a == flag)
+            .map(|i| args[i + 1].as_str())
     }
 
     #[test]
     fn photo_args_are_hardened_and_strip_metadata() {
         let args = args_for(ImageKind::Jpeg, Some(6), Preset::PHOTO);
         assert_eq!(value_after(&args, "-protocol_whitelist"), Some("file"));
-        assert_eq!(value_after(&args, "-f"), Some("jpeg_pipe"), "demuxer is forced");
+        assert_eq!(
+            value_after(&args, "-f"),
+            Some("jpeg_pipe"),
+            "demuxer is forced"
+        );
         assert_eq!(value_after(&args, "-max_pixels"), Some("50000000"));
         assert_eq!(value_after(&args, "-i"), Some("file:/tmp/w/in"));
         assert!(args.contains(&"-noautorotate".to_owned()));
-        assert_eq!(args.iter().filter(|a| *a == "-map_metadata").count(), 2, "both outputs");
+        assert_eq!(
+            args.iter().filter(|a| *a == "-map_metadata").count(),
+            2,
+            "both outputs"
+        );
         assert_eq!(args.iter().filter(|a| *a == "libwebp").count(), 2);
         assert!(args.contains(&"file:/tmp/w/main.webp".to_owned()));
         assert!(args.contains(&"file:/tmp/w/thumb.webp".to_owned()));
         let graph = value_after(&args, "-filter_complex").unwrap();
-        assert!(graph.starts_with("[0:v]transpose=clock,scale=w='min(1600,iw)'"), "{graph}");
+        assert!(
+            graph.starts_with("[0:v]transpose=clock,scale=w='min(1600,iw)'"),
+            "{graph}"
+        );
         assert!(graph.contains("[t0]scale=w='min(400,iw)'"), "{graph}");
     }
 
@@ -228,7 +305,11 @@ mod tests {
         let args = args_for(ImageKind::Heif, Some(6), Preset::PHOTO);
         assert!(!args.contains(&"-noautorotate".to_owned()));
         assert_eq!(value_after(&args, "-f"), Some("mov"));
-        assert!(!value_after(&args, "-filter_complex").unwrap().contains("transpose"));
+        assert!(
+            !value_after(&args, "-filter_complex")
+                .unwrap()
+                .contains("transpose")
+        );
     }
 
     #[test]

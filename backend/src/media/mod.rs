@@ -122,22 +122,41 @@ impl MediaProcessor {
         );
         let ready = caps.ready();
         *self.capabilities.write() = caps;
-        let result = if ready { self.orientation_selftest().await } else { SelfTest::Skipped };
+        let result = if ready {
+            self.orientation_selftest().await
+        } else {
+            SelfTest::Skipped
+        };
         if result == SelfTest::Failed {
-            tracing::error!("orientation self-test FAILED: rotated photos would be stored sideways");
+            tracing::error!(
+                "orientation self-test FAILED: rotated photos would be stored sideways"
+            );
         }
         *self.selftest.write() = result;
     }
 
     /// Generates a 64×32 JPEG, tags it "rotate 90° clockwise" and checks the output is 32×64.
     async fn orientation_selftest(&self) -> SelfTest {
-        let Ok(dir) = tempfile::tempdir() else { return SelfTest::Skipped };
+        let Ok(dir) = tempfile::tempdir() else {
+            return SelfTest::Skipped;
+        };
         let raw = dir.path().join("selftest-raw.jpg");
         let mut raw_arg = std::ffi::OsString::from("file:");
         raw_arg.push(raw.as_os_str());
         let args: Vec<std::ffi::OsString> = [
-            "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-            "testsrc=size=64x32:rate=1", "-frames:v", "1", "-f", "image2",
+            "-hide_banner",
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=64x32:rate=1",
+            "-frames:v",
+            "1",
+            "-f",
+            "image2",
         ]
         .iter()
         .map(Into::into)
@@ -147,8 +166,12 @@ impl MediaProcessor {
             Ok(out) if out.success => {}
             _ => return SelfTest::Skipped, // e.g. a build without lavfi
         }
-        let Ok(jpeg) = tokio::fs::read(&raw).await else { return SelfTest::Skipped };
-        let Some(rotated) = exif::jpeg_with_orientation(&jpeg, 6) else { return SelfTest::Skipped };
+        let Ok(jpeg) = tokio::fs::read(&raw).await else {
+            return SelfTest::Skipped;
+        };
+        let Some(rotated) = exif::jpeg_with_orientation(&jpeg, 6) else {
+            return SelfTest::Skipped;
+        };
         let input = dir.path().join("selftest.jpg");
         if tokio::fs::write(&input, rotated).await.is_err() {
             return SelfTest::Skipped;
@@ -156,7 +179,11 @@ impl MediaProcessor {
         match self.process(&input, dir.path(), Preset::PHOTO).await {
             Ok(p) if (p.main.width, p.main.height) == (32, 64) => SelfTest::Passed,
             Ok(p) => {
-                tracing::error!(width = p.main.width, height = p.main.height, "unexpected self-test output size");
+                tracing::error!(
+                    width = p.main.width,
+                    height = p.main.height,
+                    "unexpected self-test output size"
+                );
                 SelfTest::Failed
             }
             Err(e) => {
@@ -167,7 +194,12 @@ impl MediaProcessor {
     }
 
     /// Processes the uploaded file at `input`; outputs are written into `work_dir`.
-    pub async fn process(&self, input: &Path, work_dir: &Path, preset: Preset) -> Result<Processed, AppError> {
+    pub async fn process(
+        &self,
+        input: &Path,
+        work_dir: &Path,
+        preset: Preset,
+    ) -> Result<Processed, AppError> {
         let started = Instant::now();
         let head = read_head(input).await?;
         let kind = sniff::sniff(&head).ok_or_else(|| {
@@ -189,22 +221,34 @@ impl MediaProcessor {
         if let Some((w, h)) = sniff::header_dimensions(kind, &head) {
             self.check_pixels(w, h)?;
         } else if !matches!(kind, ImageKind::Heif | ImageKind::Avif) {
-            return Err(AppError::new(ErrorCode::ProcessingFailed, "The image file is damaged or incomplete."));
+            return Err(AppError::new(
+                ErrorCode::ProcessingFailed,
+                "The image file is damaged or incomplete.",
+            ));
         }
 
-        let _permit = match tokio::time::timeout(self.queue_timeout, Arc::clone(&self.semaphore).acquire_owned()).await {
-            Ok(Ok(permit)) => permit,
-            _ => {
-                return Err(AppError::new(ErrorCode::Busy, "The server is busy processing other images. Try again shortly.")
-                    .with_retry_after(5));
-            }
+        let Ok(Ok(_permit)) = tokio::time::timeout(
+            self.queue_timeout,
+            Arc::clone(&self.semaphore).acquire_owned(),
+        )
+        .await
+        else {
+            return Err(AppError::new(
+                ErrorCode::Busy,
+                "The server is busy processing other images. Try again shortly.",
+            )
+            .with_retry_after(5));
         };
 
         // Bomb guard #2: ffprobe with -max_pixels (also the only size source for HEIF/AVIF).
         let (src_w, src_h) = self.probe(input, kind).await?;
         self.check_pixels(src_w, src_h)?;
 
-        let orientation = if kind.container_orientation() { None } else { exif::orientation(kind, &head) };
+        let orientation = if kind.container_orientation() {
+            None
+        } else {
+            exif::orientation(kind, &head)
+        };
         let main_out = work_dir.join("main.webp");
         let thumb_out = work_dir.join("thumb.webp");
         let job = Job {
@@ -217,17 +261,29 @@ impl MediaProcessor {
             thumb_out: preset.has_thumbnail().then_some(thumb_out.as_path()),
         };
         let args = transcode::ffmpeg_args(&job);
-        let output = tools::run(&self.ffmpeg, &args, self.timeout).await.map_err(|e| {
-            tracing::warn!(error = %e, "ffmpeg did not finish");
-            AppError::new(ErrorCode::ProcessingFailed, "The image took too long to process. Try a smaller photo.")
-        })?;
+        let output = tools::run(&self.ffmpeg, &args, self.timeout)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "ffmpeg did not finish");
+                AppError::new(
+                    ErrorCode::ProcessingFailed,
+                    "The image took too long to process. Try a smaller photo.",
+                )
+            })?;
         if !output.success {
             tracing::warn!(stderr = %output.stderr, kind = kind.label(), "ffmpeg failed");
-            return Err(AppError::new(ErrorCode::ProcessingFailed, "The image could not be processed. It may be damaged."));
+            return Err(AppError::new(
+                ErrorCode::ProcessingFailed,
+                "The image could not be processed. It may be damaged.",
+            ));
         }
 
         let main = read_output(&main_out).await?;
-        let thumb = if preset.has_thumbnail() { Some(read_output(&thumb_out).await?) } else { None };
+        let thumb = if preset.has_thumbnail() {
+            Some(read_output(&thumb_out).await?)
+        } else {
+            None
+        };
         Ok(Processed {
             main,
             thumb,
@@ -241,7 +297,10 @@ impl MediaProcessor {
 
     fn check_pixels(&self, w: u32, h: u32) -> Result<(), AppError> {
         if w == 0 || h == 0 {
-            return Err(AppError::new(ErrorCode::ProcessingFailed, "The image has no pixels."));
+            return Err(AppError::new(
+                ErrorCode::ProcessingFailed,
+                "The image has no pixels.",
+            ));
         }
         if u64::from(w) * u64::from(h) > self.max_pixels {
             return Err(AppError::new(
@@ -257,40 +316,60 @@ impl MediaProcessor {
 
     async fn probe(&self, input: &Path, kind: ImageKind) -> Result<(u32, u32), AppError> {
         let args = transcode::ffprobe_args(input, kind, self.max_pixels);
-        let output = tools::run(&self.ffprobe, &args, self.timeout).await.map_err(|e| {
-            tracing::warn!(error = %e, "ffprobe did not finish");
-            AppError::new(ErrorCode::ProcessingFailed, "The image could not be read.")
-        })?;
+        let output = tools::run(&self.ffprobe, &args, self.timeout)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "ffprobe did not finish");
+                AppError::new(ErrorCode::ProcessingFailed, "The image could not be read.")
+            })?;
         let parsed: Option<ProbeOutput> = serde_json::from_slice(&output.stdout).ok();
         match parsed.and_then(|p| p.streams.into_iter().next()) {
             Some(s) if s.width > 0 && s.height > 0 => Ok((s.width, s.height)),
             _ => {
                 tracing::info!(stderr = %output.stderr, kind = kind.label(), "ffprobe found no decodable image");
                 if output.stderr.contains("exceeds specified max pixel count") {
-                    return Err(AppError::new(ErrorCode::ImageTooLarge, "The image dimensions are too large."));
+                    return Err(AppError::new(
+                        ErrorCode::ImageTooLarge,
+                        "The image dimensions are too large.",
+                    ));
                 }
-                Err(AppError::new(ErrorCode::ProcessingFailed, "The image file is damaged or incomplete."))
+                Err(AppError::new(
+                    ErrorCode::ProcessingFailed,
+                    "The image file is damaged or incomplete.",
+                ))
             }
         }
     }
 }
 
 async fn read_head(input: &Path) -> Result<Vec<u8>, AppError> {
-    let file = tokio::fs::File::open(input).await.map_err(AppError::internal)?;
+    let file = tokio::fs::File::open(input)
+        .await
+        .map_err(AppError::internal)?;
     let mut head = Vec::with_capacity(64 * 1024);
-    file.take(HEAD_BYTES).read_to_end(&mut head).await.map_err(AppError::internal)?;
+    file.take(HEAD_BYTES)
+        .read_to_end(&mut head)
+        .await
+        .map_err(AppError::internal)?;
     Ok(head)
 }
 
 async fn read_output(path: &Path) -> Result<Encoded, AppError> {
     let bytes = tokio::fs::read(path).await.map_err(|e| {
         tracing::warn!(error = %e, "ffmpeg produced no output file");
-        AppError::new(ErrorCode::ProcessingFailed, "The image could not be processed.")
+        AppError::new(
+            ErrorCode::ProcessingFailed,
+            "The image could not be processed.",
+        )
     })?;
     if sniff::sniff(&bytes) != Some(ImageKind::Webp) {
         return Err(AppError::internal("ffmpeg output is not WebP"));
     }
-    let (width, height) =
-        sniff::header_dimensions(ImageKind::Webp, &bytes).ok_or_else(|| AppError::internal("unreadable WebP output"))?;
-    Ok(Encoded { bytes: Bytes::from(bytes), width, height })
+    let (width, height) = sniff::header_dimensions(ImageKind::Webp, &bytes)
+        .ok_or_else(|| AppError::internal("unreadable WebP output"))?;
+    Ok(Encoded {
+        bytes: Bytes::from(bytes),
+        width,
+        height,
+    })
 }

@@ -18,7 +18,9 @@ pub struct SingleFlight<T> {
 
 impl<T> Default for SingleFlight<T> {
     fn default() -> Self {
-        Self { inflight: Mutex::new(HashMap::new()) }
+        Self {
+            inflight: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -32,7 +34,10 @@ impl<T: Clone + Send + Sync> SingleFlight<T> {
     {
         let cell = {
             let mut map = self.inflight.lock();
-            Arc::clone(map.entry(key.to_owned()).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                map.entry(key.to_owned())
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
         let mut leader = false;
         let value = cell
@@ -44,7 +49,10 @@ impl<T: Clone + Send + Sync> SingleFlight<T> {
             .clone();
         {
             let mut map = self.inflight.lock();
-            if map.get(key).is_some_and(|current| Arc::ptr_eq(current, &cell)) {
+            if map
+                .get(key)
+                .is_some_and(|current| Arc::ptr_eq(current, &cell))
+            {
                 map.remove(key);
             }
         }
@@ -106,7 +114,7 @@ mod tests {
         let f1 = Arc::clone(&flights);
         let leader = tokio::spawn(async move {
             f1.run("k", || async {
-                tokio::time::sleep(Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_mins(1)).await;
                 1
             })
             .await
@@ -116,8 +124,10 @@ mod tests {
         let follower = tokio::spawn(async move { f2.run("k", || async { 2 }).await });
         tokio::time::sleep(Duration::from_millis(20)).await;
         leader.abort();
-        let (value, took_over) =
-            tokio::time::timeout(Duration::from_secs(2), follower).await.unwrap().unwrap();
+        let (value, took_over) = tokio::time::timeout(Duration::from_secs(2), follower)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!((value, took_over), (2, true));
     }
 }

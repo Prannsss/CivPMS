@@ -139,7 +139,11 @@ pub struct AppError {
 
 impl AppError {
     pub fn new(code: ErrorCode, message: impl Into<Cow<'static, str>>) -> Self {
-        Self { code, message: message.into(), retry_after: None }
+        Self {
+            code,
+            message: message.into(),
+            retry_after: None,
+        }
     }
 
     #[must_use]
@@ -165,8 +169,11 @@ impl AppError {
     }
 
     pub fn upstream_unavailable() -> Self {
-        Self::new(ErrorCode::UpstreamUnavailable, ErrorCode::UpstreamUnavailable.default_message())
-            .with_retry_after(5)
+        Self::new(
+            ErrorCode::UpstreamUnavailable,
+            ErrorCode::UpstreamUnavailable.default_message(),
+        )
+        .with_retry_after(5)
     }
 
     /// Logs `detail` (correlated by the request id in the span) and returns a generic
@@ -201,8 +208,18 @@ struct EnvelopeBody<'a> {
     request_id: Option<&'a str>,
 }
 
-fn render<'a>(code: ErrorCode, message: &'a str, request_id: Option<&'a str>) -> Json<Envelope<'a>> {
-    Json(Envelope { error: EnvelopeBody { code, message, request_id } })
+fn render<'a>(
+    code: ErrorCode,
+    message: &'a str,
+    request_id: Option<&'a str>,
+) -> Json<Envelope<'a>> {
+    Json(Envelope {
+        error: EnvelopeBody {
+            code,
+            message,
+            request_id,
+        },
+    })
 }
 
 impl IntoResponse for AppError {
@@ -210,9 +227,14 @@ impl IntoResponse for AppError {
         let status = self.code.status();
         let mut response = (status, render(self.code, &self.message, None)).into_response();
         if let Some(secs) = self.retry_after {
-            response.headers_mut().insert(RETRY_AFTER, HeaderValue::from(secs));
+            response
+                .headers_mut()
+                .insert(RETRY_AFTER, HeaderValue::from(secs));
         }
-        response.extensions_mut().insert(ErrorInfo { code: self.code, message: self.message });
+        response.extensions_mut().insert(ErrorInfo {
+            code: self.code,
+            message: self.message,
+        });
         response
     }
 }
@@ -233,15 +255,14 @@ pub async fn error_envelope(request: Request, next: Next) -> Response {
     }
 
     let (mut parts, body) = response.into_parts();
-    let (code, message) = match parts.extensions.remove::<ErrorInfo>() {
-        Some(info) => (info.code, info.message),
-        None => {
-            let code = ErrorCode::from_status(status);
-            if status.is_server_error() {
-                tracing::warn!(%status, "framework error response normalized");
-            }
-            (code, Cow::Borrowed(code.default_message()))
+    let (code, message) = if let Some(info) = parts.extensions.remove::<ErrorInfo>() {
+        (info.code, info.message)
+    } else {
+        let code = ErrorCode::from_status(status);
+        if status.is_server_error() {
+            tracing::warn!(%status, "framework error response normalized");
         }
+        (code, Cow::Borrowed(code.default_message()))
     };
     drop(body);
     parts.headers.remove(CONTENT_TYPE);
@@ -265,22 +286,45 @@ mod tests {
 
     #[test]
     fn codes_map_to_statuses() {
-        assert_eq!(ErrorCode::Unauthenticated.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(ErrorCode::ImageTooLarge.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(ErrorCode::RateLimited.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(ErrorCode::UpstreamUnavailable.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            ErrorCode::Unauthenticated.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            ErrorCode::ImageTooLarge.status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            ErrorCode::RateLimited.status(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(
+            ErrorCode::UpstreamUnavailable.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
         assert_eq!(
             serde_json::to_string(&ErrorCode::UnsupportedMediaType).unwrap(),
             "\"UNSUPPORTED_MEDIA_TYPE\""
         );
-        assert_eq!(ErrorCode::from_status(StatusCode::PAYLOAD_TOO_LARGE), ErrorCode::PayloadTooLarge);
-        assert_eq!(ErrorCode::from_status(StatusCode::IM_A_TEAPOT), ErrorCode::Validation);
-        assert_eq!(ErrorCode::from_status(StatusCode::BAD_GATEWAY), ErrorCode::UpstreamUnavailable);
+        assert_eq!(
+            ErrorCode::from_status(StatusCode::PAYLOAD_TOO_LARGE),
+            ErrorCode::PayloadTooLarge
+        );
+        assert_eq!(
+            ErrorCode::from_status(StatusCode::IM_A_TEAPOT),
+            ErrorCode::Validation
+        );
+        assert_eq!(
+            ErrorCode::from_status(StatusCode::BAD_GATEWAY),
+            ErrorCode::UpstreamUnavailable
+        );
     }
 
     #[test]
     fn retry_after_is_set() {
-        let response = AppError::new(ErrorCode::RateLimited, "slow down").with_retry_after(7).into_response();
+        let response = AppError::new(ErrorCode::RateLimited, "slow down")
+            .with_retry_after(7)
+            .into_response();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(response.headers()[RETRY_AFTER], "7");
     }

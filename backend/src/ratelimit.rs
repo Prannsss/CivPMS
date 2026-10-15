@@ -54,7 +54,12 @@ pub fn decide(limit: u32, now_ms: u64, current: u64, previous: u64) -> Decision 
     let estimate = (previous as f64).mul_add(weight, current as f64);
     let allowed = estimate <= f64::from(limit);
     let remaining = (f64::from(limit) - estimate).floor().max(0.0) as u32;
-    Decision { allowed, limit, remaining, reset_secs: (WINDOW_MS - elapsed).div_ceil(1000).max(1) }
+    Decision {
+        allowed,
+        limit,
+        remaining,
+        reset_secs: (WINDOW_MS - elapsed).div_ceil(1000).max(1),
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -82,7 +87,13 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(redis: Arc<RedisHandle>, limits: RateLimitConfig, clock: SharedClock) -> Self {
-        Self { redis, memory: Mutex::new(HashMap::new()), limits, clock, script: Script::new(SCRIPT) }
+        Self {
+            redis,
+            memory: Mutex::new(HashMap::new()),
+            limits,
+            clock,
+            script: Script::new(SCRIPT),
+        }
     }
 
     const fn limit(&self, class: RateClass) -> u32 {
@@ -113,9 +124,18 @@ impl RateLimiter {
         }
     }
 
-    async fn count_in_redis(&self, class: RateClass, user: Uuid, window: u64) -> Option<(u64, u64)> {
+    async fn count_in_redis(
+        &self,
+        class: RateClass,
+        user: Uuid,
+        window: u64,
+    ) -> Option<(u64, u64)> {
         let current_key = format!("rl:v1:{}:{user}:{window}", class.as_str());
-        let previous_key = format!("rl:v1:{}:{user}:{}", class.as_str(), window.saturating_sub(1));
+        let previous_key = format!(
+            "rl:v1:{}:{user}:{}",
+            class.as_str(),
+            window.saturating_sub(1)
+        );
         let script = &self.script;
         self.redis
             .run("rate_limit", |mut conn| async move {
@@ -139,9 +159,17 @@ impl RateLimiter {
         if counter.window == window {
             counter.current += 1;
         } else if counter.window + 1 == window {
-            *counter = Counter { window, current: 1, previous: counter.current };
+            *counter = Counter {
+                window,
+                current: 1,
+                previous: counter.current,
+            };
         } else {
-            *counter = Counter { window, current: 1, previous: 0 };
+            *counter = Counter {
+                window,
+                current: 1,
+                previous: 0,
+            };
         }
         (counter.current, counter.previous)
     }
@@ -175,7 +203,10 @@ mod tests {
         let redis = Arc::new(RedisHandle::disabled(clock.clone()));
         let limiter = RateLimiter::new(
             redis,
-            RateLimitConfig { uploads_per_minute: 3, reads_per_minute: 100 },
+            RateLimitConfig {
+                uploads_per_minute: 3,
+                reads_per_minute: 100,
+            },
             clock.clone(),
         );
         let user = Uuid::new_v4();
@@ -187,7 +218,10 @@ mod tests {
         assert_eq!(err.retry_after, Some(60));
 
         // Other users and other classes have their own budgets.
-        limiter.check(RateClass::Upload, Uuid::new_v4()).await.unwrap();
+        limiter
+            .check(RateClass::Upload, Uuid::new_v4())
+            .await
+            .unwrap();
         limiter.check(RateClass::Read, user).await.unwrap();
 
         // Two windows later the budget is back.

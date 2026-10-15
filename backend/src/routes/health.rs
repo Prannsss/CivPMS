@@ -70,7 +70,11 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
             "supabase_reads_circuit": format!("{:?}", state.supabase.breaker().state()).to_lowercase(),
         },
     });
-    let status = if ready { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    let status = if ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
     // Not an error envelope on purpose: probes want the details, and 503 here is expected.
     let mut response = (status, Json(body)).into_response();
     response

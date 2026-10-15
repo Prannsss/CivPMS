@@ -135,7 +135,7 @@ impl Cache {
         if let Some(entry) = &cached {
             let age_ms = now.saturating_sub(entry.t);
             if !bypass && age_ms < ttl_ms {
-                return Ok(self.result(entry, CacheStatus::Hit, age_ms));
+                return Ok(Self::result(entry, CacheStatus::Hit, age_ms));
             }
             if !bypass && age_ms < ttl_ms + policy.swr.as_millis() as u64 {
                 let this = Arc::clone(self);
@@ -145,14 +145,18 @@ impl Cache {
                         tracing::debug!(error = %e, "background refresh failed");
                     }
                 });
-                return Ok(self.result(entry, CacheStatus::Hit, age_ms));
+                return Ok(Self::result(entry, CacheStatus::Hit, age_ms));
             }
         }
 
         match self.fetch_and_store(&key, policy, fetch).await {
             Ok(value) => Ok(CacheResult {
                 value,
-                status: if bypass { CacheStatus::Bypass } else { CacheStatus::Miss },
+                status: if bypass {
+                    CacheStatus::Bypass
+                } else {
+                    CacheStatus::Miss
+                },
                 age: Duration::ZERO,
             }),
             Err(FetchError::Rejected(error)) => Err(error),
@@ -161,7 +165,11 @@ impl Cache {
                 match cached {
                     Some(entry) if now.saturating_sub(entry.t) < limit_ms => {
                         tracing::warn!(%reason, "upstream unavailable; serving stale cache entry");
-                        Ok(self.result(&entry, CacheStatus::Stale, now.saturating_sub(entry.t)))
+                        Ok(Self::result(
+                            &entry,
+                            CacheStatus::Stale,
+                            now.saturating_sub(entry.t),
+                        ))
                     }
                     _ => {
                         tracing::warn!(%reason, "upstream unavailable and no usable cache entry");
@@ -180,15 +188,27 @@ impl Cache {
 
     /// Stores a value with a fixed time-to-live.
     pub async fn put(&self, key: &str, value: &Value, ttl: Duration) {
-        let entry = Entry { t: self.clock.now_ms(), v: value.clone() };
+        let entry = Entry {
+            t: self.clock.now_ms(),
+            v: value.clone(),
+        };
         self.write(key, &entry, ttl.as_millis() as u64).await;
     }
 
-    fn result(&self, entry: &Entry, status: CacheStatus, age_ms: u64) -> CacheResult {
-        CacheResult { value: Arc::new(entry.v.clone()), status, age: Duration::from_millis(age_ms) }
+    fn result(entry: &Entry, status: CacheStatus, age_ms: u64) -> CacheResult {
+        CacheResult {
+            value: Arc::new(entry.v.clone()),
+            status,
+            age: Duration::from_millis(age_ms),
+        }
     }
 
-    async fn fetch_and_store<F, Fut>(&self, key: &str, policy: CachePolicy, fetch: F) -> FlightResult
+    async fn fetch_and_store<F, Fut>(
+        &self,
+        key: &str,
+        policy: CachePolicy,
+        fetch: F,
+    ) -> FlightResult
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Value, FetchError>>,
@@ -197,7 +217,10 @@ impl Cache {
             .flights
             .run(key, || async {
                 let value = fetch().await?;
-                let entry = Entry { t: self.clock.now_ms(), v: value };
+                let entry = Entry {
+                    t: self.clock.now_ms(),
+                    v: value,
+                };
                 self.write(key, &entry, policy.retention_ms()).await;
                 Ok(Arc::new(entry.v))
             })
@@ -209,7 +232,10 @@ impl Cache {
         let from_redis = self
             .redis
             .run("cache_get", |mut conn| async move {
-                redis::cmd("GET").arg(key).query_async::<Option<Vec<u8>>>(&mut conn).await
+                redis::cmd("GET")
+                    .arg(key)
+                    .query_async::<Option<Vec<u8>>>(&mut conn)
+                    .await
             })
             .await;
         let bytes: Option<Arc<[u8]>> = match from_redis {
@@ -220,13 +246,16 @@ impl Cache {
     }
 
     async fn write(&self, key: &str, entry: &Entry, retention_ms: u64) {
-        let Ok(bytes) = serde_json::to_vec(entry) else { return };
+        let Ok(bytes) = serde_json::to_vec(entry) else {
+            return;
+        };
         if bytes.len() > MAX_ENTRY_BYTES {
             tracing::debug!(len = bytes.len(), "cache entry too large; not cached");
             return;
         }
         let bytes: Arc<[u8]> = Arc::from(bytes);
-        self.memory.set(key, Arc::clone(&bytes), retention_ms, self.clock.now_ms());
+        self.memory
+            .set(key, Arc::clone(&bytes), retention_ms, self.clock.now_ms());
         let _ = self
             .redis
             .run("cache_set", |mut conn| {
@@ -256,7 +285,7 @@ mod tests {
     const POLICY: CachePolicy = CachePolicy {
         ttl: Duration::from_secs(30),
         swr: Duration::from_secs(30),
-        stale_max: Duration::from_secs(600),
+        stale_max: Duration::from_mins(10),
     };
 
     fn cache() -> (Arc<Cache>, Arc<ManualClock>) {
@@ -266,7 +295,10 @@ mod tests {
     }
 
     async fn ok(cache: &Arc<Cache>, value: Value) -> CacheResult {
-        cache.get_or_fetch("k".into(), POLICY, false, move || async move { Ok(value) }).await.unwrap()
+        cache
+            .get_or_fetch("k".into(), POLICY, false, move || async move { Ok(value) })
+            .await
+            .unwrap()
     }
 
     async fn failing(cache: &Arc<Cache>) -> Result<CacheResult, AppError> {
@@ -291,12 +323,12 @@ mod tests {
     async fn serves_stale_on_upstream_error_until_stale_max() {
         let (cache, clock) = cache();
         ok(&cache, json!({"v": 1})).await;
-        clock.advance(Duration::from_secs(120)); // past ttl + swr
+        clock.advance(Duration::from_mins(2)); // past ttl + swr
         let stale = failing(&cache).await.unwrap();
         assert_eq!(stale.status, CacheStatus::Stale);
         assert_eq!(*stale.value, json!({"v": 1}));
 
-        clock.advance(Duration::from_secs(600)); // now past ttl + stale_max
+        clock.advance(Duration::from_mins(10)); // now past ttl + stale_max
         let err = failing(&cache).await.unwrap_err();
         assert_eq!(err.code, ErrorCode::UpstreamUnavailable);
         assert!(err.retry_after.is_some());
@@ -305,14 +337,17 @@ mod tests {
     #[tokio::test]
     async fn no_entry_and_upstream_down_is_503() {
         let (cache, _) = cache();
-        assert_eq!(failing(&cache).await.unwrap_err().code, ErrorCode::UpstreamUnavailable);
+        assert_eq!(
+            failing(&cache).await.unwrap_err().code,
+            ErrorCode::UpstreamUnavailable
+        );
     }
 
     #[tokio::test]
     async fn rejections_are_never_masked_by_stale_data() {
         let (cache, clock) = cache();
         ok(&cache, json!(1)).await;
-        clock.advance(Duration::from_secs(120));
+        clock.advance(Duration::from_mins(2));
         let err = cache
             .get_or_fetch("k".into(), POLICY, false, || async {
                 Err(FetchError::Rejected(AppError::not_found("gone")))
@@ -328,14 +363,20 @@ mod tests {
         ok(&cache, json!(1)).await;
         clock.advance(Duration::from_secs(40)); // inside the swr window
         let served = ok(&cache, json!(2)).await;
-        assert_eq!((served.status, &*served.value), (CacheStatus::Hit, &json!(1)));
+        assert_eq!(
+            (served.status, &*served.value),
+            (CacheStatus::Hit, &json!(1))
+        );
         // Let the background refresh finish, then the new value is a fresh hit.
         for _ in 0..50 {
             tokio::task::yield_now().await;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
         let refreshed = ok(&cache, json!(3)).await;
-        assert_eq!((refreshed.status, &*refreshed.value), (CacheStatus::Hit, &json!(2)));
+        assert_eq!(
+            (refreshed.status, &*refreshed.value),
+            (CacheStatus::Hit, &json!(2))
+        );
     }
 
     #[tokio::test]
@@ -346,14 +387,20 @@ mod tests {
             .get_or_fetch("k".into(), POLICY, true, || async { Ok(json!(2)) })
             .await
             .unwrap();
-        assert_eq!((fresh.status, &*fresh.value), (CacheStatus::Bypass, &json!(2)));
+        assert_eq!(
+            (fresh.status, &*fresh.value),
+            (CacheStatus::Bypass, &json!(2))
+        );
         let fallback = cache
             .get_or_fetch("k".into(), POLICY, true, || async {
                 Err(FetchError::Unavailable("down".into()))
             })
             .await
             .unwrap();
-        assert_eq!((fallback.status, &*fallback.value), (CacheStatus::Stale, &json!(2)));
+        assert_eq!(
+            (fallback.status, &*fallback.value),
+            (CacheStatus::Stale, &json!(2))
+        );
     }
 
     #[tokio::test]
@@ -384,7 +431,9 @@ mod tests {
     #[tokio::test]
     async fn put_and_get_raw() {
         let (cache, clock) = cache();
-        cache.put("sig", &json!("url"), Duration::from_secs(5)).await;
+        cache
+            .put("sig", &json!("url"), Duration::from_secs(5))
+            .await;
         assert_eq!(cache.get_raw("sig").await, Some(json!("url")));
         clock.advance(Duration::from_secs(6));
         assert_eq!(cache.get_raw("sig").await, None);

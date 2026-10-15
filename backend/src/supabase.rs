@@ -69,31 +69,31 @@ impl Supabase {
     /// GETs a PostgREST resource as JSON, with retries and the circuit breaker.
     /// `path_and_query` starts with `/rest/v1/`.
     pub async fn rest_get(&self, token: &str, path_and_query: &str) -> Result<Value, FetchError> {
-        if self.breaker.acquire().is_err() {
+        let Ok(permit) = self.breaker.acquire() else {
             return Err(FetchError::Unavailable("circuit open".into()));
-        }
+        };
         let mut attempt = 0;
         loop {
-            let outcome = self.rest_get_once(token, path_and_query).await;
-            match outcome {
+            match self.rest_get_once(token, path_and_query).await {
                 Ok(value) => {
-                    self.breaker.record_success();
+                    permit.success();
                     return Ok(value);
                 }
                 Err(FetchError::Rejected(error)) => {
                     // A definitive 4xx answer: the upstream is healthy.
-                    self.breaker.record_neutral();
+                    permit.healthy();
                     return Err(FetchError::Rejected(error));
                 }
                 Err(FetchError::Unavailable(reason)) if attempt < READ_RETRIES => {
                     attempt += 1;
-                    let cap = RETRY_BASE.as_millis() as u64 * (1 << attempt);
+                    // Full jitter: 0..=150 ms, then 0..=300 ms.
+                    let cap = RETRY_BASE.as_millis() as u64 * (1 << (attempt - 1));
                     let delay = Duration::from_millis(fastrand::u64(0..=cap));
                     tracing::debug!(%reason, attempt, ?delay, "retrying upstream read");
                     tokio::time::sleep(delay).await;
                 }
                 Err(FetchError::Unavailable(reason)) => {
-                    self.breaker.record_failure();
+                    permit.failure();
                     return Err(FetchError::Unavailable(reason));
                 }
             }
@@ -134,7 +134,11 @@ impl Supabase {
         cache_control_secs: u64,
     ) -> Result<(), AppError> {
         let response = self
-            .request(Method::POST, &format!("/storage/v1/object/{bucket}/{object}"), token)
+            .request(
+                Method::POST,
+                &format!("/storage/v1/object/{bucket}/{object}"),
+                token,
+            )
             .header("content-type", content_type)
             .header("cache-control", format!("max-age={cache_control_secs}"))
             .header("x-upsert", "false")
@@ -155,9 +159,18 @@ impl Supabase {
     }
 
     /// Deletes objects as the caller (best effort cleanup after a partial failure).
-    pub async fn remove(&self, token: &str, bucket: &str, objects: &[String]) -> Result<(), AppError> {
+    pub async fn remove(
+        &self,
+        token: &str,
+        bucket: &str,
+        objects: &[String],
+    ) -> Result<(), AppError> {
         let response = self
-            .request(Method::DELETE, &format!("/storage/v1/object/{bucket}"), token)
+            .request(
+                Method::DELETE,
+                &format!("/storage/v1/object/{bucket}"),
+                token,
+            )
             .json(&json!({ "prefixes": objects }))
             .timeout(self.write_timeout)
             .send()
@@ -181,7 +194,11 @@ impl Supabase {
         expires_in: Duration,
     ) -> Result<Vec<String>, AppError> {
         let response = self
-            .request(Method::POST, &format!("/storage/v1/object/sign/{bucket}"), token)
+            .request(
+                Method::POST,
+                &format!("/storage/v1/object/sign/{bucket}"),
+                token,
+            )
             .json(&json!({ "expiresIn": expires_in.as_secs(), "paths": objects }))
             .timeout(self.read_timeout)
             .send()
@@ -202,10 +219,16 @@ impl Supabase {
             let entry = entries
                 .iter()
                 .find(|e| e.path.as_deref() == Some(object))
-                .ok_or_else(|| AppError::not_found("That file does not exist or you can't open it."))?;
+                .ok_or_else(|| {
+                    AppError::not_found("That file does not exist or you can't open it.")
+                })?;
             match (&entry.signed_url, &entry.error) {
                 (Some(url), None) => urls.push(self.absolute_storage_url(url)),
-                _ => return Err(AppError::not_found("That file does not exist or you can't open it.")),
+                _ => {
+                    return Err(AppError::not_found(
+                        "That file does not exist or you can't open it.",
+                    ));
+                }
             }
         }
         Ok(urls)
@@ -226,7 +249,9 @@ impl Supabase {
 }
 
 fn is_transient(status: StatusCode) -> bool {
-    status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::REQUEST_TIMEOUT
+    status.is_server_error()
+        || status == StatusCode::TOO_MANY_REQUESTS
+        || status == StatusCode::REQUEST_TIMEOUT
 }
 
 fn describe_reqwest(error: &reqwest::Error) -> String {
@@ -241,10 +266,16 @@ fn describe_reqwest(error: &reqwest::Error) -> String {
 }
 
 async fn read_limited(response: Response, limit: usize) -> Result<Bytes, String> {
-    if response.content_length().is_some_and(|len| len as usize > limit) {
+    if response
+        .content_length()
+        .is_some_and(|len| len as usize > limit)
+    {
         return Err("upstream response too large".into());
     }
-    let body = response.bytes().await.map_err(|e| format!("reading upstream body: {}", describe_reqwest(&e)))?;
+    let body = response
+        .bytes()
+        .await
+        .map_err(|e| format!("reading upstream body: {}", describe_reqwest(&e)))?;
     if body.len() > limit {
         return Err("upstream response too large".into());
     }
@@ -255,7 +286,9 @@ async fn read_limited(response: Response, limit: usize) -> Result<Bytes, String>
 fn map_rest_error(status: StatusCode, body: &[u8]) -> AppError {
     let detail = String::from_utf8_lossy(&body[..body.len().min(300)]).into_owned();
     match status {
-        StatusCode::UNAUTHORIZED => AppError::unauthenticated("Your session has expired. Sign in again."),
+        StatusCode::UNAUTHORIZED => {
+            AppError::unauthenticated("Your session has expired. Sign in again.")
+        }
         StatusCode::FORBIDDEN => AppError::forbidden("You don't have access to this."),
         StatusCode::NOT_FOUND | StatusCode::NOT_ACCEPTABLE => AppError::not_found("Not found."),
         _ => {
@@ -281,20 +314,39 @@ fn map_storage_error(status: StatusCode, body: &[u8]) -> AppError {
     let inner = parsed
         .as_ref()
         .and_then(|e| e.status_code.as_ref())
-        .and_then(|v| v.as_str().map(str::to_owned).or_else(|| v.as_u64().map(|n| n.to_string())))
+        .and_then(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .or_else(|| v.as_u64().map(|n| n.to_string()))
+        })
         .and_then(|s| s.parse::<u16>().ok())
         .and_then(|n| StatusCode::from_u16(n).ok());
     let effective = inner.unwrap_or(status);
-    let message = parsed.as_ref().and_then(|e| e.message.clone()).unwrap_or_default();
-    let error = parsed.as_ref().and_then(|e| e.error.clone()).unwrap_or_default();
+    let message = parsed
+        .as_ref()
+        .and_then(|e| e.message.clone())
+        .unwrap_or_default();
+    let error = parsed
+        .as_ref()
+        .and_then(|e| e.error.clone())
+        .unwrap_or_default();
     match effective {
-        StatusCode::UNAUTHORIZED => AppError::unauthenticated("Your session has expired. Sign in again."),
-        StatusCode::FORBIDDEN => AppError::forbidden("You don't have permission to store files here."),
-        StatusCode::NOT_FOUND => AppError::not_found("That file does not exist or you can't open it."),
-        StatusCode::CONFLICT => AppError::new(ErrorCode::Conflict, "A file with this name already exists."),
-        StatusCode::PAYLOAD_TOO_LARGE => {
-            AppError::new(ErrorCode::PayloadTooLarge, "The processed file exceeds the storage limit.")
+        StatusCode::UNAUTHORIZED => {
+            AppError::unauthenticated("Your session has expired. Sign in again.")
         }
+        StatusCode::FORBIDDEN => {
+            AppError::forbidden("You don't have permission to store files here.")
+        }
+        StatusCode::NOT_FOUND => {
+            AppError::not_found("That file does not exist or you can't open it.")
+        }
+        StatusCode::CONFLICT => {
+            AppError::new(ErrorCode::Conflict, "A file with this name already exists.")
+        }
+        StatusCode::PAYLOAD_TOO_LARGE => AppError::new(
+            ErrorCode::PayloadTooLarge,
+            "The processed file exceeds the storage limit.",
+        ),
         s if s.is_server_error() || s == StatusCode::TOO_MANY_REQUESTS => {
             tracing::warn!(status = %s, %error, %message, "storage unavailable");
             AppError::upstream_unavailable()
@@ -302,7 +354,10 @@ fn map_storage_error(status: StatusCode, body: &[u8]) -> AppError {
         s => {
             tracing::warn!(status = %s, %error, %message, "unexpected storage error");
             if message.contains("mime type") {
-                AppError::new(ErrorCode::UnsupportedMediaType, "Storage rejected the file type.")
+                AppError::new(
+                    ErrorCode::UnsupportedMediaType,
+                    "Storage rejected the file type.",
+                )
             } else {
                 AppError::validation("Storage rejected the upload.")
             }
@@ -317,21 +372,42 @@ mod tests {
     #[test]
     fn storage_errors_use_the_inner_status_code() {
         let rls = br#"{"statusCode":"403","error":"Unauthorized","message":"new row violates row-level security policy"}"#;
-        assert_eq!(map_storage_error(StatusCode::BAD_REQUEST, rls).code, ErrorCode::Forbidden);
+        assert_eq!(
+            map_storage_error(StatusCode::BAD_REQUEST, rls).code,
+            ErrorCode::Forbidden
+        );
         let missing = br#"{"statusCode":"404","error":"not_found","message":"Object not found"}"#;
-        assert_eq!(map_storage_error(StatusCode::BAD_REQUEST, missing).code, ErrorCode::NotFound);
-        assert_eq!(map_storage_error(StatusCode::CONFLICT, b"{}").code, ErrorCode::Conflict);
-        assert_eq!(map_storage_error(StatusCode::BAD_GATEWAY, b"oops").code, ErrorCode::UpstreamUnavailable);
+        assert_eq!(
+            map_storage_error(StatusCode::BAD_REQUEST, missing).code,
+            ErrorCode::NotFound
+        );
+        assert_eq!(
+            map_storage_error(StatusCode::CONFLICT, b"{}").code,
+            ErrorCode::Conflict
+        );
+        assert_eq!(
+            map_storage_error(StatusCode::BAD_GATEWAY, b"oops").code,
+            ErrorCode::UpstreamUnavailable
+        );
         let numeric = br#"{"statusCode":413,"message":"too big"}"#;
-        assert_eq!(map_storage_error(StatusCode::BAD_REQUEST, numeric).code, ErrorCode::PayloadTooLarge);
+        assert_eq!(
+            map_storage_error(StatusCode::BAD_REQUEST, numeric).code,
+            ErrorCode::PayloadTooLarge
+        );
     }
 
     #[test]
     fn rest_errors_do_not_leak_messages() {
-        let err = map_rest_error(StatusCode::BAD_REQUEST, br#"{"message":"column secret does not exist"}"#);
+        let err = map_rest_error(
+            StatusCode::BAD_REQUEST,
+            br#"{"message":"column secret does not exist"}"#,
+        );
         assert_eq!(err.code, ErrorCode::Validation);
         assert!(!err.message.contains("secret"));
-        assert_eq!(map_rest_error(StatusCode::UNAUTHORIZED, b"").code, ErrorCode::Unauthenticated);
+        assert_eq!(
+            map_rest_error(StatusCode::UNAUTHORIZED, b"").code,
+            ErrorCode::Unauthenticated
+        );
     }
 
     #[test]

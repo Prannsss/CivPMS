@@ -52,8 +52,11 @@ pub use crate::state::{AppState, StartupError};
 const MULTIPART_OVERHEAD: usize = 64 * 1024;
 
 fn cors_layer(config: &Config) -> CorsLayer {
-    let origins: Vec<HeaderValue> =
-        config.app_origins.iter().filter_map(|o| HeaderValue::from_str(o).ok()).collect();
+    let origins: Vec<HeaderValue> = config
+        .app_origins
+        .iter()
+        .filter_map(|o| HeaderValue::from_str(o).ok())
+        .collect();
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
@@ -72,9 +75,10 @@ fn cors_layer(config: &Config) -> CorsLayer {
             header::RETRY_AFTER,
             header::AGE,
         ])
-        .max_age(Duration::from_secs(600))
+        .max_age(Duration::from_mins(10))
 }
 
+#[allow(clippy::needless_pass_by_value)] // signature required by `CatchPanicLayer::custom`
 fn handle_panic(panic: Box<dyn Any + Send + 'static>) -> Response {
     let detail = panic
         .downcast_ref::<&str>()
@@ -82,37 +86,53 @@ fn handle_panic(panic: Box<dyn Any + Send + 'static>) -> Response {
         .or_else(|| panic.downcast_ref::<String>().cloned())
         .unwrap_or_else(|| "unknown panic".to_owned());
     tracing::error!(panic = %detail, "handler panicked");
-    AppError::new(ErrorCode::Internal, "Something went wrong on our side. Try again.").into_response()
+    AppError::new(
+        ErrorCode::Internal,
+        "Something went wrong on our side. Try again.",
+    )
+    .into_response()
 }
 
 /// Builds the full router (all middleware included). Tests call this directly.
 pub fn build_app(state: AppState) -> Router {
     let config = &state.config;
-    let upload_limit = usize::try_from(config.max_upload_bytes).unwrap_or(usize::MAX) + MULTIPART_OVERHEAD;
+    let upload_limit =
+        usize::try_from(config.max_upload_bytes).unwrap_or(usize::MAX) + MULTIPART_OVERHEAD;
 
     let uploads = Router::new()
         .route("/v1/media/avatar", post(routes::media::upload_avatar))
         .route("/v1/media/images", post(routes::media::upload_image))
         .layer(
             ServiceBuilder::new()
-                .layer(TimeoutLayer::with_status_code(StatusCode::GATEWAY_TIMEOUT, config.upload_request_timeout))
+                .layer(TimeoutLayer::with_status_code(
+                    StatusCode::GATEWAY_TIMEOUT,
+                    config.upload_request_timeout,
+                ))
                 .layer(RequestBodyLimitLayer::new(upload_limit))
                 .layer(DefaultBodyLimit::max(upload_limit)),
         );
     let reads = Router::new()
         .route("/v1/media/signed-url", get(routes::media::signed_url))
         .route("/v1/projects", get(routes::reads::list_projects))
-        .route("/v1/projects/{id}/summary", get(routes::reads::project_summary))
+        .route(
+            "/v1/projects/{id}/summary",
+            get(routes::reads::project_summary),
+        )
         .route("/v1/holidays", get(routes::reads::holidays))
         .layer(
             ServiceBuilder::new()
-                .layer(TimeoutLayer::with_status_code(StatusCode::GATEWAY_TIMEOUT, config.read_request_timeout))
+                .layer(TimeoutLayer::with_status_code(
+                    StatusCode::GATEWAY_TIMEOUT,
+                    config.read_request_timeout,
+                ))
                 .layer(DefaultBodyLimit::max(16 * 1024)),
         );
-    let api = uploads.merge(reads).layer(SetResponseHeaderLayer::overriding(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("private, no-store"),
-    ));
+    let api = uploads
+        .merge(reads)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        ));
     let probes = Router::new()
         .route("/healthz", get(routes::health::healthz))
         .route("/readyz", get(routes::health::readyz));
@@ -124,7 +144,10 @@ pub fn build_app(state: AppState) -> Router {
         .fallback(error::not_found_fallback)
         .layer(
             ServiceBuilder::new()
-                .layer(SetSensitiveRequestHeadersLayer::new([header::AUTHORIZATION, header::COOKIE]))
+                .layer(SetSensitiveRequestHeadersLayer::new([
+                    header::AUTHORIZATION,
+                    header::COOKIE,
+                ]))
                 .layer(axum::middleware::from_fn(telemetry::sanitize_request_id))
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
                 .layer(
@@ -157,7 +180,10 @@ pub fn build_app(state: AppState) -> Router {
                     HeaderValue::from_static("max-age=63072000"),
                 ))
                 .layer(axum::middleware::from_fn(error::error_envelope))
-                .layer(axum::middleware::from_fn_with_state(activity, keepalive::track_activity))
+                .layer(axum::middleware::from_fn_with_state(
+                    activity,
+                    keepalive::track_activity,
+                ))
                 .layer(CatchPanicLayer::custom(handle_panic)),
         )
         .with_state(state)
@@ -201,8 +227,10 @@ pub async fn run(config: Config) -> Result<(), StartupError> {
         config = %config.summary(),
         "civpms-media starting"
     );
-    if config.keepalive.enabled && config.keepalive.idle >= Duration::from_secs(900) {
-        tracing::warn!("KEEPALIVE_IDLE_SECS >= 900: Render's free plan sleeps after 15 minutes idle");
+    if config.keepalive.enabled && config.keepalive.idle >= Duration::from_mins(15) {
+        tracing::warn!(
+            "KEEPALIVE_IDLE_SECS >= 900: Render's free plan sleeps after 15 minutes idle"
+        );
     }
     let state = AppState::new(config)?;
     state.warm_up().await;
@@ -218,7 +246,9 @@ pub async fn run(config: Config) -> Result<(), StartupError> {
 
     let app = build_app(state);
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, port));
-    let listener = tokio::net::TcpListener::bind(address).await.map_err(StartupError::Bind)?;
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .map_err(StartupError::Bind)?;
     tracing::info!(%address, "listening");
 
     let signal_token = shutdown.clone();
@@ -227,7 +257,8 @@ pub async fn run(config: Config) -> Result<(), StartupError> {
         signal_token.cancel();
     });
 
-    let server = axum::serve(listener, app).with_graceful_shutdown(shutdown.clone().cancelled_owned());
+    let server =
+        axum::serve(listener, app).with_graceful_shutdown(shutdown.clone().cancelled_owned());
     let drain_deadline = async {
         shutdown.cancelled().await;
         tokio::time::sleep(grace).await;

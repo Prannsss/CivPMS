@@ -1,3 +1,5 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-print-in-tests = true
+# Proper nouns used in doc comments ("..": keep clippy's defaults).
+doc-valid-idents = ["CivPMS", "PostgREST", "WebP", "JWKS", "HEIC", "AVIF", ".."]

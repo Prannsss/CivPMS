@@ -20,8 +20,8 @@ use parking_lot::RwLock;
 use crate::clock::SharedClock;
 use crate::redis_client::RedisHandle;
 
-pub const JWKS_TTL: Duration = Duration::from_secs(600);
-pub const JWKS_MAX_STALE: Duration = Duration::from_secs(6 * 3600);
+pub const JWKS_TTL: Duration = Duration::from_mins(10);
+pub const JWKS_MAX_STALE: Duration = Duration::from_hours(6);
 pub const UNKNOWN_KID_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 const REDIS_KEY: &str = "jwks:v1";
 const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -35,7 +35,9 @@ pub struct VerifyingKey {
 
 impl std::fmt::Debug for VerifyingKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VerifyingKey").field("alg", &self.alg).finish_non_exhaustive()
+        f.debug_struct("VerifyingKey")
+            .field("alg", &self.alg)
+            .finish_non_exhaustive()
     }
 }
 
@@ -58,10 +60,13 @@ pub enum KeyLookupError {
 
 /// Parses a JWKS document into usable keys. Unusable entries are skipped, not fatal.
 pub fn parse_jwks(body: &[u8]) -> Result<HashMap<String, VerifyingKey>, String> {
-    let set: JwkSet = serde_json::from_slice(body).map_err(|e| format!("invalid JWKS JSON: {e}"))?;
+    let set: JwkSet =
+        serde_json::from_slice(body).map_err(|e| format!("invalid JWKS JSON: {e}"))?;
     let mut keys = HashMap::new();
     for jwk in &set.keys {
-        let Some(kid) = jwk.common.key_id.clone() else { continue };
+        let Some(kid) = jwk.common.key_id.clone() else {
+            continue;
+        };
         if matches!(&jwk.common.public_key_use, Some(u) if *u != PublicKeyUse::Signature) {
             continue;
         }
@@ -111,7 +116,12 @@ impl std::fmt::Debug for JwksCache {
 }
 
 impl JwksCache {
-    pub fn new(url: String, http: reqwest::Client, redis: Arc<RedisHandle>, clock: SharedClock) -> Self {
+    pub fn new(
+        url: String,
+        http: reqwest::Client,
+        redis: Arc<RedisHandle>,
+        clock: SharedClock,
+    ) -> Self {
         Self {
             url,
             http,
@@ -131,7 +141,8 @@ impl JwksCache {
     pub fn is_loaded(&self) -> bool {
         let set = self.current.read();
         !set.keys.is_empty()
-            && self.clock.now_ms().saturating_sub(set.fetched_at_ms) < JWKS_MAX_STALE.as_millis() as u64
+            && self.clock.now_ms().saturating_sub(set.fetched_at_ms)
+                < JWKS_MAX_STALE.as_millis() as u64
     }
 
     /// Finds the key for `kid`, refreshing the set when it is old or the kid is unknown.
@@ -149,7 +160,11 @@ impl JwksCache {
         }
         let recently = now.saturating_sub(self.last_attempt_ms.load(Ordering::Relaxed))
             < UNKNOWN_KID_REFRESH_INTERVAL.as_millis() as u64;
-        let refreshed = if recently { self.is_loaded() } else { self.refresh(true).await.is_ok() };
+        let refreshed = if recently {
+            self.is_loaded()
+        } else {
+            self.refresh(true).await.is_ok()
+        };
         match self.lookup(kid) {
             Some(found) => Ok(found),
             None if refreshed || self.is_loaded() => Err(KeyLookupError::UnknownKid),
@@ -161,7 +176,11 @@ impl JwksCache {
         let set = self.current.read();
         let fresh_enough = self.clock.now_ms().saturating_sub(set.fetched_at_ms)
             < JWKS_MAX_STALE.as_millis() as u64;
-        if fresh_enough { set.keys.get(kid).cloned() } else { None }
+        if fresh_enough {
+            set.keys.get(kid).cloned()
+        } else {
+            None
+        }
     }
 
     /// Fetches the JWKS (Supabase first, then the Redis copy). Concurrent callers share one
@@ -172,12 +191,14 @@ impl JwksCache {
         {
             let set = self.current.read();
             let refreshed_meanwhile = set.fetched_at_ms >= requested_at && !set.keys.is_empty();
-            let fresh = self.clock.now_ms().saturating_sub(set.fetched_at_ms) < JWKS_TTL.as_millis() as u64;
+            let fresh =
+                self.clock.now_ms().saturating_sub(set.fetched_at_ms) < JWKS_TTL.as_millis() as u64;
             if refreshed_meanwhile || (!force && fresh && !set.keys.is_empty()) {
                 return Ok(set.keys.len());
             }
         }
-        self.last_attempt_ms.store(self.clock.now_ms(), Ordering::Relaxed);
+        self.last_attempt_ms
+            .store(self.clock.now_ms(), Ordering::Relaxed);
 
         match self.fetch_upstream().await {
             Ok(body) => match parse_jwks(&body) {
@@ -194,21 +215,23 @@ impl JwksCache {
         }
 
         // Fall back to the copy another instance (or an earlier run) stored in Redis.
-        if let Some((body, stored_at_ms)) = self.load_from_redis().await {
-            if let Ok(keys) = parse_jwks(&body) {
-                if stored_at_ms > self.current.read().fetched_at_ms {
-                    let count = keys.len();
-                    self.install(keys, stored_at_ms);
-                    tracing::info!(keys = count, "JWKS loaded from Redis copy");
-                    return Ok(count);
-                }
-            }
+        if let Some((body, stored_at_ms)) = self.load_from_redis().await
+            && let Ok(keys) = parse_jwks(&body)
+            && stored_at_ms > self.current.read().fetched_at_ms
+        {
+            let count = keys.len();
+            self.install(keys, stored_at_ms);
+            tracing::info!(keys = count, "JWKS loaded from Redis copy");
+            return Ok(count);
         }
         Err("JWKS unavailable".into())
     }
 
     fn install(&self, keys: HashMap<String, VerifyingKey>, fetched_at_ms: u64) {
-        *self.current.write() = Arc::new(KeySet { keys, fetched_at_ms });
+        *self.current.write() = Arc::new(KeySet {
+            keys,
+            fetched_at_ms,
+        });
     }
 
     async fn fetch_upstream(&self) -> Result<Vec<u8>, String> {
@@ -250,7 +273,10 @@ impl JwksCache {
         let stored = self
             .redis
             .run("jwks_get", |mut conn| async move {
-                redis::cmd("GET").arg(REDIS_KEY).query_async::<Option<String>>(&mut conn).await
+                redis::cmd("GET")
+                    .arg(REDIS_KEY)
+                    .query_async::<Option<String>>(&mut conn)
+                    .await
             })
             .await
             .ok()??;
@@ -288,7 +314,11 @@ mod tests {
             {"kty":"EC","crv":"P-256","x":"AuIozl2lOk1nBbNN0w47cGKKhVdrcRpdvO4m8qe1VFA","y":"9A_L7rN6IdaCdc7nZf75WM7p6VM28E52CC5Uup4sV9w","use":"enc","kid":"enc"},
             {"kty":"EC","crv":"P-256","x":"AuIozl2lOk1nBbNN0w47cGKKhVdrcRpdvO4m8qe1VFA","y":"9A_L7rN6IdaCdc7nZf75WM7p6VM28E52CC5Uup4sV9w"}
         ]}"#;
-        assert!(parse_jwks(jwks.as_bytes()).unwrap_err().contains("no usable"));
+        assert!(
+            parse_jwks(jwks.as_bytes())
+                .unwrap_err()
+                .contains("no usable")
+        );
         assert!(parse_jwks(b"not json").is_err());
     }
 }

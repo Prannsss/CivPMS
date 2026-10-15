@@ -1,4 +1,4 @@
-//! Keep-alive self-ping for Render's free plan.
+//! Keep-alive self-ping for Render's free plan (**opt-in**: `KEEPALIVE_ENABLED=true`).
 //!
 //! Render spins a free web service down after 15 minutes without inbound traffic, and the
 //! next request then waits for a cold start. While enabled, this task GETs the service's own
@@ -39,11 +39,15 @@ pub struct ActivityTracker {
 impl ActivityTracker {
     pub fn new(clock: SharedClock) -> Self {
         let now = clock.now_ms();
-        Self { last_ms: AtomicU64::new(now), clock }
+        Self {
+            last_ms: AtomicU64::new(now),
+            clock,
+        }
     }
 
     pub fn touch(&self) {
-        self.last_ms.fetch_max(self.clock.now_ms(), Ordering::Relaxed);
+        self.last_ms
+            .fetch_max(self.clock.now_ms(), Ordering::Relaxed);
     }
 
     pub fn last_ms(&self) -> u64 {
@@ -102,14 +106,21 @@ pub async fn run(
         return;
     };
     tracing::info!(%url, idle_secs = config.idle.as_secs(), "keep-alive enabled");
-    // Jitter (up to 20 s, always earlier) so several replicas don't ping in lock-step and the
-    // ping lands comfortably before Render's 15-minute mark.
-    let jitter = Duration::from_millis(fastrand::u64(0..20_000));
-    let idle = config.idle.saturating_sub(jitter).max(Duration::from_secs(30));
+    // Jitter (up to 5 % of the idle period, at most 20 s, always earlier) so several replicas
+    // don't ping in lock-step and the ping lands comfortably before Render's 15-minute mark.
+    let jitter_cap_ms = (config.idle.as_millis() as u64 / 20).clamp(1, 20_000);
+    let idle = config
+        .idle
+        .saturating_sub(Duration::from_millis(fastrand::u64(0..jitter_cap_ms)));
     let mut last_ping_ms = 0;
     loop {
-        let action =
-            next_action(clock.now_ms(), tracker.last_ms(), last_ping_ms, idle, config.check_interval);
+        let action = next_action(
+            clock.now_ms(),
+            tracker.last_ms(),
+            last_ping_ms,
+            idle,
+            config.check_interval,
+        );
         match action {
             Action::Sleep(duration) => {
                 tokio::select! {
@@ -123,7 +134,12 @@ pub async fn run(
                 tokio::select! {
                     () = shutdown.cancelled() => break,
                     result = request => match result {
-                        Ok(response) => tracing::info!(status = response.status().as_u16(), "keep-alive ping"),
+                        Ok(response) if response.status().is_success() => {
+                            tracing::info!(status = response.status().as_u16(), "keep-alive ping");
+                        }
+                        Ok(response) => {
+                            tracing::warn!(status = response.status().as_u16(), "keep-alive ping got an error status");
+                        }
                         Err(error) => tracing::warn!(error = %error, "keep-alive ping failed"),
                     },
                 }
@@ -138,25 +154,40 @@ mod tests {
     use super::*;
     use crate::clock::{Clock, ManualClock};
 
-    const IDLE: Duration = Duration::from_secs(840);
-    const CHECK: Duration = Duration::from_secs(60);
+    const IDLE: Duration = Duration::from_mins(14);
+    const CHECK: Duration = Duration::from_mins(1);
 
     #[test]
     fn pings_only_after_the_idle_period() {
         let start = 1_000_000;
-        assert_eq!(next_action(start, start, 0, IDLE, CHECK), Action::Sleep(CHECK));
+        assert_eq!(
+            next_action(start, start, 0, IDLE, CHECK),
+            Action::Sleep(CHECK)
+        );
         // 13.5 minutes idle: sleep exactly until the deadline (30 s), not a full check interval.
         let now = start + 810_000;
-        assert_eq!(next_action(now, start, 0, IDLE, CHECK), Action::Sleep(Duration::from_secs(30)));
-        assert_eq!(next_action(start + 840_000, start, 0, IDLE, CHECK), Action::Ping);
+        assert_eq!(
+            next_action(now, start, 0, IDLE, CHECK),
+            Action::Sleep(Duration::from_secs(30))
+        );
+        assert_eq!(
+            next_action(start + 840_000, start, 0, IDLE, CHECK),
+            Action::Ping
+        );
     }
 
     #[test]
     fn last_ping_restarts_the_idle_period() {
         let start = 1_000_000;
         let pinged = start + 840_000;
-        assert_eq!(next_action(pinged + 1_000, start, pinged, IDLE, CHECK), Action::Sleep(CHECK));
-        assert_eq!(next_action(pinged + 840_000, start, pinged, IDLE, CHECK), Action::Ping);
+        assert_eq!(
+            next_action(pinged + 1_000, start, pinged, IDLE, CHECK),
+            Action::Sleep(CHECK)
+        );
+        assert_eq!(
+            next_action(pinged + 840_000, start, pinged, IDLE, CHECK),
+            Action::Ping
+        );
     }
 
     #[test]

@@ -54,7 +54,11 @@ impl RedisHandle {
     }
 
     /// Creates the manager without connecting; the first command connects.
-    pub fn connect_lazy(url: &str, op_timeout: Duration, clock: SharedClock) -> Result<Self, redis::RedisError> {
+    pub fn connect_lazy(
+        url: &str,
+        op_timeout: Duration,
+        clock: SharedClock,
+    ) -> Result<Self, redis::RedisError> {
         let client = redis::Client::open(url)?;
         let config = ConnectionManagerConfig::new()
             .set_connection_timeout(Some(Duration::from_secs(1)))
@@ -71,7 +75,7 @@ impl RedisHandle {
             op_timeout,
             skip_until_ms: AtomicU64::new(0),
             degraded: AtomicBool::new(false),
-            throttle: LogThrottle::new(Duration::from_secs(60)),
+            throttle: LogThrottle::new(Duration::from_mins(1)),
             clock,
         }
     }
@@ -145,7 +149,8 @@ impl RedisHandle {
 
     fn mark_failed(&self, op: &'static str, error: &RedisUnavailable) {
         let now = self.clock.now_ms();
-        self.skip_until_ms.store(now + BACKOFF.as_millis() as u64, Ordering::Relaxed);
+        self.skip_until_ms
+            .store(now + BACKOFF.as_millis() as u64, Ordering::Relaxed);
         self.degraded.store(true, Ordering::Relaxed);
         if self.throttle.should_log(now) {
             tracing::warn!(op, error = %error, "redis unavailable; serving from in-memory fallbacks");

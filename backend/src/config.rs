@@ -93,7 +93,10 @@ impl fmt::Debug for Config {
         f.debug_struct("Config")
             .field("port", &self.port)
             .field("supabase_url", &self.supabase_url)
-            .field("supabase_publishable_key", &redact_key(&self.supabase_publishable_key))
+            .field(
+                "supabase_publishable_key",
+                &redact_key(&self.supabase_publishable_key),
+            )
             .field("redis_url", &self.redis_url.as_deref().map(redact_url))
             .field("app_origins", &self.app_origins)
             .field("max_upload_bytes", &self.max_upload_bytes)
@@ -131,24 +134,39 @@ impl Config {
     where
         F: Fn(&str) -> Option<String>,
     {
-        let mut p = Parser { lookup: &lookup, problems: Vec::new() };
+        let mut p = Parser {
+            lookup: &lookup,
+            problems: Vec::new(),
+        };
 
         let port = p.number::<u16>("PORT", 8080, 1, u16::MAX);
-        let supabase_url = p.required("SUPABASE_URL").and_then(|v| p.base_url("SUPABASE_URL", &v));
+        let supabase_url = p
+            .required("SUPABASE_URL")
+            .and_then(|v| p.base_url("SUPABASE_URL", &v));
         let supabase_publishable_key = p.required("SUPABASE_PUBLISHABLE_KEY");
-        if let Some(key) = &supabase_publishable_key {
-            if key.starts_with("sb_secret_") {
-                p.problem("SUPABASE_PUBLISHABLE_KEY looks like a secret key (sb_secret_…); this service must only get the publishable key");
-            }
+        if supabase_publishable_key
+            .as_deref()
+            .is_some_and(is_privileged_key)
+        {
+            p.problem(
+                "SUPABASE_PUBLISHABLE_KEY is a secret/service-role key; this service must only get the publishable (or legacy anon) key",
+            );
         }
         let redis_url = p.optional("REDIS_URL").and_then(|v| p.redis_url(&v));
-        let app_origins = p.required("APP_ORIGINS").map(|v| p.origins(&v)).unwrap_or_default();
+        let app_origins = p
+            .required("APP_ORIGINS")
+            .map(|v| p.origins(&v))
+            .unwrap_or_default();
 
         let max_upload_mb = p.number::<u64>("MAX_UPLOAD_MB", 15, 1, 100);
-        let max_image_pixels = p.number::<u64>("MAX_IMAGE_PIXELS", 50_000_000, 1_000_000, 200_000_000);
-        let ffmpeg_path = PathBuf::from(p.optional("FFMPEG_PATH").unwrap_or_else(|| "ffmpeg".into()));
-        let ffprobe_path =
-            PathBuf::from(p.optional("FFPROBE_PATH").unwrap_or_else(|| "ffprobe".into()));
+        let max_image_pixels =
+            p.number::<u64>("MAX_IMAGE_PIXELS", 50_000_000, 1_000_000, 200_000_000);
+        let ffmpeg_path =
+            PathBuf::from(p.optional("FFMPEG_PATH").unwrap_or_else(|| "ffmpeg".into()));
+        let ffprobe_path = PathBuf::from(
+            p.optional("FFPROBE_PATH")
+                .unwrap_or_else(|| "ffprobe".into()),
+        );
         let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
         let ffmpeg_concurrency = p.number::<usize>("FFMPEG_CONCURRENCY", cores.max(1), 1, 64);
         let ffmpeg_timeout = p.secs("FFMPEG_TIMEOUT_SECS", 30, 1, 300);
@@ -170,8 +188,14 @@ impl Config {
         let keepalive_url = p
             .optional("KEEPALIVE_URL")
             .and_then(|v| p.absolute_url("KEEPALIVE_URL", &v))
-            .or_else(|| render_external_url.as_ref().map(|base| format!("{base}/healthz")));
-        let keepalive_enabled = p.boolean("KEEPALIVE_ENABLED", render_external_url.is_some());
+            .or_else(|| {
+                render_external_url
+                    .as_ref()
+                    .map(|base| format!("{base}/healthz"))
+            });
+        // Opt-in: a free Render service that never sleeps burns ~744 of the workspace's 750
+        // free instance-hours per month (see README → Keep-alive).
+        let keepalive_enabled = p.boolean("KEEPALIVE_ENABLED", false);
         if keepalive_enabled && keepalive_url.is_none() {
             p.problem("KEEPALIVE_ENABLED=true needs KEEPALIVE_URL or RENDER_EXTERNAL_URL");
         }
@@ -202,7 +226,9 @@ impl Config {
         };
 
         if !p.problems.is_empty() {
-            return Err(ConfigError { problems: p.problems });
+            return Err(ConfigError {
+                problems: p.problems,
+            });
         }
         // The `unwrap_or_default`s below are unreachable: a missing required value adds a problem.
         Ok(Config {
@@ -245,7 +271,9 @@ impl Config {
             "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} ffmpeg_concurrency={} ffmpeg_timeout={}s buckets=({}, {}) keepalive={} idle={}s",
             self.port,
             self.supabase_url,
-            self.redis_url.as_deref().map_or_else(|| "off".to_owned(), redact_url),
+            self.redis_url
+                .as_deref()
+                .map_or_else(|| "off".to_owned(), redact_url),
             self.app_origins.join(","),
             self.max_upload_bytes / MIB,
             self.max_image_pixels,
@@ -253,10 +281,30 @@ impl Config {
             self.ffmpeg_timeout.as_secs(),
             self.avatar_bucket,
             self.media_bucket,
-            if self.keepalive.enabled { self.keepalive.url.as_deref().unwrap_or("?") } else { "off" },
+            if self.keepalive.enabled {
+                self.keepalive.url.as_deref().unwrap_or("?")
+            } else {
+                "off"
+            },
             self.keepalive.idle.as_secs(),
         )
     }
+}
+
+/// True for keys that bypass RLS: new-style `sb_secret_…` keys and legacy JWT keys whose
+/// `role` claim is `service_role`. The signature is irrelevant here: the claim alone tells
+/// what the key was minted for.
+fn is_privileged_key(key: &str) -> bool {
+    #[derive(serde::Deserialize)]
+    struct LegacyClaims {
+        role: Option<String>,
+    }
+    if key.starts_with("sb_secret_") {
+        return true;
+    }
+    key.starts_with("eyJ")
+        && jsonwebtoken::dangerous::insecure_decode_claims::<LegacyClaims>(key)
+            .is_ok_and(|claims| claims.role.as_deref() == Some("service_role"))
 }
 
 /// Shows only a short prefix of an API key.
@@ -273,7 +321,11 @@ pub fn redact_url(raw: &str) -> String {
                 let _ = url.set_username("");
                 let _ = url.set_password(None);
                 let host = url.host_str().unwrap_or_default().to_owned();
-                format!("{}://***@{host}{}", url.scheme(), url.port().map(|p| format!(":{p}")).unwrap_or_default())
+                format!(
+                    "{}://***@{host}{}",
+                    url.scheme(),
+                    url.port().map(|p| format!(":{p}")).unwrap_or_default()
+                )
             } else {
                 url.to_string()
             }
@@ -293,7 +345,9 @@ impl<F: Fn(&str) -> Option<String>> Parser<'_, F> {
     }
 
     fn optional(&self, key: &str) -> Option<String> {
-        (self.lookup)(key).map(|v| v.trim().to_owned()).filter(|v| !v.is_empty())
+        (self.lookup)(key)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
     }
 
     fn required(&mut self, key: &str) -> Option<String> {
@@ -308,7 +362,9 @@ impl<F: Fn(&str) -> Option<String>> Parser<'_, F> {
     where
         T: std::str::FromStr + PartialOrd + Copy + fmt::Display,
     {
-        let Some(raw) = self.optional(key) else { return default };
+        let Some(raw) = self.optional(key) else {
+            return default;
+        };
         let cleaned = raw.replace('_', "");
         match cleaned.parse::<T>() {
             Ok(v) if v >= min && v <= max => v,
@@ -328,7 +384,11 @@ impl<F: Fn(&str) -> Option<String>> Parser<'_, F> {
     }
 
     fn boolean(&mut self, key: &str, default: bool) -> bool {
-        match self.optional(key).map(|v| v.to_ascii_lowercase()).as_deref() {
+        match self
+            .optional(key)
+            .map(|v| v.to_ascii_lowercase())
+            .as_deref()
+        {
             None => default,
             Some("1" | "true" | "yes" | "on") => true,
             Some("0" | "false" | "no" | "off") => false,
@@ -423,7 +483,9 @@ impl<F: Fn(&str) -> Option<String>> Parser<'_, F> {
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
             && value.as_bytes()[0].is_ascii_alphanumeric();
         if !valid {
-            self.problem(format!("{key} must be a bucket id like project-media (got {value:?})"));
+            self.problem(format!(
+                "{key} must be a bucket id like project-media (got {value:?})"
+            ));
         }
         value
     }
@@ -438,7 +500,10 @@ mod tests {
         HashMap::from([
             ("SUPABASE_URL", "https://abc.supabase.co/"),
             ("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test_123456789"),
-            ("APP_ORIGINS", "https://civpms.vercel.app, http://localhost:3000"),
+            (
+                "APP_ORIGINS",
+                "https://civpms.vercel.app, http://localhost:3000",
+            ),
         ])
     }
 
@@ -452,29 +517,52 @@ mod tests {
         assert_eq!(cfg.port, 8080);
         assert_eq!(cfg.supabase_url, "https://abc.supabase.co");
         assert_eq!(cfg.jwt_issuer(), "https://abc.supabase.co/auth/v1");
-        assert_eq!(cfg.app_origins, vec!["https://civpms.vercel.app", "http://localhost:3000"]);
+        assert_eq!(
+            cfg.app_origins,
+            vec!["https://civpms.vercel.app", "http://localhost:3000"]
+        );
         assert_eq!(cfg.max_upload_bytes, 15 * MIB);
         assert_eq!(cfg.max_image_pixels, 50_000_000);
         assert_eq!(cfg.avatar_bucket, "avatars");
         assert_eq!(cfg.media_bucket, "project-media");
         assert_eq!(cfg.redis_url, None);
-        assert!(!cfg.keepalive.enabled, "keep-alive is off outside Render");
-        assert_eq!(cfg.keepalive.idle, Duration::from_secs(840));
+        assert!(!cfg.keepalive.enabled, "keep-alive is opt-in");
+        assert_eq!(cfg.keepalive.idle, Duration::from_mins(14));
         assert!(cfg.ffmpeg_concurrency >= 1);
-        assert_eq!(cfg.rate_limits, RateLimitConfig { uploads_per_minute: 30, reads_per_minute: 120 });
+        assert_eq!(
+            cfg.rate_limits,
+            RateLimitConfig {
+                uploads_per_minute: 30,
+                reads_per_minute: 120
+            }
+        );
     }
 
     #[test]
-    fn render_environment_enables_keepalive() {
+    fn keepalive_stays_off_on_render_unless_opted_in() {
         let mut env = base();
         env.insert("RENDER_EXTERNAL_URL", "https://civpms-media.onrender.com");
         env.insert("PORT", "10000");
         env.insert("REDIS_URL", "redis://red-abc:6379");
         let cfg = parse(&env).unwrap();
-        assert!(cfg.keepalive.enabled);
-        assert_eq!(cfg.keepalive.url.as_deref(), Some("https://civpms-media.onrender.com/healthz"));
+        assert!(!cfg.keepalive.enabled, "default is off even on Render");
+        assert_eq!(
+            cfg.keepalive.url.as_deref(),
+            Some("https://civpms-media.onrender.com/healthz")
+        );
         assert_eq!(cfg.port, 10000);
         assert_eq!(cfg.redis_url.as_deref(), Some("redis://red-abc:6379"));
+
+        env.insert("KEEPALIVE_ENABLED", "true");
+        let cfg = parse(&env).unwrap();
+        assert!(cfg.keepalive.enabled);
+        assert_eq!(cfg.keepalive.idle, Duration::from_mins(14));
+
+        env.insert("KEEPALIVE_URL", "https://media.example.com/healthz");
+        assert_eq!(
+            parse(&env).unwrap().keepalive.url.as_deref(),
+            Some("https://media.example.com/healthz")
+        );
 
         env.insert("KEEPALIVE_ENABLED", "false");
         assert!(!parse(&env).unwrap().keepalive.enabled);
@@ -525,7 +613,21 @@ mod tests {
     fn refuses_secret_keys() {
         let mut env = base();
         env.insert("SUPABASE_PUBLISHABLE_KEY", "sb_secret_abc");
-        assert!(parse(&env).unwrap_err().to_string().contains("looks like a secret key"));
+        assert!(
+            parse(&env)
+                .unwrap_err()
+                .to_string()
+                .contains("secret/service-role key")
+        );
+
+        // Legacy JWT keys: {"alg":"HS256","typ":"JWT"} . {"iss":"supabase","role":"…"} . sig
+        let service_role = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ.c2ln";
+        let anon =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIn0.c2ln";
+        env.insert("SUPABASE_PUBLISHABLE_KEY", service_role);
+        assert!(parse(&env).is_err(), "legacy service_role key refused");
+        env.insert("SUPABASE_PUBLISHABLE_KEY", anon);
+        assert!(parse(&env).is_ok(), "legacy anon key accepted");
     }
 
     #[test]
@@ -537,7 +639,10 @@ mod tests {
         let summary = cfg.summary();
         for text in [&debug, &summary] {
             assert!(!text.contains("hunter2"), "password leaked: {text}");
-            assert!(!text.contains("sb_publishable_test_123456789"), "key leaked: {text}");
+            assert!(
+                !text.contains("sb_publishable_test_123456789"),
+                "key leaked: {text}"
+            );
         }
         assert!(summary.contains("redis://***@red-abc:6379"));
     }

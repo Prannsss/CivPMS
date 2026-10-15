@@ -3,8 +3,8 @@
 //! The first request for `(user, client_id)` reserves the key with a short-lived "pending"
 //! marker, does the work and then stores the result for 24 hours. A retry within that time
 //! gets the stored result instead of a second upload; a retry while the first attempt is
-//! still running waits briefly for it. If the work fails (or the request is cancelled) the
-//! reservation is released so the client can try again.
+//! still running waits for it (and takes over if it fails). If the work fails (or the
+//! request is cancelled) the reservation is released so the client can try again.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,9 +18,9 @@ use crate::clock::SharedClock;
 use crate::redis_client::RedisHandle;
 
 /// How long a stored result is replayed.
-pub const RESULT_TTL: Duration = Duration::from_secs(24 * 3600);
+pub const RESULT_TTL: Duration = Duration::from_hours(24);
 /// How long a reservation blocks duplicates if the worker dies without releasing it.
-pub const PENDING_TTL: Duration = Duration::from_secs(120);
+pub const PENDING_TTL: Duration = Duration::from_mins(2);
 
 const DONE_PREFIX: &str = "D:";
 const PENDING_PREFIX: &str = "P:";
@@ -54,12 +54,19 @@ pub struct IdempotencyStore {
 /// Validates a client-supplied idempotency key: 8–128 characters of `[A-Za-z0-9_.:-]`.
 pub fn valid_client_id(raw: &str) -> bool {
     (8..=128).contains(&raw.len())
-        && raw.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
+        && raw
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
 impl IdempotencyStore {
     pub fn new(redis: Arc<RedisHandle>, clock: SharedClock) -> Self {
-        Self { redis, memory: MemoryStore::new(10_000), clock, release_script: Script::new(RELEASE_SCRIPT) }
+        Self {
+            redis,
+            memory: MemoryStore::new(10_000),
+            clock,
+            release_script: Script::new(RELEASE_SCRIPT),
+        }
     }
 
     fn key(scope: &str, user: Uuid, client_id: &str) -> String {
@@ -79,21 +86,12 @@ impl IdempotencyStore {
                     finished: false,
                 });
             }
-            match self.get(&key).await {
-                Some(stored) => return Self::interpret(&stored),
-                None => {} // Expired between the two calls: try to reserve again.
+            // `None`: the key expired between the two calls, so try to reserve it again.
+            if let Some(stored) = self.get(&key).await {
+                return Self::interpret(&stored);
             }
         }
         Begin::InProgress
-    }
-
-    /// Reads the current state without reserving (used while waiting for an in-flight attempt).
-    pub async fn peek(&self, scope: &str, user: Uuid, client_id: &str) -> Option<Value> {
-        let stored = self.get(&Self::key(scope, user, client_id)).await?;
-        match Self::interpret(&stored) {
-            Begin::Replay(value) => Some(value),
-            _ => None,
-        }
     }
 
     fn interpret(stored: &str) -> Begin {
@@ -124,13 +122,23 @@ impl IdempotencyStore {
             .await;
         match redis_result {
             Ok(reply) => reply.is_some(),
-            Err(_) => self.memory.set_nx(key, Arc::from(value.as_bytes()), ttl_ms, self.clock.now_ms()),
+            Err(_) => self.memory.set_nx(
+                key,
+                Arc::from(value.as_bytes()),
+                ttl_ms,
+                self.clock.now_ms(),
+            ),
         }
     }
 
     async fn set(&self, key: &str, value: &str, ttl: Duration) {
         let ttl_ms = ttl.as_millis() as u64;
-        self.memory.set(key, Arc::from(value.as_bytes()), ttl_ms, self.clock.now_ms());
+        self.memory.set(
+            key,
+            Arc::from(value.as_bytes()),
+            ttl_ms,
+            self.clock.now_ms(),
+        );
         let _ = self
             .redis
             .run("idem_set", |mut conn| async move {
@@ -149,7 +157,10 @@ impl IdempotencyStore {
         let redis_result = self
             .redis
             .run("idem_get", |mut conn| async move {
-                redis::cmd("GET").arg(key).query_async::<Option<String>>(&mut conn).await
+                redis::cmd("GET")
+                    .arg(key)
+                    .query_async::<Option<String>>(&mut conn)
+                    .await
             })
             .await;
         match redis_result {
@@ -167,7 +178,11 @@ impl IdempotencyStore {
         let _ = self
             .redis
             .run("idem_release", |mut conn| async move {
-                script.key(key).arg(token).invoke_async::<i64>(&mut conn).await
+                script
+                    .key(key)
+                    .arg(token)
+                    .invoke_async::<i64>(&mut conn)
+                    .await
             })
             .await;
     }
@@ -239,36 +254,53 @@ mod tests {
         let Begin::Started(reservation) = store.begin("images", user, "client-0001").await else {
             panic!("expected Started");
         };
-        assert!(matches!(store.begin("images", user, "client-0001").await, Begin::InProgress));
+        assert!(matches!(
+            store.begin("images", user, "client-0001").await,
+            Begin::InProgress
+        ));
         reservation.commit(&json!({"path": "p"})).await;
         match store.begin("images", user, "client-0001").await {
             Begin::Replay(value) => assert_eq!(value, json!({"path": "p"})),
             other => panic!("expected Replay, got {other:?}"),
         }
-        assert_eq!(store.peek("images", user, "client-0001").await, Some(json!({"path": "p"})));
         // Keys are per user.
-        assert!(matches!(store.begin("images", Uuid::new_v4(), "client-0001").await, Begin::Started(_)));
+        assert!(matches!(
+            store.begin("images", Uuid::new_v4(), "client-0001").await,
+            Begin::Started(_)
+        ));
     }
 
     #[tokio::test]
     async fn released_and_dropped_reservations_can_be_retried() {
         let (store, _) = store();
         let user = Uuid::new_v4();
-        let Begin::Started(r) = store.begin("images", user, "client-0002").await else { panic!() };
+        let Begin::Started(r) = store.begin("images", user, "client-0002").await else {
+            panic!()
+        };
         r.release().await;
-        let Begin::Started(r) = store.begin("images", user, "client-0002").await else { panic!() };
+        let Begin::Started(r) = store.begin("images", user, "client-0002").await else {
+            panic!()
+        };
         drop(r);
         tokio::time::sleep(Duration::from_millis(20)).await;
-        assert!(matches!(store.begin("images", user, "client-0002").await, Begin::Started(_)));
+        assert!(matches!(
+            store.begin("images", user, "client-0002").await,
+            Begin::Started(_)
+        ));
     }
 
     #[tokio::test]
     async fn results_expire() {
         let (store, clock) = store();
         let user = Uuid::new_v4();
-        let Begin::Started(r) = store.begin("images", user, "client-0003").await else { panic!() };
+        let Begin::Started(r) = store.begin("images", user, "client-0003").await else {
+            panic!()
+        };
         r.commit(&json!(1)).await;
         clock.advance(RESULT_TTL + Duration::from_secs(1));
-        assert!(matches!(store.begin("images", user, "client-0003").await, Begin::Started(_)));
+        assert!(matches!(
+            store.begin("images", user, "client-0003").await,
+            Begin::Started(_)
+        ));
     }
 }

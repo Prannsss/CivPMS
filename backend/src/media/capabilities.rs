@@ -29,7 +29,9 @@ impl Capabilities {
         self.ffmpeg_version.is_some()
             && self.ffprobe
             && self.webp_encoder
-            && [ImageKind::Jpeg, ImageKind::Png, ImageKind::Webp].iter().all(|k| self.supports(*k))
+            && [ImageKind::Jpeg, ImageKind::Png, ImageKind::Webp]
+                .iter()
+                .all(|k| self.supports(*k))
     }
 
     pub fn supports(&self, kind: ImageKind) -> bool {
@@ -42,7 +44,9 @@ impl Capabilities {
             let program = program.to_path_buf();
             async move {
                 match tools::run(&program, &args, PROBE_TIMEOUT).await {
-                    Ok(out) if out.success => Some(String::from_utf8_lossy(&out.stdout).into_owned()),
+                    Ok(out) if out.success => {
+                        Some(String::from_utf8_lossy(&out.stdout).into_owned())
+                    }
                     Ok(out) => {
                         tracing::warn!(stderr = %out.stderr, arg, "capability probe failed");
                         None
@@ -79,9 +83,15 @@ impl Capabilities {
         ffprobe: bool,
     ) -> Self {
         let ffmpeg_version = version.and_then(|v| {
-            v.lines().next().and_then(|line| line.strip_prefix("ffmpeg version ")).map(|rest| {
-                rest.split_whitespace().next().unwrap_or_default().to_owned()
-            })
+            v.lines()
+                .next()
+                .and_then(|line| line.strip_prefix("ffmpeg version "))
+                .map(|rest| {
+                    rest.split_whitespace()
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned()
+                })
         });
         let names = |listing: &str| -> Vec<String> {
             listing
@@ -99,22 +109,35 @@ impl Capabilities {
         };
         let decoders = names(decoders);
         let encoders = names(encoders);
-        let demuxers: Vec<String> =
-            names(demuxers).iter().flat_map(|d| d.split(',').map(str::to_owned).collect::<Vec<_>>()).collect();
+        let demuxers: Vec<String> = names(demuxers)
+            .iter()
+            .flat_map(|d| d.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .collect();
         let has = |list: &[String], name: &str| list.iter().any(|n| n == name);
         let mov = has(&demuxers, "mov");
         let (major, minor) = parse_version(ffmpeg_version.as_deref());
 
         let mut formats = BTreeMap::new();
-        formats.insert("jpeg", has(&decoders, "mjpeg") && has(&demuxers, "jpeg_pipe"));
+        formats.insert(
+            "jpeg",
+            has(&decoders, "mjpeg") && has(&demuxers, "jpeg_pipe"),
+        );
         formats.insert("png", has(&decoders, "png") && has(&demuxers, "png_pipe"));
-        formats.insert("webp", has(&decoders, "webp") && has(&demuxers, "webp_pipe"));
+        formats.insert(
+            "webp",
+            has(&decoders, "webp") && has(&demuxers, "webp_pipe"),
+        );
         formats.insert("gif", has(&decoders, "gif") && has(&demuxers, "gif"));
         // HEIF still images (item-based, tiled) are only demuxed by ffmpeg >= 7.1.
-        formats.insert("heic", has(&decoders, "hevc") && mov && (major, minor) >= (7, 1));
+        formats.insert(
+            "heic",
+            has(&decoders, "hevc") && mov && (major, minor) >= (7, 1),
+        );
         formats.insert(
             "avif",
-            mov && ["libdav1d", "libaom-av1", "av1"].iter().any(|d| has(&decoders, d)),
+            mov && ["libdav1d", "libaom-av1", "av1"]
+                .iter()
+                .any(|d| has(&decoders, d)),
         );
 
         Self {
@@ -144,7 +167,8 @@ mod tests {
     use super::*;
 
     const DECODERS: &str = "Decoders:\n V..... = Video\n ------\n V....D mjpeg  MJPEG\n VF...D png   PNG\n VF...D webp  WebP\n V....D gif   GIF\n VFS..D hevc  HEVC\n V..... libdav1d dav1d\n";
-    const ENCODERS: &str = "Encoders:\n V..... = Video\n ------\n V....D libwebp  libwebp WebP image\n";
+    const ENCODERS: &str =
+        "Encoders:\n V..... = Video\n ------\n V....D libwebp  libwebp WebP image\n";
     const DEMUXERS: &str = "Demuxers:\n D. = Demuxing supported\n --\n D  gif  GIF\n D  jpeg_pipe  piped jpeg\n D  mov,mp4,m4a,3gp,3g2,mj2 QuickTime / MOV\n D  png_pipe  piped png\n D  webp_pipe  piped webp\n";
 
     #[test]
@@ -159,7 +183,13 @@ mod tests {
         assert_eq!(caps.ffmpeg_version.as_deref(), Some("6.1.1-3ubuntu5"));
         assert!(caps.webp_encoder);
         assert!(caps.ready());
-        for kind in [ImageKind::Jpeg, ImageKind::Png, ImageKind::Webp, ImageKind::Gif, ImageKind::Avif] {
+        for kind in [
+            ImageKind::Jpeg,
+            ImageKind::Png,
+            ImageKind::Webp,
+            ImageKind::Gif,
+            ImageKind::Avif,
+        ] {
             assert!(caps.supports(kind), "{kind:?}");
         }
         assert!(!caps.supports(ImageKind::Heif), "HEIC needs ffmpeg >= 7.1");
@@ -167,8 +197,13 @@ mod tests {
 
     #[test]
     fn heic_with_ffmpeg_7_1() {
-        let caps =
-            Capabilities::from_listings(Some("ffmpeg version 7.1.2-1+b1"), DECODERS, ENCODERS, DEMUXERS, true);
+        let caps = Capabilities::from_listings(
+            Some("ffmpeg version 7.1.2-1+b1"),
+            DECODERS,
+            ENCODERS,
+            DEMUXERS,
+            true,
+        );
         assert!(caps.supports(ImageKind::Heif));
     }
 

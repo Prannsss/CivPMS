@@ -37,7 +37,9 @@ pub fn init(format: LogFormat) {
                     .with_target(true),
             )
             .try_init(),
-        LogFormat::Pretty => registry.with(tracing_subscriber::fmt::layer().compact()).try_init(),
+        LogFormat::Pretty => registry
+            .with(tracing_subscriber::fmt::layer().compact())
+            .try_init(),
     };
     if result.is_err() {
         tracing::debug!("tracing subscriber already installed");
@@ -77,7 +79,11 @@ pub fn make_span(request: &Request) -> Span {
 pub fn on_response(response: &Response, latency: Duration, span: &Span) {
     span.record("status", response.status().as_u16());
     span.record("latency_ms", latency.as_millis() as u64);
-    let cache = response.headers().get("x-cache").and_then(|v| v.to_str().ok()).unwrap_or("-");
+    let cache = response
+        .headers()
+        .get("x-cache")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
     if response.status().is_server_error() {
         tracing::warn!(cache, "request finished");
     } else {
@@ -88,7 +94,10 @@ pub fn on_response(response: &Response, latency: Duration, span: &Span) {
 /// Drops client-supplied `x-request-id` values that are not short, plain tokens, so ids in
 /// logs cannot be used for log injection. A fresh UUID is generated downstream instead.
 pub async fn sanitize_request_id(mut request: Request, next: Next) -> Response {
-    let valid = request.headers().get(REQUEST_ID_HEADER).is_none_or(is_valid_request_id);
+    let valid = request
+        .headers()
+        .get(REQUEST_ID_HEADER)
+        .is_none_or(is_valid_request_id);
     if !valid {
         request.headers_mut().remove(REQUEST_ID_HEADER);
     }
@@ -98,7 +107,9 @@ pub async fn sanitize_request_id(mut request: Request, next: Next) -> Response {
 fn is_valid_request_id(value: &HeaderValue) -> bool {
     let bytes = value.as_bytes();
     (1..=128).contains(&bytes.len())
-        && bytes.iter().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
+        && bytes
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
 /// Logs at most once per `interval` (e.g. "Redis is down" while it stays down).
@@ -110,7 +121,10 @@ pub struct LogThrottle {
 
 impl LogThrottle {
     pub const fn new(interval: Duration) -> Self {
-        Self { interval_ms: interval.as_millis() as u64, last_ms: AtomicU64::new(0) }
+        Self {
+            interval_ms: interval.as_millis() as u64,
+            last_ms: AtomicU64::new(0),
+        }
     }
 
     /// Returns true when the caller should log now (`now_ms` is any monotonic-enough clock).
@@ -139,14 +153,20 @@ mod tests {
 
     #[test]
     fn request_id_validation() {
-        assert!(is_valid_request_id(&HeaderValue::from_static("0b6c2c1e-3f4f-4d8e-9b39-2d1f4f4b0a11")));
-        assert!(!is_valid_request_id(&HeaderValue::from_static("bad id\" injected")));
-        assert!(!is_valid_request_id(&HeaderValue::from_str(&"a".repeat(129)).unwrap()));
+        assert!(is_valid_request_id(&HeaderValue::from_static(
+            "0b6c2c1e-3f4f-4d8e-9b39-2d1f4f4b0a11"
+        )));
+        assert!(!is_valid_request_id(&HeaderValue::from_static(
+            "bad id\" injected"
+        )));
+        assert!(!is_valid_request_id(
+            &HeaderValue::from_str(&"a".repeat(129)).unwrap()
+        ));
     }
 
     #[test]
     fn throttle_logs_once_per_interval() {
-        let throttle = LogThrottle::new(Duration::from_secs(60));
+        let throttle = LogThrottle::new(Duration::from_mins(1));
         assert!(throttle.should_log(1_000));
         assert!(!throttle.should_log(30_000));
         assert!(throttle.should_log(61_001));

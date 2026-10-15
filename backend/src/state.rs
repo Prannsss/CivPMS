@@ -71,7 +71,7 @@ impl AppState {
         let http = reqwest::Client::builder()
             .user_agent(concat!("civpms-media/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(3))
-            .pool_idle_timeout(Duration::from_secs(60))
+            .pool_idle_timeout(Duration::from_mins(1))
             // Never follow redirects: they could carry the user's token to another host.
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
@@ -79,10 +79,15 @@ impl AppState {
             Some(url) => RedisHandle::connect_lazy(url, Duration::from_millis(300), clock.clone())?,
             None => RedisHandle::disabled(clock.clone()),
         });
-        let cache = Arc::new(Cache::new(Arc::clone(&redis), config.cache.memory_capacity, clock.clone()));
+        let cache = Arc::new(Cache::new(
+            Arc::clone(&redis),
+            config.cache.memory_capacity,
+            clock.clone(),
+        ));
         let limiter = RateLimiter::new(Arc::clone(&redis), config.rate_limits, clock.clone());
         let idempotency = Arc::new(IdempotencyStore::new(Arc::clone(&redis), clock.clone()));
-        let breaker = CircuitBreaker::new("supabase-read", 5, Duration::from_secs(15), clock.clone());
+        let breaker =
+            CircuitBreaker::new("supabase-read", 5, Duration::from_secs(15), clock.clone());
         let supabase = Supabase::new(&config, http.clone(), breaker);
         let jwks = Arc::new(JwksCache::new(
             format!("{}/auth/v1/.well-known/jwks.json", config.supabase_url),
@@ -113,7 +118,7 @@ impl AppState {
     /// Loads ffmpeg capabilities (+ self-test) and the JWKS. Failures are logged and reported
     /// by `/readyz`; requests retry the JWKS on demand.
     pub async fn warm_up(&self) {
-        let (_, jwks) = tokio::join!(self.media.initialize(), self.jwks.refresh(false));
+        let ((), jwks) = tokio::join!(self.media.initialize(), self.jwks.refresh(false));
         if let Err(e) = jwks {
             tracing::warn!(error = %e, "JWKS not loaded at startup; will retry on first request");
         }

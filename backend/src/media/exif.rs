@@ -111,11 +111,19 @@ fn tiff_orientation(t: &[u8]) -> Option<u16> {
     };
     let u16_at = |at: usize| -> Option<u16> {
         let bytes: [u8; 2] = t.get(at..at + 2)?.try_into().ok()?;
-        Some(if little { u16::from_le_bytes(bytes) } else { u16::from_be_bytes(bytes) })
+        Some(if little {
+            u16::from_le_bytes(bytes)
+        } else {
+            u16::from_be_bytes(bytes)
+        })
     };
     let u32_at = |at: usize| -> Option<u32> {
         let bytes: [u8; 4] = t.get(at..at + 4)?.try_into().ok()?;
-        Some(if little { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) })
+        Some(if little {
+            u32::from_le_bytes(bytes)
+        } else {
+            u32::from_be_bytes(bytes)
+        })
     };
     if u16_at(2)? != 42 {
         return None;
@@ -176,7 +184,9 @@ pub fn jpeg_with_orientation(jpeg: &[u8], orientation: u16) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
 
-    const SOI_SOF: [u8; 12] = [0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x08, 0x08, 0x00, 0x10, 0x00, 0x20, 0x00];
+    const SOI_SOF: [u8; 12] = [
+        0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x08, 0x08, 0x00, 0x10, 0x00, 0x20, 0x00,
+    ];
 
     #[test]
     fn reads_injected_jpeg_orientation() {
@@ -189,7 +199,10 @@ mod tests {
 
     #[test]
     fn reads_big_endian_tiff() {
-        let tiff = [b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0];
+        let tiff = [
+            b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0,
+            0,
+        ];
         assert_eq!(tiff_orientation(&tiff), Some(6));
     }
 

@@ -21,7 +21,9 @@ pub struct MemoryStore {
 impl MemoryStore {
     pub fn new(capacity: usize) -> Self {
         let capacity = NonZeroUsize::new(capacity.max(1)).unwrap_or(NonZeroUsize::MIN);
-        Self { entries: Mutex::new(LruCache::new(capacity)) }
+        Self {
+            entries: Mutex::new(LruCache::new(capacity)),
+        }
     }
 
     pub fn get(&self, key: &str, now_ms: u64) -> Option<Arc<[u8]>> {
@@ -37,25 +39,41 @@ impl MemoryStore {
     }
 
     pub fn set(&self, key: &str, bytes: Arc<[u8]>, ttl_ms: u64, now_ms: u64) {
-        self.entries
-            .lock()
-            .put(key.to_owned(), Slot { expires_at_ms: now_ms.saturating_add(ttl_ms), bytes });
+        self.entries.lock().put(
+            key.to_owned(),
+            Slot {
+                expires_at_ms: now_ms.saturating_add(ttl_ms),
+                bytes,
+            },
+        );
     }
 
     /// Stores only when no live entry exists. Returns true when stored.
     pub fn set_nx(&self, key: &str, bytes: Arc<[u8]>, ttl_ms: u64, now_ms: u64) -> bool {
         let mut entries = self.entries.lock();
-        if entries.get(key).is_some_and(|slot| slot.expires_at_ms > now_ms) {
+        if entries
+            .get(key)
+            .is_some_and(|slot| slot.expires_at_ms > now_ms)
+        {
             return false;
         }
-        entries.put(key.to_owned(), Slot { expires_at_ms: now_ms.saturating_add(ttl_ms), bytes });
+        entries.put(
+            key.to_owned(),
+            Slot {
+                expires_at_ms: now_ms.saturating_add(ttl_ms),
+                bytes,
+            },
+        );
         true
     }
 
     /// Removes the entry only if it still holds `expected` (compare-and-delete).
     pub fn delete_if(&self, key: &str, expected: &[u8]) -> bool {
         let mut entries = self.entries.lock();
-        if entries.peek(key).is_some_and(|slot| &*slot.bytes == expected) {
+        if entries
+            .peek(key)
+            .is_some_and(|slot| &*slot.bytes == expected)
+        {
             entries.pop(key);
             return true;
         }

@@ -21,12 +21,17 @@ use crate::ratelimit::RateClass;
 use crate::state::AppState;
 
 /// Holidays change by proclamation a few times a year: serve stale copies for up to a week.
-const HOLIDAYS_STALE_MAX: Duration = Duration::from_secs(7 * 24 * 3600);
+const HOLIDAYS_STALE_MAX: Duration = Duration::from_hours(7 * 24);
 
 pub(crate) fn wants_bypass(headers: &HeaderMap) -> bool {
     let has_no_cache = |value: Option<&HeaderValue>| {
         value.and_then(|v| v.to_str().ok()).is_some_and(|v| {
-            v.split(',').any(|d| matches!(d.trim().to_ascii_lowercase().as_str(), "no-cache" | "no-store" | "max-age=0"))
+            v.split(',').any(|d| {
+                matches!(
+                    d.trim().to_ascii_lowercase().as_str(),
+                    "no-cache" | "no-store" | "max-age=0"
+                )
+            })
         })
     };
     has_no_cache(headers.get(CACHE_CONTROL)) || has_no_cache(headers.get(PRAGMA))
@@ -41,7 +46,11 @@ pub(crate) fn cached_response(result: &CacheResult) -> Response {
 }
 
 fn policy(ttl: Duration, stale_max: Duration) -> CachePolicy {
-    CachePolicy { ttl, swr: ttl.min(Duration::from_secs(3600)), stale_max }
+    CachePolicy {
+        ttl,
+        swr: ttl.min(Duration::from_hours(1)),
+        stale_max,
+    }
 }
 
 /// `GET /v1/projects`: the caller's projects (rows of `project_overview`).
@@ -52,7 +61,10 @@ pub async fn list_projects(
 ) -> Result<Response, AppError> {
     state.limiter.check(RateClass::Read, user.id).await?;
     let key = format!("c:v1:projects:{}", user.id);
-    let policy = policy(state.config.cache.projects_ttl, state.config.cache.stale_max);
+    let policy = policy(
+        state.config.cache.projects_ttl,
+        state.config.cache.stale_max,
+    );
     let fetch_state = state.clone();
     let token: Arc<str> = Arc::from(user.token());
     let result = state
@@ -60,7 +72,10 @@ pub async fn list_projects(
         .get_or_fetch(key, policy, wants_bypass(&headers), move || async move {
             fetch_state
                 .supabase
-                .rest_get(&token, "/rest/v1/project_overview?select=*&order=updated_at.desc")
+                .rest_get(
+                    &token,
+                    "/rest/v1/project_overview?select=*&order=updated_at.desc",
+                )
                 .await
         })
         .await?;
@@ -78,7 +93,10 @@ pub async fn project_summary(
         .map_err(|_| AppError::validation("The project id must be a UUID."))?;
     state.limiter.check(RateClass::Read, user.id).await?;
     let key = format!("c:v1:summary:{}:{project_id}", user.id);
-    let policy = policy(state.config.cache.projects_ttl, state.config.cache.stale_max);
+    let policy = policy(
+        state.config.cache.projects_ttl,
+        state.config.cache.stale_max,
+    );
     let fetch_state = state.clone();
     let token: Arc<str> = Arc::from(user.token());
     let result = state
@@ -86,7 +104,10 @@ pub async fn project_summary(
         .get_or_fetch(key, policy, wants_bypass(&headers), move || async move {
             let rows = fetch_state
                 .supabase
-                .rest_get(&token, &format!("/rest/v1/project_overview?select=*&id=eq.{project_id}&limit=1"))
+                .rest_get(
+                    &token,
+                    &format!("/rest/v1/project_overview?select=*&id=eq.{project_id}&limit=1"),
+                )
                 .await?;
             first_row(rows)
         })
@@ -100,7 +121,9 @@ fn first_row(rows: Value) -> Result<Value, FetchError> {
         Value::Array(_) => Err(FetchError::Rejected(AppError::not_found(
             "This project does not exist or you no longer have access to it.",
         ))),
-        _ => Err(FetchError::Unavailable("unexpected PostgREST payload".into())),
+        _ => Err(FetchError::Unavailable(
+            "unexpected PostgREST payload".into(),
+        )),
     }
 }
 
@@ -121,7 +144,9 @@ pub async fn holidays(
         .as_deref()
         .and_then(|y| y.parse().ok())
         .filter(|y| (2000..=2100).contains(y))
-        .ok_or_else(|| AppError::validation("Pass ?year=YYYY with a year between 2000 and 2100."))?;
+        .ok_or_else(|| {
+            AppError::validation("Pass ?year=YYYY with a year between 2000 and 2100.")
+        })?;
     state.limiter.check(RateClass::Read, user.id).await?;
     let key = format!("c:v1:holidays:{year}");
     let stale_max = state.config.cache.stale_max.max(HOLIDAYS_STALE_MAX);
@@ -135,7 +160,9 @@ pub async fn holidays(
                 .supabase
                 .rest_get(
                     &token,
-                    &format!("/rest/v1/ph_holidays?select=date,name,type&year=eq.{year}&order=date.asc"),
+                    &format!(
+                        "/rest/v1/ph_holidays?select=date,name,type&year=eq.{year}&order=date.asc"
+                    ),
                 )
                 .await
         })
@@ -151,7 +178,10 @@ mod tests {
     fn bypass_detection() {
         let mut headers = HeaderMap::new();
         assert!(!wants_bypass(&headers));
-        headers.insert(CACHE_CONTROL, HeaderValue::from_static("max-age=0, private"));
+        headers.insert(
+            CACHE_CONTROL,
+            HeaderValue::from_static("max-age=0, private"),
+        );
         assert!(wants_bypass(&headers));
         let mut headers = HeaderMap::new();
         headers.insert(PRAGMA, HeaderValue::from_static("no-cache"));
@@ -160,7 +190,13 @@ mod tests {
 
     #[test]
     fn first_row_handles_empty_results() {
-        assert_eq!(first_row(serde_json::json!([{"id": 1}])).unwrap(), serde_json::json!({"id": 1}));
-        assert!(matches!(first_row(serde_json::json!([])), Err(FetchError::Rejected(_))));
+        assert_eq!(
+            first_row(serde_json::json!([{"id": 1}])).unwrap(),
+            serde_json::json!({"id": 1})
+        );
+        assert!(matches!(
+            first_row(serde_json::json!([])),
+            Err(FetchError::Rejected(_))
+        ));
     }
 }
