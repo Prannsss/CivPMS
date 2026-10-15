@@ -1,20 +1,54 @@
 import type { Metadata } from "next";
-import { History } from "lucide-react";
-import { ScreenPlaceholder } from "@/components/app-shell/screen-placeholder";
+import { Lock } from "lucide-react";
+import { auditFiltersToSearchParams, encodeAuditCursor, hasActiveFilters, parseAuditFilters } from "@/components/audit/audit-filters";
+import { AuditFiltersBar } from "@/components/audit/audit-filters-bar";
+import { AuditLog } from "@/components/audit/audit-log";
+import { PageHeader } from "@/components/ui/page-header";
+import { todayInManila } from "@/lib/domain/dates";
 import { getProjectAccess } from "@/server/context";
+import { getAuditActors, getAuditPage } from "@/server/queries/audit";
 
 export const metadata: Metadata = { title: "Audit Trail" };
 
-/** Placeholder: the audit team replaces this page (spec §10.6). */
-export default async function AuditPage({ params }: PageProps<"/projects/[projectId]/audit">) {
+/** Audit Trail (spec §10.6): the project's append-only history with filters, paging and CSV export. */
+export default async function AuditPage({ params, searchParams }: PageProps<"/projects/[projectId]/audit">) {
   const { projectId } = await params;
-  await getProjectAccess(projectId);
+  const filters = parseAuditFilters(await searchParams);
+  const { project, permissions } = await getProjectAccess(projectId);
+  const [page, actors] = await Promise.all([getAuditPage(project.id, filters), getAuditActors(project.id)]);
+
+  const query = auditFiltersToSearchParams(filters).toString();
+  const basePath = `/projects/${project.id}/audit`;
+  const exportHref = `${basePath}/export${query ? `?${query}` : ""}`;
+
   return (
-    <ScreenPlaceholder
-      title="Audit Trail"
-      description="Every change, who made it and when"
-      icon={<History />}
-      upcoming="An append-only history of this project: edits, status changes, moves and deletions, with filters and export."
-    />
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        className="pb-1 sm:pb-1"
+        title="Audit Trail"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-x-1.5">
+            Every change to this project, who made it and when (Philippine time).
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <Lock aria-hidden className="size-3.5" />
+              Entries can&rsquo;t be edited or deleted.
+            </span>
+          </span>
+        }
+      />
+      <AuditFiltersBar filters={filters} actors={actors} exportHref={exportHref} canExport={permissions.canExport} />
+      <AuditLog
+        key={query}
+        projectId={project.id}
+        query={query}
+        initialEntries={page.entries}
+        initialCursor={page.nextCursor ? encodeAuditCursor(page.nextCursor) : null}
+        total={page.total}
+        today={todayInManila()}
+        now={new Date().toISOString()}
+        filtered={hasActiveFilters(filters)}
+        onClearHref={basePath}
+      />
+    </div>
   );
 }
