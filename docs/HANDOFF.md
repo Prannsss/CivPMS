@@ -55,7 +55,7 @@ These exist only inside this cloud container as local commits. If the container 
 1. **Rotate the Brevo API key** that was pasted in chat; put the new one in `.env.local` / Vercel only.
 2. Supabase dashboard (see `docs/SETUP.md`): custom SMTP via Brevo (without it, sign-up confirmation emails only reach project team members), URL configuration (localhost + Vercel domain), paste `supabase/templates/*`, enable Google provider.
 3. Add `SUPABASE_SECRET_KEY`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `CRON_SECRET` to `.env.local` and Vercel. Prefer a domain sender with SPF/DKIM over a gmail.com address.
-4. Before production: run `supabase/seed/demo-cleanup.sql` to remove every `@civpms.test` account.
+4. Before production: run `supabase/seed/demo-cleanup.sql` to remove every `@civpms.test` demo/test account. It deliberately **keeps** the owner's own PM account `rhecy@civpms.test` (company RHEngineering) — listed in the script's `c_keep` (owner decision 2026-10-16). Its password is known to the owner only and is not stored in the repo; `@civpms.test` cannot receive email, so reset it via SQL if needed, or move the account to a real address.
 5. Open spec questions: Q8 (account ownership), Q15 (who may create companies), Q17 (users per company).
 
 ## 6. Next steps (in order)
