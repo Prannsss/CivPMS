@@ -141,7 +141,8 @@ function buildGraph(
       });
     }
     if (placed.parentId) {
-      const hasDelayed = rollups.get(placed.id)?.hasDelayed;
+      // Edges stay neutral: sibling edges share the same bus line, so tinting one would tint them
+      // all. Delayed branches are flagged on the cards themselves (badge + icon).
       edges.push({
         id: `${placed.parentId}->${placed.id}`,
         source: placed.parentId,
@@ -149,7 +150,6 @@ function buildGraph(
         sourceHandle: placed.edge === "stack" ? "stack" : "bottom",
         targetHandle: placed.edge === "stack" ? "left" : "top",
         type: placed.edge === "stack" ? "step" : "smoothstep",
-        style: hasDelayed ? { stroke: "var(--danger)", strokeOpacity: 0.6 } : undefined,
       });
     }
   }
