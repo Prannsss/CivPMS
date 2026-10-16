@@ -10,7 +10,7 @@
 //! * **A global cap on uploads in progress** (`MAX_CONCURRENT_UPLOADS`): beyond it, requests
 //!   get `503 BUSY` at once, before anything is written to the temp directory, so temp-disk
 //!   use is bounded by `cap × MAX_UPLOAD_MB`. Requests waiting for their own previous upload
-//!   do not hold a place.
+//!   do not hold a place; a client sending its body slowly does (until the request timeout).
 //!
 //! Processing time is charged to the per-user upload budget separately (see
 //! [`processing_charge`]). Both limits are per instance (the free plan runs one); the request

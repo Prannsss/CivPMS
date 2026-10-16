@@ -111,8 +111,9 @@ A user's uploads are admitted **one at a time** (the next one waits up to
 `FFMPEG_QUEUE_TIMEOUT_SECS` for the previous one, then gets `429`), and the ffmpeg queue is
 first-come, first-served, so one account cannot keep the slot from everyone else. At most
 `MAX_CONCURRENT_UPLOADS` uploads are in progress per instance; more get `503 BUSY` before their
-body is written to disk. `/readyz` shows `uploads.in_progress` / `uploads.capacity`. Spreading
-load over several accounts is still possible; per-user limits cannot prevent that.
+body is written to disk. `/readyz` shows `uploads.in_progress` / `uploads.capacity`. What
+per-user limits cannot prevent: load spread over several accounts, and clients that send
+their body very slowly (each holds a place for up to `UPLOAD_REQUEST_TIMEOUT_SECS`).
 
 Cached reads set `x-cache: HIT | MISS | STALE | BYPASS` and `Age`. Send
 `Cache-Control: no-cache` to bypass the cache (e.g. right after a mutation); the fresh value is
@@ -189,7 +190,7 @@ invalid configuration:
 | `FFMPEG_CONCURRENCY` | CPU cores (cgroup-aware), min 1 | Parallel ffmpeg runs. Use `1` on 512 MB instances. |
 | `FFMPEG_TIMEOUT_SECS` | `30` | Per ffmpeg/ffprobe run; the child is killed and reaped. |
 | `FFMPEG_QUEUE_TIMEOUT_SECS` | `20` | Wait for a free ffmpeg slot before `503 BUSY`; also how long a user's next upload waits for their previous one before `429`. |
-| `MAX_CONCURRENT_UPLOADS` | `4 × FFMPEG_CONCURRENCY` | Uploads in progress per instance (1–1024); more get `503 BUSY` before their body is read, so temp disk stays under this × `MAX_UPLOAD_MB`. |
+| `MAX_CONCURRENT_UPLOADS` | `4 × FFMPEG_CONCURRENCY`, at least 8 | Uploads in progress per instance (1–1024), counted from admission until the response, body upload included; more get `503 BUSY` before their body is read, so temp disk stays under this × `MAX_UPLOAD_MB`. |
 | `AVATAR_BUCKET` / `MEDIA_BUCKET` | `avatars` / `project-media` | |
 | `SIGNED_URL_TTL_SECS` | `600` | Lifetime of signed URLs (60–3600). |
 | `KEEPALIVE_ENABLED` | **`false`** | Opt-in self-ping; see [Keep-alive](#keep-alive). |
@@ -307,8 +308,8 @@ The Blueprint is `render.yaml` at the repository root: web service **civpms-medi
    `backend/**`).
 
 Free-plan facts to keep in mind: the web service has 512 MB RAM and a fraction of a CPU
-(hence `FFMPEG_CONCURRENCY=1` and `MAX_CONCURRENT_UPLOADS=4` in `render.yaml`: one photo
-decoded at a time plus a short queue; a 12 MP photo needs ≈ 0.7 s of CPU, so expect several
+(hence `FFMPEG_CONCURRENCY=1` and `MAX_CONCURRENT_UPLOADS=8` in `render.yaml`: one photo
+decoded at a time, at most 8 uploads in progress; a 12 MP photo needs ≈ 0.7 s of CPU, so expect several
 seconds there, each of which also costs the uploader one unit of the upload budget, and very
 large images can approach `FFMPEG_TIMEOUT_SECS`), it **sleeps after 15 minutes
 without inbound traffic** (the next request waits for a cold start of ~30–60 s), and the free

@@ -187,11 +187,12 @@ impl Config {
         let ffmpeg_concurrency = p.number::<usize>("FFMPEG_CONCURRENCY", cores.max(1), 1, 64);
         let ffmpeg_timeout = p.secs("FFMPEG_TIMEOUT_SECS", 30, 1, 300);
         let ffmpeg_queue_timeout = p.secs("FFMPEG_QUEUE_TIMEOUT_SECS", 20, 1, 120);
-        // One being processed per ffmpeg slot plus a short queue; more would only wait for
-        // `503 BUSY` while holding temp disk (each up to MAX_UPLOAD_MB).
+        // Bounds temp disk (each upload up to MAX_UPLOAD_MB). Room for a short ffmpeg queue,
+        // and for a few slow clients still sending their bodies (each holds a place for up to
+        // UPLOAD_REQUEST_TIMEOUT_SECS) without refusing everyone else.
         let max_concurrent_uploads = p.number::<usize>(
             "MAX_CONCURRENT_UPLOADS",
-            (ffmpeg_concurrency * 4).min(1024),
+            (ffmpeg_concurrency * 4).clamp(8, 1024),
             1,
             1024,
         );
@@ -569,7 +570,10 @@ mod tests {
         assert!(!cfg.keepalive.enabled, "keep-alive is opt-in");
         assert_eq!(cfg.keepalive.idle, Duration::from_mins(14));
         assert!(cfg.ffmpeg_concurrency >= 1);
-        assert_eq!(cfg.max_concurrent_uploads, cfg.ffmpeg_concurrency * 4);
+        assert_eq!(
+            cfg.max_concurrent_uploads,
+            (cfg.ffmpeg_concurrency * 4).max(8)
+        );
         assert_eq!(
             cfg.rate_limits,
             RateLimitConfig {
@@ -711,7 +715,9 @@ mod tests {
     fn upload_admission_follows_ffmpeg_concurrency_unless_set() {
         let mut env = base();
         env.insert("FFMPEG_CONCURRENCY", "1");
-        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 4);
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 8);
+        env.insert("FFMPEG_CONCURRENCY", "4");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 16);
         env.insert("MAX_CONCURRENT_UPLOADS", "2");
         assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 2);
         env.insert("MAX_CONCURRENT_UPLOADS", "0");
