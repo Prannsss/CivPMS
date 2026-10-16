@@ -38,6 +38,7 @@ Supabase project **CivPMS** (ref `bxfohhwvzbvmyokcsmwq`, ap-southeast-1, Postgre
 | `20261012001400_storage_avatars.sql` | `avatars` bucket + policies |
 | `20261012001500_hardening.sql` | Stricter log immutability, Owner PM invite guard, https-only avatars, anon default privileges |
 | `20261012001600_advisor_fixes.sql` | Explicit deny-all policy on `invite_code_attempts` |
+| `20261015100000_project_media_bucket.sql` | Private `project-media` bucket (WebP, 3 MB) + Storage policies for the media service (`backend/`) |
 
 All of these are applied to the live project. `supabase_migrations.schema_migrations` holds the same versions and byte-identical statements as these files. Add changes as **new** migrations with a later timestamp; never edit an applied file.
 
@@ -322,6 +323,8 @@ Invitation emails to people **without** an account are sent by the app right aft
 
 Bucket `avatars`: public read through the public URL, 2 MB limit, `image/png`, `image/jpeg`, `image/webp`. Signed-in users can select, insert, update and delete only objects under `<their uid>/…` (e.g. `<uid>/avatar.webp`). After uploading, save the public URL with `update_profile({"avatar_url": "https://…"})`.
 
+Bucket `project-media` (migration `20261015100000`): **private**, 3 MB limit, `image/webp` only. Objects are written by the media service (`backend/`) with the caller's own JWT under `<project_id>/<yyyy>/<mm>/<uuid>.webp` (+ `<uuid>_thumb.webp`); the INSERT policy accepts only names of exactly that shape. SELECT and INSERT: anyone in `private.visible_project_ids()` (Owner PM, project PMs, inspectors); DELETE: `private.manageable_project_ids()` (Owner PM, project PMs); no UPDATE policy (objects are immutable). The first path segment is compared as text, so malformed names cannot make a policy raise. Read objects through short-lived signed URLs.
+
 ## Philippine holidays
 
 `ph_holidays` is seeded by `20261012001300_seed_ph_holidays.sql`:
@@ -369,6 +372,7 @@ supabase db push                                 # applies new files in supabase
 | `06_projects_status.sql` | Create validation, holiday copy, `STALE_VERSION`, per-field logs with ₱ formatting, every status transition, Baseline v1 rollups, completion blocked with the capped list, cancel by owner only, archive/reopen, delete/restore/name conflict/30-day expiry |
 | `07_wbs_calendar.sql` | Codes and levels, insert at index, renumbering without version bumps or log noise, move (self/descendant/depth/cross-project), one move entry, delete/restore batches and positions, `PARENT_DELETED`, restore depth guard, `apply_schedule` atomicity, `save_calendar` diffing, logging and override flip |
 | `08_overview_jobs.sql` | `project_overview` numbers (allocated, parents ignored, cost/hours weights with fallbacks, `budget_state` at 90 % and exactly 100 %), budget-crossing alerts once and again after reset, delayed detection and reset, purge keeping log snapshots, email outbox claim/complete, preferences |
+| `10_project_media_storage.sql` | `project-media` bucket config and policies: owner/project PM/inspector read + upload under their project, generated-name pattern enforced, non-member PM and other company see and write nothing, inspectors cannot delete, PMs and the Owner PM can, avatars bucket unaffected |
 
 Run them with psql (PowerShell). Use the **Session pooler** connection string from Dashboard → Connect, and never commit it:
 

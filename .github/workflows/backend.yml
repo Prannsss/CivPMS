@@ -1,0 +1,68 @@
+# CI for the Rust media + cache service (backend/). The Next.js app has its own checks.
+name: backend
+
+on:
+  push:
+    paths:
+      - backend/**
+      - .github/workflows/backend.yml
+  pull_request:
+    paths:
+      - backend/**
+      - .github/workflows/backend.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+jobs:
+  check:
+    name: fmt · clippy · test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # Actions are pinned to commit SHAs (tag in the comment).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@ca36e3307eb02aaffd8a9268ae90e586fd4f461e # 1.97.0 (matches rust-toolchain.toml)
+        with:
+          toolchain: 1.97.0
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: backend
+
+      - name: Install ffmpeg and redis-server (used by the integration tests)
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg redis-server
+          ffmpeg -hide_banner -version | head -n 1
+          redis-server --version
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --locked
+
+      - name: Release build (same profile as the Docker image)
+        run: cargo build --release --locked && ./target/release/civpms-media --version
