@@ -42,6 +42,19 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D33 | Project sidebar keeps the blue identity in light mode; in dark mode it becomes a near-black surface with a blue active item. | A full-height saturated blue panel is harsh on a black page. |
 | D34 | Optimized brand assets are generated from the owner's files (`public/brand/*`, `src/app/icon.png`, `src/app/apple-icon.png`, `src/app/favicon.ico`). The originals (`favicon.ico`, `public/logo.svg`, 420 KB with an embedded raster) are kept untouched. | Page weight. |
 
+## Backend (media + cache service)
+
+| # | Decision | Why |
+|---|---|---|
+| D40 | A separate **Rust** service in `backend/` (crate `civpms-media`), deployed by the owner to **Render** (Docker, Singapore). Scope is "media + cache" only: image uploads with ffmpeg compression, Redis-cached reads, an optional keep-alive pinger. All other reads/writes stay in the Next.js app talking to Supabase directly. | Owner decision 2026-10-15. ffmpeg and long uploads do not fit Vercel functions; keeping the service narrow keeps RLS the single security boundary. |
+| D41 | The service holds **no Supabase secret key**. It verifies the caller's access token (ES256 via JWKS) and forwards that same token to PostgREST and Storage; it refuses `sb_secret_…`/`service_role` keys at startup. | RLS and Storage policies apply exactly as in the app; a compromised service cannot exceed the caller's rights. |
+| D42 | Uploads are re-encoded to **WebP** (avatars 256×256 center crop q82; photos ≤ 1600 px q80 + 400 px thumbnail q75), EXIF orientation applied by the service, all metadata (incl. GPS) stripped, object names generated server-side. | Spec §12.4; small files on site connections; privacy. |
+| D43 | New private bucket **`project-media`** (WebP only, 3 MB/object), layout `<project_id>/<yyyy>/<mm>/<uuid>[_thumb].webp`. SELECT/INSERT for anyone who can view the project (incl. inspectors), DELETE only for project managers, no UPDATE (immutable objects). Reads via short-lived signed URLs (10 min). | Inspectors must upload photos (Phase 3); managers clean up; names validated by policy as defence in depth. Migration `20261015100000`. |
+| D44 | Upload idempotency: `client_id` per user, result replayed for **24 h**; concurrent duplicates wait for (or take over from) the first attempt; reusing a key for another project is `409`. | Spec §13 offline queue retries must not create duplicates. |
+| D45 | Cached reads (`/v1/projects`, `/v1/projects/{id}/summary` per user 30 s; `/v1/holidays` shared 24 h) serve **stale data for up to 10 min** (holidays 7 days) when Supabase fails, marked `x-cache: STALE`; Redis down → in-memory fallback, service keeps serving. | Owner goal: the API keeps working when Supabase is slow/down; staleness is explicit, never silent. |
+| D46 | **Keep-alive is opt-in (`KEEPALIVE_ENABLED=false` by default and in `render.yaml`)**. The feature stays implemented and tested. | Owner decision 2026-10-15: Render free plan, and the 750 free instance-hours/month are shared with the owner's other free services; one never-sleeping service uses ~744 h. |
+| D47 | HEIC is accepted only where ffmpeg ≥ 7.1 can demux it (the Debian trixie image); tiled HEIF/AVIF (most iPhone photos) are refused with a clear `415` instead of storing one tile. | Never store a wrong image silently; browsers usually convert HEIC to JPEG on upload anyway. |
+
 ## Deferred (not in Phase 0–1)
 
 Platform Admin role (A26), retention purge job (spec §19), web push, PWA/offline, sharing/viewers, global search, import/export, Gantt, dependencies, CPM, baselines UI, progress updates, inspections, S-curve.
