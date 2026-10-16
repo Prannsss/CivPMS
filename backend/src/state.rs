@@ -91,7 +91,11 @@ impl AppState {
             clock.clone(),
         ));
         let limiter = RateLimiter::new(Arc::clone(&redis), config.rate_limits, clock.clone());
-        let idempotency = Arc::new(IdempotencyStore::new(Arc::clone(&redis), clock.clone()));
+        let idempotency = Arc::new(IdempotencyStore::new(
+            Arc::clone(&redis),
+            clock.clone(),
+            crate::idempotency::pending_ttl_for(config.upload_request_timeout),
+        ));
         let breaker =
             CircuitBreaker::new("supabase-read", 5, Duration::from_secs(15), clock.clone());
         let supabase = Supabase::new(&config, http.clone(), breaker);
