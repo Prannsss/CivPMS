@@ -1,0 +1,86 @@
+[package]
+name = "civpms-media"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+description = "CivPMS media + cache service: image upload with ffmpeg compression, Redis read cache, keep-alive."
+license = "UNLICENSED"
+publish = false
+default-run = "civpms-media"
+
+[lib]
+name = "civpms_media"
+path = "src/lib.rs"
+
+[[bin]]
+name = "civpms-media"
+path = "src/main.rs"
+
+[dependencies]
+arc-swap = "1.9"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "macros", "matched-path", "multipart", "original-uri", "query", "tokio", "tracing"] }
+bytes = "1.12"
+fastrand = "2.5"
+hex = "0.4"
+http = "1.5"
+http-body-util = "0.1.5"
+infer = { version = "0.22", default-features = false, features = ["std"] }
+jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
+lru = "0.18"
+parking_lot = "0.12"
+redis = { version = "1.7", default-features = false, features = ["connection-manager", "script", "tokio-comp"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["http2", "json", "query", "rustls", "system-proxy"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+tempfile = "3.27"
+thiserror = "2.0"
+time = { version = "0.3.55", features = ["formatting", "macros", "serde"] }
+tokio = { version = "1.53", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.1", features = ["catch-panic", "cors", "limit", "request-id", "sensitive-headers", "set-header", "timeout", "trace", "util"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "json"] }
+uuid = { version = "1.28", features = ["serde", "v4"] }
+
+[dev-dependencies]
+base64 = "0.23"
+p256 = { version = "0.14", features = ["ecdsa", "pkcs8"] }
+wiremock = "0.6.5"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints that add noise without catching bugs in this codebase.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+similar_names = "allow"
+too_many_lines = "allow"
+# Correctness guards.
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
+panic = "unwind"
+
+[profile.dev.package."*"]
+# Dependencies are compiled with optimizations so tests (JWT verification, hashing) stay fast.
+opt-level = 2

@@ -1,0 +1,68 @@
+# Supabase CLI configuration for CivPMS.
+# Remote project: "CivPMS" (ref bxfohhwvzbvmyokcsmwq, ap-southeast-1, Postgres 17).
+#
+#   supabase link --project-ref bxfohhwvzbvmyokcsmwq
+#   supabase db push            # applies supabase/migrations/* not yet on the remote
+#
+# The sections below only matter for `supabase start` (local stack); `link` and
+# `db push` read project_id, [db] and the migrations folder. The auth email
+# templates below are used by the local stack; for the hosted project paste the
+# same files into Dashboard → Authentication → Emails (see docs/SETUP.md).
+# Do not run `supabase config push` blindly: it would also overwrite the hosted
+# Site URL and redirect URLs with these localhost values.
+project_id = "civpms"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+# PH holidays are seeded by a migration (20261012001300_seed_ph_holidays.sql).
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000/auth/confirm"]
+minimum_password_length = 10
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+
+# Token-hash links → /auth/confirm (src/app/auth/confirm/route.ts).
+[auth.email.template.confirmation]
+subject = "Confirm your email for CivPMS"
+content_path = "./supabase/templates/confirm-signup.html"
+
+[auth.email.template.recovery]
+subject = "Reset your CivPMS password"
+content_path = "./supabase/templates/reset-password.html"
+
+[auth.email.template.magic_link]
+subject = "Your CivPMS sign-in link"
+content_path = "./supabase/templates/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email for CivPMS"
+content_path = "./supabase/templates/email-change.html"
+
+[auth.email.template.invite]
+subject = "You've been invited to CivPMS"
+content_path = "./supabase/templates/invite.html"
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"

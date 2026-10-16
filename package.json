@@ -1,0 +1,62 @@
+{
+  "name": "civpms",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:types": "npx supabase gen types typescript --project-id bxfohhwvzbvmyokcsmwq --schema public > src/lib/supabase/database.types.ts"
+  },
+  "dependencies": {
+    "@date-fns/tz": "1.5.0",
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
+    "@hookform/resolvers": "5.9.1",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.3",
+    "@tanstack/react-virtual": "3.14.13",
+    "@xyflow/react": "12.12.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cmdk": "1.1.1",
+    "d3-hierarchy": "3.1.2",
+    "date-fns": "4.4.0",
+    "lucide-react": "1.55.0",
+    "next": "16.4.0",
+    "next-themes": "0.4.6",
+    "radix-ui": "1.8.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "7.90.0",
+    "server-only": "0.0.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@tailwindcss/turbopack": "^4",
+    "@types/d3-hierarchy": "3.1.7",
+    "@types/node": "22.20.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "5.0.4",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
+    "png-to-ico": "3.0.2",
+    "sharp": "0.35.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "5.0.4"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

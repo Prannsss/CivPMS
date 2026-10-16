@@ -1,0 +1,98 @@
+/*
+ * Motion for the auth showcase panel (D32). Everything here is decorative: it only runs when the
+ * visitor has not asked for reduced motion, and the resting state is the final frame.
+ */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: scale(1.9);
+  }
+}
+
+.curve,
+.curvePlanned {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .delay1 {
+    animation-delay: 90ms;
+  }
+
+  .delay2 {
+    animation-delay: 180ms;
+  }
+
+  .delay3 {
+    animation-delay: 270ms;
+  }
+
+  .float {
+    animation: float 7s ease-in-out infinite;
+  }
+
+  .floatSlow {
+    animation: float 9s ease-in-out 1.2s infinite;
+  }
+
+  .curve {
+    stroke-dashoffset: 1;
+    animation: draw 1.8s cubic-bezier(0.65, 0, 0.35, 1) 300ms forwards;
+  }
+
+  .curvePlanned {
+    stroke-dashoffset: 1;
+    animation: draw 1.4s cubic-bezier(0.65, 0, 0.35, 1) 150ms forwards;
+  }
+
+  .pulse {
+    animation: pulse 2.4s ease-in-out 2.1s infinite;
+  }
+}
