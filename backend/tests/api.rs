@@ -902,6 +902,55 @@ async fn reads_are_cached_per_user_with_stale_on_error() {
     assert_eq!(keys.lines().count(), 2, "{keys}");
 }
 
+/// Regression (review finding): with the default timeouts a hanging PostgREST made every
+/// read end in `504` (3 attempts × 4 s > the 10 s request timeout), stale entries were never
+/// served and the circuit breaker never opened.
+#[tokio::test]
+async fn hanging_supabase_reads_serve_stale_before_the_timeout_and_open_the_circuit() {
+    let clock = civpms_media::clock::ManualClock::new(now_ms());
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(
+        supabase,
+        None,
+        &[("CACHE_PROJECTS_TTL_SECS", "1")],
+        clock.clone(),
+    )
+    .await;
+    let mut uris = vec!["/v1/projects".to_owned()];
+    for _ in 0..5 {
+        let project = Uuid::new_v4();
+        app.supabase.add_project(project).await;
+        uris.push(format!("/v1/projects/{project}/summary"));
+    }
+    for uri in &uris {
+        assert_eq!(app.get(uri).await.header("x-cache"), Some("MISS"), "{uri}");
+    }
+
+    app.supabase.slow_rest(Duration::from_mins(1)).await;
+    clock.advance(Duration::from_secs(3)); // past ttl + swr, well inside stale_max
+    let started = std::time::Instant::now();
+    let responses = join_all(uris.iter().map(|uri| app.get(uri)).collect()).await;
+    let elapsed = started.elapsed();
+    for (uri, response) in uris.iter().zip(&responses) {
+        assert_eq!(response.status, StatusCode::OK, "{uri}: {response:?}");
+        assert_eq!(response.header("x-cache"), Some("STALE"), "{uri}");
+    }
+    assert!(elapsed < Duration::from_secs(10), "{elapsed:?}");
+    assert_eq!(
+        app.get("/readyz").await.json()["checks"]["supabase_reads_circuit"],
+        "open",
+        "timeouts count as failures"
+    );
+
+    // Circuit open: stale data at once, no upstream call.
+    let before = app.supabase.count("GET", "/rest/v1/").await;
+    let started = std::time::Instant::now();
+    let fast = app.get("/v1/projects").await;
+    assert_eq!(fast.header("x-cache"), Some("STALE"));
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(app.supabase.count("GET", "/rest/v1/").await, before);
+}
+
 #[tokio::test]
 async fn holidays_are_shared_across_users_and_validated() {
     let app = TestApp::start(None, &[]).await;

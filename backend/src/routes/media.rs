@@ -447,6 +447,7 @@ async fn ensure_project_visible(
         .rest_get(
             user.token(),
             &format!("/rest/v1/project_overview?select=id&id=eq.{project_id}&limit=1"),
+            tokio::time::Instant::now() + state.config.upstream_read_budget,
         )
         .await
         .map_err(|e| match e {

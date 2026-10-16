@@ -267,7 +267,7 @@ impl FakeSupabase {
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([
                 {"id": id.to_string(), "name": "Test project", "progress_pct": 12.5}
             ])))
-            .with_priority(1)
+            .with_priority(2) // below the outage simulations (priority 1)
             .mount(&self.server)
             .await;
     }

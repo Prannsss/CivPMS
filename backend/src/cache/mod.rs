@@ -9,9 +9,14 @@
 //! | `< ttl + swr`              | served (`HIT`) and refreshed in the background               |
 //! | older, or missing          | fetched (`MISS`); concurrent misses share one fetch          |
 //! | fetch fails (5xx/timeout/  | the last good value is served (`STALE`) while its age is     |
-//! | circuit open)              | `< ttl + stale_max`; otherwise `503 UPSTREAM_UNAVAILABLE`    |
+//! | circuit open/deadline)     | `< ttl + stale_max`; otherwise `503 UPSTREAM_UNAVAILABLE`    |
 //!
 //! Definitive upstream answers (401, 404, …) are never masked by stale data.
+//!
+//! A request waits for the upstream only until its `deadline` (set before the request
+//! timeout, see `Config::upstream_read_budget`). The fetch itself runs in its own task, so a
+//! caller that stops waiting (deadline, client disconnect) never cancels it: its outcome is
+//! still recorded by the circuit breaker and a late success still refreshes the cache.
 
 pub mod memory;
 pub mod singleflight;
@@ -22,6 +27,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::time::Instant;
 
 use crate::clock::SharedClock;
 use crate::error::AppError;
@@ -32,6 +38,9 @@ use singleflight::SingleFlight;
 
 /// Entries larger than this are served but not cached.
 const MAX_ENTRY_BYTES: usize = 1024 * 1024;
+/// Extra wait past the deadline, so a fetch that gives up exactly at the deadline (and has
+/// recorded its failure) is preferred over this safety net.
+const DEADLINE_GRACE: Duration = Duration::from_millis(500);
 
 /// How a response was produced (`x-cache` header).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,11 +126,14 @@ impl Cache {
     /// Returns the cached value for `key`, fetching it with `fetch` when needed.
     /// `bypass` (client sent `Cache-Control: no-cache`) skips serving cached values but still
     /// stores the fresh one and still falls back to stale data on upstream failure.
+    /// The caller waits for `fetch` until `deadline` (plus a short grace); after that it is
+    /// treated as an upstream failure.
     pub async fn get_or_fetch<F, Fut>(
         self: &Arc<Self>,
         key: String,
         policy: CachePolicy,
         bypass: bool,
+        deadline: Instant,
         fetch: F,
     ) -> Result<CacheResult, AppError>
     where
@@ -149,7 +161,21 @@ impl Cache {
             }
         }
 
-        match self.fetch_and_store(&key, policy, fetch).await {
+        let this = Arc::clone(self);
+        let flight_key = key.clone();
+        let flight =
+            tokio::spawn(async move { this.fetch_and_store(&flight_key, policy, fetch).await });
+        let fetched = match tokio::time::timeout_at(deadline + DEADLINE_GRACE, flight).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(join_error)) => {
+                tracing::error!(error = %join_error, "cache fetch task failed");
+                Err(FetchError::Unavailable("fetch task failed".into()))
+            }
+            Err(_) => Err(FetchError::Unavailable(
+                "upstream did not answer before the deadline".into(),
+            )),
+        };
+        match fetched {
             Ok(value) => Ok(CacheResult {
                 value,
                 status: if bypass {
@@ -288,6 +314,10 @@ mod tests {
         stale_max: Duration::from_mins(10),
     };
 
+    fn far() -> Instant {
+        Instant::now() + Duration::from_mins(1)
+    }
+
     fn cache() -> (Arc<Cache>, Arc<ManualClock>) {
         let clock = ManualClock::new(1_000_000);
         let redis = Arc::new(RedisHandle::disabled(clock.clone()));
@@ -296,14 +326,16 @@ mod tests {
 
     async fn ok(cache: &Arc<Cache>, value: Value) -> CacheResult {
         cache
-            .get_or_fetch("k".into(), POLICY, false, move || async move { Ok(value) })
+            .get_or_fetch("k".into(), POLICY, false, far(), move || async move {
+                Ok(value)
+            })
             .await
             .unwrap()
     }
 
     async fn failing(cache: &Arc<Cache>) -> Result<CacheResult, AppError> {
         cache
-            .get_or_fetch("k".into(), POLICY, false, || async {
+            .get_or_fetch("k".into(), POLICY, false, far(), || async {
                 Err(FetchError::Unavailable("timeout".into()))
             })
             .await
@@ -349,7 +381,7 @@ mod tests {
         ok(&cache, json!(1)).await;
         clock.advance(Duration::from_mins(2));
         let err = cache
-            .get_or_fetch("k".into(), POLICY, false, || async {
+            .get_or_fetch("k".into(), POLICY, false, far(), || async {
                 Err(FetchError::Rejected(AppError::not_found("gone")))
             })
             .await
@@ -384,7 +416,7 @@ mod tests {
         let (cache, _) = cache();
         ok(&cache, json!(1)).await;
         let fresh = cache
-            .get_or_fetch("k".into(), POLICY, true, || async { Ok(json!(2)) })
+            .get_or_fetch("k".into(), POLICY, true, far(), || async { Ok(json!(2)) })
             .await
             .unwrap();
         assert_eq!(
@@ -392,7 +424,7 @@ mod tests {
             (CacheStatus::Bypass, &json!(2))
         );
         let fallback = cache
-            .get_or_fetch("k".into(), POLICY, true, || async {
+            .get_or_fetch("k".into(), POLICY, true, far(), || async {
                 Err(FetchError::Unavailable("down".into()))
             })
             .await
@@ -413,7 +445,7 @@ mod tests {
             let calls = Arc::clone(&calls);
             tasks.push(tokio::spawn(async move {
                 cache
-                    .get_or_fetch("burst".into(), POLICY, false, move || async move {
+                    .get_or_fetch("burst".into(), POLICY, false, far(), move || async move {
                         calls.fetch_add(1, Ordering::SeqCst);
                         tokio::time::sleep(Duration::from_millis(50)).await;
                         Ok(json!("v"))
@@ -426,6 +458,50 @@ mod tests {
             assert_eq!(*task.await.unwrap().value, json!("v"));
         }
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// Regression (review finding): a hanging upstream must not hold the request past its
+    /// deadline; the stale value is served and the fetch keeps running on its own.
+    #[tokio::test]
+    async fn deadline_serves_stale_and_a_late_answer_still_refreshes_the_cache() {
+        let (cache, clock) = cache();
+        ok(&cache, json!("old")).await;
+        clock.advance(Duration::from_mins(2)); // past ttl + swr
+        let started = std::time::Instant::now();
+        let deadline = Instant::now() + Duration::from_millis(100);
+        let stale = cache
+            .get_or_fetch("k".into(), POLICY, false, deadline, || async {
+                tokio::time::sleep(Duration::from_millis(1_500)).await;
+                Ok(json!("new"))
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            (stale.status, &*stale.value),
+            (CacheStatus::Stale, &json!("old"))
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+
+        tokio::time::sleep(Duration::from_millis(1_200)).await;
+        let fresh = ok(&cache, json!("unused")).await;
+        assert_eq!(
+            (fresh.status, &*fresh.value),
+            (CacheStatus::Hit, &json!("new"))
+        );
+    }
+
+    #[tokio::test]
+    async fn deadline_without_a_stale_entry_is_503() {
+        let (cache, _) = cache();
+        let deadline = Instant::now() + Duration::from_millis(50);
+        let err = cache
+            .get_or_fetch("k".into(), POLICY, false, deadline, || async {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                Ok(json!(1))
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, ErrorCode::UpstreamUnavailable);
     }
 
     #[tokio::test]

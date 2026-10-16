@@ -77,6 +77,10 @@ pub struct Config {
     pub read_request_timeout: Duration,
     /// Timeout of one upstream (Supabase) attempt for reads.
     pub upstream_read_timeout: Duration,
+    /// Overall deadline of one upstream read, retries included: `READ_REQUEST_TIMEOUT_SECS`
+    /// minus [`READ_DEADLINE_MARGIN`], so a failed read still leaves time to serve stale data
+    /// (and to count the failure) before the request itself times out.
+    pub upstream_read_budget: Duration,
     /// Timeout of one upstream (Supabase Storage) upload.
     pub upstream_write_timeout: Duration,
     pub shutdown_grace: Duration,
@@ -122,6 +126,9 @@ pub struct ConfigError {
 }
 
 const MIB: u64 = 1024 * 1024;
+
+/// Time kept free at the end of a read request for the stale fallback and the response.
+pub const READ_DEADLINE_MARGIN: Duration = Duration::from_secs(2);
 
 impl Config {
     /// Reads the process environment.
@@ -180,6 +187,15 @@ impl Config {
         let read_request_timeout = p.secs("READ_REQUEST_TIMEOUT_SECS", 10, 1, 120);
         let upstream_read_timeout = p.secs("UPSTREAM_READ_TIMEOUT_SECS", 4, 1, 60);
         let upstream_write_timeout = p.secs("UPSTREAM_WRITE_TIMEOUT_SECS", 20, 1, 300);
+        if read_request_timeout < upstream_read_timeout + READ_DEADLINE_MARGIN {
+            p.problem(format!(
+                "READ_REQUEST_TIMEOUT_SECS ({}) must be at least UPSTREAM_READ_TIMEOUT_SECS ({}) + {}, so stale data can be served before a read request times out",
+                read_request_timeout.as_secs(),
+                upstream_read_timeout.as_secs(),
+                READ_DEADLINE_MARGIN.as_secs()
+            ));
+        }
+        let upstream_read_budget = read_request_timeout.saturating_sub(READ_DEADLINE_MARGIN);
         let shutdown_grace = p.secs("SHUTDOWN_GRACE_SECS", 25, 1, 300);
 
         let render_external_url = p
@@ -250,6 +266,7 @@ impl Config {
             upload_request_timeout,
             read_request_timeout,
             upstream_read_timeout,
+            upstream_read_budget,
             upstream_write_timeout,
             shutdown_grace,
             keepalive,
@@ -645,6 +662,25 @@ mod tests {
             );
         }
         assert!(summary.contains("redis://***@red-abc:6379"));
+    }
+
+    #[test]
+    fn read_timeouts_leave_room_for_the_stale_fallback() {
+        let cfg = parse(&base()).unwrap();
+        assert_eq!(cfg.upstream_read_budget, Duration::from_secs(8));
+        let mut env = base();
+        env.insert("READ_REQUEST_TIMEOUT_SECS", "5");
+        env.insert("UPSTREAM_READ_TIMEOUT_SECS", "4");
+        let text = parse(&env).unwrap_err().to_string();
+        assert!(
+            text.contains("READ_REQUEST_TIMEOUT_SECS (5) must be at least"),
+            "{text}"
+        );
+        env.insert("READ_REQUEST_TIMEOUT_SECS", "6");
+        assert_eq!(
+            parse(&env).unwrap().upstream_read_budget,
+            Duration::from_secs(4)
+        );
     }
 
     #[test]

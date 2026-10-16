@@ -3,7 +3,8 @@
 //! Every call carries the publishable key (`apikey`) and the **caller's** access token
 //! (`Authorization: Bearer …`), so RLS and Storage policies decide what is visible or
 //! writable. Reads (idempotent GETs) get a per-attempt timeout, up to two retries with full
-//! jitter on transient failures, and a circuit breaker; writes are not retried.
+//! jitter on transient failures, an overall deadline that the retries must fit in, and a
+//! circuit breaker; writes are not retried.
 
 use std::time::Duration;
 
@@ -12,6 +13,7 @@ use http::StatusCode;
 use reqwest::{Method, RequestBuilder, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tokio::time::Instant;
 
 use crate::cache::FetchError;
 use crate::circuit::CircuitBreaker;
@@ -20,6 +22,8 @@ use crate::error::{AppError, ErrorCode};
 
 const READ_RETRIES: u32 = 2;
 const RETRY_BASE: Duration = Duration::from_millis(150);
+/// A retry is only started when at least this much time is left before the deadline.
+const MIN_RETRY_ATTEMPT: Duration = Duration::from_secs(1);
 const MAX_READ_BODY: usize = 4 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -67,14 +71,27 @@ impl Supabase {
     }
 
     /// GETs a PostgREST resource as JSON, with retries and the circuit breaker.
-    /// `path_and_query` starts with `/rest/v1/`.
-    pub async fn rest_get(&self, token: &str, path_and_query: &str) -> Result<Value, FetchError> {
+    /// `path_and_query` starts with `/rest/v1/`. Every attempt and retry fits before
+    /// `deadline`; running into it counts as an upstream failure (a hanging upstream is
+    /// unhealthy), so the breaker opens and callers can serve stale data in time.
+    pub async fn rest_get(
+        &self,
+        token: &str,
+        path_and_query: &str,
+        deadline: Instant,
+    ) -> Result<Value, FetchError> {
         let Ok(permit) = self.breaker.acquire() else {
             return Err(FetchError::Unavailable("circuit open".into()));
         };
         let mut attempt = 0;
         loop {
-            match self.rest_get_once(token, path_and_query).await {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                permit.failure();
+                return Err(FetchError::Unavailable("read deadline exceeded".into()));
+            }
+            let timeout = self.read_timeout.min(remaining);
+            match self.rest_get_once(token, path_and_query, timeout).await {
                 Ok(value) => {
                     permit.success();
                     return Ok(value);
@@ -84,27 +101,33 @@ impl Supabase {
                     permit.healthy();
                     return Err(FetchError::Rejected(error));
                 }
-                Err(FetchError::Unavailable(reason)) if attempt < READ_RETRIES => {
+                Err(FetchError::Unavailable(reason)) => {
                     attempt += 1;
                     // Full jitter: 0..=150 ms, then 0..=300 ms.
-                    let cap = RETRY_BASE.as_millis() as u64 * (1 << (attempt - 1));
+                    let cap = RETRY_BASE.as_millis() as u64 * (1 << (attempt - 1).min(8));
                     let delay = Duration::from_millis(fastrand::u64(0..=cap));
+                    let left = deadline.saturating_duration_since(Instant::now());
+                    if attempt > READ_RETRIES || left < delay + MIN_RETRY_ATTEMPT {
+                        permit.failure();
+                        return Err(FetchError::Unavailable(reason));
+                    }
                     tracing::debug!(%reason, attempt, ?delay, "retrying upstream read");
                     tokio::time::sleep(delay).await;
-                }
-                Err(FetchError::Unavailable(reason)) => {
-                    permit.failure();
-                    return Err(FetchError::Unavailable(reason));
                 }
             }
         }
     }
 
-    async fn rest_get_once(&self, token: &str, path_and_query: &str) -> Result<Value, FetchError> {
+    async fn rest_get_once(
+        &self,
+        token: &str,
+        path_and_query: &str,
+        timeout: Duration,
+    ) -> Result<Value, FetchError> {
         let response = self
             .request(Method::GET, path_and_query, token)
             .header("accept", "application/json")
-            .timeout(self.read_timeout)
+            .timeout(timeout)
             .send()
             .await
             .map_err(|e| FetchError::Unavailable(describe_reqwest(&e)))?;
