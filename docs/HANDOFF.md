@@ -1,6 +1,6 @@
 # CivPMS — build status & handoff
 
-Last updated: 2026-10-16 · branch `claude/exciting-sagan-7valgn` (F4 merged; pushed to github.com/Prannsss/CivPMS).
+Last updated: 2026-10-16 · branch `claude/exciting-sagan-7valgn` (F1–F5 + backend merged; pushed to github.com/Prannsss/CivPMS).
 Scope in progress: **Phases 0–1** (foundations + planning core). Lessons learned / pitfalls live in `CLAUDE.md` → "Known pitfalls" — read them before working.
 
 ## 1. Finished and on the branch (verified)
@@ -17,6 +17,9 @@ Scope in progress: **Phases 0–1** (foundations + planning core). Lessons learn
 | F2 Projects home | Project cards (gradient, status + derived badges, progress), URL-synced filters/search/sort, create-project dialog (also `/?new=1`), archive/unarchive, delete with type-to-confirm + Undo, Recently deleted (owner), empty states per role | 10 e2e specs green (live DB) |
 | F3 Project workspace | Dashboard (status + derived badges, overdue banner, KPI cards, budget meter, needs-attention), project settings (details with Reload / Keep mine, status transitions, archive, owner-only delete with Undo), collaborators (members, Brevo email invitations, invite codes), audit trail + CSV export | `e2e/f3-*.spec.ts` green (live DB, `[F3]` tenant), screenshots `docs/screenshots/f3-*` |
 | F4 WBS + working calendar | `/projects/[id]/wbs`: list with inline edits (end dates recomputed on the server from calendar + holidays + overrides, STALE_VERSION → Reload / Keep mine), dnd-kit drag & drop with move validation and explained invalid drops, keyboard up/down/indent/outdent, Undo snackbar per move, delete confirm stating impact + Undo (`restore_activity`) + Recently deleted panel, D21 first-child takeover of cost/hours/dates, Hours \| Days toggle saved to the profile (`update_profile`), Graph \| List remembered in localStorage, budget bar + hours-weighting fallback warning, empty state with "Use sample structure", windowed list for large trees, `@xyflow/react` graph (collapsible branches, pan/zoom, neutral connectors, delayed flagged on cards). Read-only banner for inspectors and completed/cancelled projects; every WBS/calendar action refuses plan edits there (`planLockFor` → FORBIDDEN). `/projects/[id]/calendar`: settings card, month grid with context menu + keyboard alternative, holidays + overrides lists, staged changes, save previews moved activities → confirm → `save_calendar` in one transaction. No schema change. | `e2e/f4-wbs.spec.ts`, `f4-calendar.spec.ts`, `f4-wbs-large.spec.ts` (20 tests, live DB, fail on any console error/hydration warning), screenshots `docs/screenshots/f4-*` (light/dark/mobile) |
+| F5 Profile, company settings, notifications | `/profile`: name, avatar (via the media service when `NEXT_PUBLIC_MEDIA_API_URL` is set, otherwise browser crop + resize to a 256 px WebP uploaded straight to the `avatars` bucket; remove with Undo), Hours \| Days and theme, notification matrix per event type + daily email digest (migration `20261014090000`), password change, sign out. `/settings`: Owner PM edits company name, default calendar, members (promote/demote/remove), company invite codes and sees pending invitations; other PMs and inspectors get a read-only view; no company → friendly panel. `/notifications`: All/Unread + project filters, mark one/all read, keyset pagination, deep links, empty state. | `e2e/f5-profile`, `f5-company`, `f5-notifications` specs (live DB, `[F5]` tenant), SQL test 09, screenshots `docs/screenshots/f5-*` |
+
+After merging F5 (2026-10-16): `npm run typecheck`, `npx eslint src e2e`, `npx vitest run` (41 files, 741 tests) and `npm run build` pass; Playwright on the merged branch: 60 passed, 1 failed (`found-shell` expected the old Owner-only company page — spec updated to F5's read-only PM view, then 7/7 green), 8 skipped (opt-in screenshot generators).
 
 After merging F4 (2026-10-16): `npm run typecheck`, `npx eslint src e2e`, `npx vitest run` (38 files, 715 tests) and `npm run build` pass. Playwright on the merged branch (`e2e/f4-*`, `shell`, `found-shell`, `f1-auth`, `f2-home`, `f3-dashboard`, `f3-settings`): 64 passed, 5 skipped (the opt-in `F4_SHOTS=1` screenshot generator). Not re-run on the merged branch: `f1-invite`, `f1-onboarding`, `f3-audit`, `f3-collaborators`, `found-invitations`, `styleguide`.
 
@@ -28,13 +31,12 @@ These exist only inside this cloud container as local commits. If the container 
 
 | Feature | Local branch / worktree | State |
 |---|---|---|
-| — | — | Nothing pending here: F3 and F4 are merged (see §1). F5 lives in `wf/account` (in progress). |
+| — | — | Nothing pending: F1–F5 and the backend are merged (see §1 and §7). Backend review fixes are being finished on `wf/backend`. |
 
 ## 3. Not built yet
 
-- **F5** Profile (avatar, name, theme, hours/days, notification preferences, password), Company settings (rename, default calendar, members, company invite codes), Notifications page. Placeholder pages exist.
 - **Final merge & QA:** full Playwright suite on the merged app, golden-path walkthrough, multi-lens review (security/RLS, spec conformance, UX/visual, accessibility) and fixes.
-- Pages that are still placeholders on the branch: profile, company settings, notifications (F5). Gantt and S-curve show a deliberate "coming next" state (Phase 2/3).
+- Gantt and S-curve show a deliberate "coming next" state (Phase 2/3); every other Phase 0–1 page is built.
 - Later phases (per spec §21): Gantt + dependencies + CPM + baselines UI (Phase 2); progress updates, inspections, images, S-curve (Phase 3); sharing/viewers, PWA/offline (Phase 4); search, import/export, reports (Phase 5).
 
 ## 4. Known issues to fix
@@ -58,8 +60,8 @@ These exist only inside this cloud container as local commits. If the container 
 
 ## 6. Next steps (in order)
 
-1. F3 and F4 are merged and pushed.
-2. Build F5 → verify → merge → push.
+1. F1–F5 and the backend are merged and pushed.
+2. Finish the backend review fixes, redeploy `civpms-media` on Render.
 3. Run the full e2e suite on the merged branch, walk the golden path (onboard → company → project → WBS → calendar → invite → accept → audit trail), fix.
 4. QA review pass (security/RLS, spec conformance, UX/visual, a11y) and fixes.
 5. Start Phase 2.
