@@ -43,6 +43,16 @@ const SHOTS_DIR = process.env.QA_SHOTS_DIR ?? path.join(process.cwd(), "docs", "
 
 let projectId = "";
 
+/** The QA project's id: from test 1, or looked up by name when tests run on their own. */
+async function qaProjectId(): Promise<string> {
+  if (projectId) return projectId;
+  const { client } = await supabaseAs(PM);
+  const { data } = await client.from("projects").select("id").eq("name", PROJECT).maybeSingle();
+  projectId = data?.id ?? "";
+  expect(projectId, `${PROJECT} must exist (run test 1 first)`).not.toBe("");
+  return projectId;
+}
+
 function row(page: Page, code: string) {
   return page.locator(`[data-testid=wbs-row][data-wbs-code="${code}"]`);
 }
@@ -164,7 +174,7 @@ test("1 · a new PM onboards, creates the company and the first project", async 
 });
 
 test("2 · the PM builds the WBS with dates and costs", async ({ page, context }) => {
-  expect(projectId).not.toBe("");
+  await qaProjectId();
   const console = watchConsole(page);
   await signIn(context, PM);
   await page.goto(`/projects/${projectId}/wbs`);
@@ -200,6 +210,7 @@ test("2 · the PM builds the WBS with dates and costs", async ({ page, context }
 });
 
 test("3 · a non-working day shows the reschedule preview and moves the work package", async ({ page, context }) => {
+  await qaProjectId();
   const console = watchConsole(page);
   await signIn(context, PM);
   await page.goto(`/projects/${projectId}/calendar`);
@@ -231,6 +242,7 @@ test("3 · a non-working day shows the reschedule preview and moves the work pac
 let inviteToken = "";
 
 test("4 · the PM invites an inspector by email and copies the link", async ({ page, context }) => {
+  await qaProjectId();
   const console = watchConsole(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signIn(context, PM);
@@ -255,7 +267,8 @@ test("4 · the PM invites an inspector by email and copies the link", async ({ p
 });
 
 test("5 · the inspector accepts and gets a read-only project", async ({ page, context }) => {
-  expect(inviteToken).not.toBe("");
+  await qaProjectId();
+  expect(inviteToken, "run test 4 first").not.toBe("");
   const console = watchConsole(page);
   await signIn(context, INSPECTOR);
   await page.goto(`/invite/${inviteToken}`);
@@ -293,6 +306,7 @@ test("5 · the inspector accepts and gets a read-only project", async ({ page, c
 });
 
 test("6 · the audit trail shows every step", async ({ page, context }) => {
+  await qaProjectId();
   const console = watchConsole(page);
   await signIn(context, PM);
   await page.goto(`/projects/${projectId}/audit`);
@@ -310,6 +324,7 @@ test("6 · the audit trail shows every step", async ({ page, context }) => {
 });
 
 test("7 · profile, company settings and notifications work for the PM", async ({ page, context }) => {
+  await qaProjectId();
   const console = watchConsole(page);
   await signIn(context, PM);
 
@@ -329,6 +344,7 @@ test("7 · profile, company settings and notifications work for the PM", async (
 });
 
 test("8 · another company sees none of it (UI and database)", async ({ page, context }) => {
+  await qaProjectId();
   const console = watchConsole(page);
   const rival = await supabaseAs(RIVAL);
   const profile = await rival.client.from("profiles").select("onboarded_at").eq("id", rival.userId).single();
@@ -367,7 +383,7 @@ test("8 · another company sees none of it (UI and database)", async ({ page, co
 
 test("9 · screenshots (QA_SHOTS=1)", async ({ browser }) => {
   test.skip(!SHOTS, "Set QA_SHOTS=1 to write docs/screenshots/final-*.png");
-  const p = `/projects/${projectId}`;
+  const p = `/projects/${await qaProjectId()}`;
   await shoot(browser, PM, { name: "home", path: "/", heading: "Projects" });
   await shoot(browser, PM, { name: "dashboard", path: p, heading: "Dashboard" });
   await shoot(browser, PM, {
