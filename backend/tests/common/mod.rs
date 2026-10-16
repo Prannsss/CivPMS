@@ -282,6 +282,34 @@ impl FakeSupabase {
             .await;
     }
 
+    /// Makes the Auth JWKS endpoint hang for `delay` before answering.
+    pub async fn slow_jwks(&self, delay: Duration) {
+        Mock::given(method("GET"))
+            .and(path("/auth/v1/.well-known/jwks.json"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(jwks_json())
+                    .set_delay(delay),
+            )
+            .with_priority(1)
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Makes every PostgREST read hang for `delay` before answering (a slow Supabase).
+    pub async fn slow_rest(&self, delay: Duration) {
+        Mock::given(method("GET"))
+            .and(path_regex("^/rest/v1/.*"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([]))
+                    .set_delay(delay),
+            )
+            .with_priority(1)
+            .mount(&self.server)
+            .await;
+    }
+
     /// Simulates an outage of PostgREST (Storage and Auth keep working).
     pub async fn break_rest(&self) {
         self.server.reset().await;
@@ -377,9 +405,20 @@ impl TestApp {
         redis_url: Option<&str>,
         extra: &[(&str, &str)],
     ) -> Self {
+        Self::with_clock(supabase, redis_url, extra, civpms_media::clock::system()).await
+    }
+
+    /// Like [`TestApp::with_supabase`], with an injectable clock (cache ages, JWKS age, rate
+    /// windows, breaker cool-downs). Token `exp` is still checked against the real time.
+    pub async fn with_clock(
+        supabase: FakeSupabase,
+        redis_url: Option<&str>,
+        extra: &[(&str, &str)],
+        clock: civpms_media::clock::SharedClock,
+    ) -> Self {
         let vars = env(&supabase.url(), redis_url, extra);
         let config = Config::from_lookup(|k| vars.get(k).cloned()).expect("valid test config");
-        let state = AppState::new(config).expect("state");
+        let state = AppState::with_clock(config, clock).expect("state");
         state.warm_up().await;
         let user = Uuid::new_v4();
         let token = mint(&supabase.issuer(), user, 3600, 0x42, KID);

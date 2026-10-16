@@ -59,6 +59,7 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
     let jwks = json!({
         "status": if jwks_loaded { "loaded" } else { "missing" },
         "keys": state.jwks.key_count(),
+        "age_secs": jwks_loaded.then(|| state.jwks.age().as_secs()),
     });
 
     let body: Value = json!({

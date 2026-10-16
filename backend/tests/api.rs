@@ -216,6 +216,60 @@ async fn rejects_missing_invalid_expired_and_foreign_tokens() {
     );
 }
 
+/// Regression (review finding): after `JWKS_TTL` every authenticated request waited for its
+/// own 5 s JWKS fetch, one after another, while Supabase Auth was slow.
+#[tokio::test]
+async fn slow_supabase_auth_does_not_delay_requests_once_the_jwks_is_stale() {
+    let clock = civpms_media::clock::ManualClock::new(now_ms());
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(supabase, None, &[], clock.clone()).await;
+    assert_eq!(
+        app.get("/v1/holidays?year=2026").await.status,
+        StatusCode::OK
+    );
+
+    app.supabase.slow_jwks(Duration::from_secs(8)).await;
+    clock.advance(civpms_media::auth::jwks::JWKS_TTL + Duration::from_mins(1));
+    let started = std::time::Instant::now();
+    let (a, b, c) = tokio::join!(
+        app.get("/v1/holidays?year=2026"),
+        app.get("/v1/holidays?year=2026"),
+        app.get("/v1/holidays?year=2026"),
+    );
+    for response in [a, b, c] {
+        assert_eq!(response.status, StatusCode::OK);
+    }
+    for _ in 0..3 {
+        assert_eq!(
+            app.get("/v1/holidays?year=2026").await.status,
+            StatusCode::OK
+        );
+    }
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "requests waited for the JWKS fetch: {:?}",
+        started.elapsed()
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await; // let the background task connect
+    assert_eq!(
+        app.supabase
+            .count("GET", "/auth/v1/.well-known/jwks.json")
+            .await,
+        2,
+        "startup fetch + one background refresh"
+    );
+}
+
+fn now_ms() -> u64 {
+    u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap()
+}
+
 // ---------------------------------------------------------------------------
 // Avatars
 // ---------------------------------------------------------------------------
