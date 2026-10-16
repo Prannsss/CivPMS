@@ -79,6 +79,7 @@ test(`avatar upload goes through the ${EXPECT === "service" ? "media service" : 
     expect(mediaCalls[0].failed).not.toBeNull();
     expect(storageUploads.length).toBe(1);
     // Chromium itself logs the refused connection; nothing else may appear.
+    test.info().annotations.push({ type: "browser console", description: console.messages.join(" | ") || "(empty)" });
     const others = console.messages.filter((m) => !(/ERR_CONNECTION_REFUSED|Failed to fetch/.test(m)));
     expect(others, others.join("\n")).toEqual([]);
   }
