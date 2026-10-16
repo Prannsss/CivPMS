@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Class detection is limited to src/: scanning the project root also walks .claude/worktrees (agent checkouts with node_modules and Rust targets) and exhausts memory in `next build`. */
+@import "tailwindcss" source("..");
 
 /*
  * CivPMS design tokens.
