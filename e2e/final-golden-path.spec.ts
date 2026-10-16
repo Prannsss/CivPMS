@@ -121,7 +121,7 @@ async function signIn(context: BrowserContext, who: Who) {
   await loginAs(context, who);
 }
 
-test("1 · a new PM onboards, creates the company and the first project", async ({ page, context, browser }) => {
+test("1 · a new PM onboards, creates the company and the first project", async ({ page, context }) => {
   const console = watchConsole(page);
   await signIn(context, PM);
   await page.goto("/");
