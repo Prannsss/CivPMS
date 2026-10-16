@@ -173,10 +173,12 @@ export function NotificationsView({
                 Settings
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => void markAll()} loading={markingAll} disabled={unreadCount === 0 || markingAll}>
-              <CheckCheck aria-hidden />
-              Mark all as read
-            </Button>
+            {overview.totalCount > 0 ? (
+              <Button variant="outline" onClick={() => void markAll()} loading={markingAll} disabled={unreadCount === 0 || markingAll}>
+                <CheckCheck aria-hidden />
+                Mark all as read
+              </Button>
+            ) : null}
           </>
         }
       />

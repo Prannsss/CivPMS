@@ -4,7 +4,9 @@
  * (a) `NEXT_PUBLIC_MEDIA_API_URL` set → the CivPMS media service: `POST {base}/v1/media/avatar`,
  *     `Authorization: Bearer <Supabase access token>`, multipart field `file` (the picked file as
  *     is). It answers 201 `{url, path, width, height, bytes, content_type}` after storing a
- *     256×256 WebP in the `avatars` bucket. Network failures and 5xx answers fall back to (b).
+ *     256×256 WebP in the `avatars` bucket (contract: backend/README.md → "How the web app uses
+ *     it"). Network failures and 5xx answers (incl. 503 BUSY / UPSTREAM_UNAVAILABLE, 504 TIMEOUT)
+ *     fall back to (b); 4xx answers are shown to the user (error envelope `{error: {code, …}}`).
  * (b) Default → the browser crops to a square, resizes to 256 px WebP (≤ 2 MB) and uploads it to
  *     the `avatars` bucket under `<uid>/…` with the signed-in Supabase client.
  *
@@ -130,8 +132,10 @@ export function interpretMediaResponse(status: number, body: unknown, retryAfter
   });
   switch (status) {
     case 401:
-    case 403:
       return final("UNAUTHENTICATED");
+    case 403:
+      // Storage policy refused the write (FORBIDDEN): not a session problem the user can fix by waiting.
+      return final("UPLOAD_FAILED", "Your photo couldn't be saved to your account. Sign out, sign in again and try once more.");
     case 413:
       return final("TOO_LARGE");
     case 415:

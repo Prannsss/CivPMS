@@ -86,6 +86,8 @@ describe("interpretMediaResponse", () => {
   it("maps client errors to plain-language messages without falling back", () => {
     const cases: [number, unknown, string][] = [
       [401, { error: { code: "UNAUTHENTICATED" } }, "UNAUTHENTICATED"],
+      [403, { error: { code: "FORBIDDEN" } }, "UPLOAD_FAILED"],
+      [422, { error: { code: "PROCESSING_FAILED" } }, "UNREADABLE"],
       [413, { error: { code: "PAYLOAD_TOO_LARGE" } }, "TOO_LARGE"],
       [415, { error: { code: "UNSUPPORTED_MEDIA_TYPE" } }, "UNSUPPORTED_TYPE"],
       [422, { error: { code: "IMAGE_TOO_LARGE" } }, "TOO_LARGE"],

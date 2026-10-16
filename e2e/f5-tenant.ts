@@ -260,3 +260,39 @@ export async function canSignIn(email: string, password: string): Promise<boolea
   if (!error) await client.auth.signOut({ scope: "local" });
   return !error;
 }
+
+/**
+ * Gives f5-pm at least `minTotal` in-app notifications plus `fresh` new unread ones, by moving
+ * "[F5] Tagaytay Ridge Villas" between Active and On-Hold as the Owner PM (each change notifies
+ * the project's PM; `project_status_changed` sends no email by default). The project always ends
+ * Active. Returns the project id.
+ */
+export async function ensureF5PmNotifications(minTotal: number, fresh: number): Promise<string> {
+  const owner = await supabaseAs(F5.owner);
+  const pm = await supabaseAs(F5.pm);
+  const project = must(
+    await owner.client.from("projects").select("id, status").eq("name", F5_PROJECT).is("deleted_at", null).single(),
+    "read F5 project",
+  );
+  if (project.status === "planning") {
+    check(await owner.client.rpc("set_project_status", { p_project_id: project.id, p_status: "active" }), "activate F5 project");
+  } else if (project.status === "on_hold") {
+    check(await owner.client.rpc("set_project_status", { p_project_id: project.id, p_status: "active" }), "resume F5 project");
+  }
+  const { count, error } = await pm.client.from("notifications").select("id", { count: "exact", head: true }).eq("in_app", true);
+  if (error) throw new Error(`count notifications failed: ${error.message}`);
+  let needed = Math.max(fresh, minTotal - (count ?? 0));
+  if (needed % 2 === 1) needed += 1; // pairs, so the project ends Active
+  for (let i = 0; i < needed / 2; i += 1) {
+    check(
+      await owner.client.rpc("set_project_status", {
+        p_project_id: project.id,
+        p_status: "on_hold",
+        p_reason: `[F5] Waiting for the rainy season to pass (${stamp()})`,
+      }),
+      "hold F5 project",
+    );
+    check(await owner.client.rpc("set_project_status", { p_project_id: project.id, p_status: "active" }), "resume F5 project");
+  }
+  return project.id;
+}

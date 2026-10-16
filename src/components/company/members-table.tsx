@@ -47,7 +47,8 @@ function projectsText(member: CompanyMember): string {
   return pluralize(member.projectCount, "project");
 }
 
-const GRID = "md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_3rem]";
+const GRID_WITH_PROJECTS = "md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_3rem]";
+const GRID_NO_PROJECTS = "md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,0.9fr)_3rem]";
 
 /**
  * Company members (spec §2.2, §4.4): avatar, name, email, role, projects and joined date. The
@@ -69,6 +70,7 @@ export function MembersTable({
 }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const GRID = showProjects ? GRID_WITH_PROJECTS : GRID_NO_PROJECTS;
   const [busy, setBusy] = useState<string | null>(null);
   const counts = members.reduce<Record<CompanyRole, number>>(
     (acc, m) => ({ ...acc, [m.role]: acc[m.role] + 1 }),
@@ -155,7 +157,7 @@ export function MembersTable({
           >
             <span role="columnheader">Name</span>
             <span role="columnheader">Company role</span>
-            <span role="columnheader">{showProjects ? "Projects" : ""}</span>
+            {showProjects ? <span role="columnheader">Projects</span> : null}
             <span role="columnheader">Joined</span>
             <span role="columnheader" className="sr-only">
               Actions
@@ -195,9 +197,11 @@ export function MembersTable({
                       {showProjects ? `${projectsText(member)} · ` : ""}joined {joined}
                     </span>
                   </div>
-                  <div role="cell" className="hidden text-sm text-muted-foreground tabular-nums md:block">
-                    {showProjects ? projectsText(member) : null}
-                  </div>
+                  {showProjects ? (
+                    <div role="cell" className="hidden text-sm text-muted-foreground tabular-nums md:block">
+                      {projectsText(member)}
+                    </div>
+                  ) : null}
                   <div role="cell" className="hidden text-sm text-muted-foreground tabular-nums md:block">
                     {joined}
                   </div>
