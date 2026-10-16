@@ -165,14 +165,14 @@ test("change the password, then change it back", async ({ page, context }) => {
   await loginAs(context, F5.profile, { fresh: true });
   await page.goto("/profile#password");
   const form = page.getByRole("form", { name: "Change password" });
-  const current = form.getByLabel("Current password");
-  const next = form.getByLabel("New password", { exact: true });
-  const confirm = form.getByLabel("Confirm new password");
+  const current = form.getByRole("textbox", { name: /^Current password/ });
+  const next = form.getByRole("textbox", { name: /^New password/ });
+  const confirm = form.getByRole("textbox", { name: /^Confirm new password/ });
   let changed = false;
   try {
     await next.fill("short");
     await next.blur();
-    await expect(form.getByText("Use at least 10 characters.")).toBeVisible();
+    await expect(form.getByText("Use at least 10 characters.", { exact: true })).toBeVisible();
 
     await current.fill("not-my-password-123");
     await next.fill(temporary);
@@ -202,7 +202,11 @@ test("change the password, then change it back", async ({ page, context }) => {
   } finally {
     if (changed) await restorePassword(F5.profile.email, temporary, original);
   }
-  console.expectClean();
+  // The deliberate wrong-password check is answered 400 by Supabase Auth; Chromium logs every
+  // 4xx response as "Failed to load resource". Anything else must be clean.
+  const unexpected = console.messages.filter((m) => !/Failed to load resource: the server responded with a status of 400/.test(m));
+  expect(unexpected, unexpected.join("\n")).toEqual([]);
+  expect(console.messages.length).toBeLessThanOrEqual(1);
 });
 
 test("sign out from the profile", async ({ page, context }) => {
