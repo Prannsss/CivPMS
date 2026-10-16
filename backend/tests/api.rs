@@ -922,9 +922,17 @@ async fn uploads_are_admitted_one_per_user_with_a_global_cap() {
         app.upload("/v1/media/avatar", &form),
     );
     for response in [&a, &b, &c] {
-        assert_eq!(response.status, StatusCode::CREATED, "{:?}", response.json());
+        assert_eq!(
+            response.status,
+            StatusCode::CREATED,
+            "{:?}",
+            response.json()
+        );
     }
-    assert!(started.elapsed() >= Duration::from_secs(3), "ran one at a time");
+    assert!(
+        started.elapsed() >= Duration::from_secs(3),
+        "ran one at a time"
+    );
     assert!(
         !dir.path().join("log").exists(),
         "one user's encodes overlapped"
@@ -951,10 +959,15 @@ async fn uploads_are_admitted_one_per_user_with_a_global_cap() {
     assert_eq!(r3.status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(r3.error_code(), "BUSY");
     assert!(r3.header("retry-after").is_some());
-    assert!(took < Duration::from_millis(500), "refused without waiting: {took:?}");
+    assert!(
+        took < Duration::from_millis(500),
+        "refused without waiting: {took:?}"
+    );
     // Once the others are done, the third user gets through.
     assert_eq!(
-        app.upload_as(&t3, "/v1/media/avatar", &form, &[]).await.status,
+        app.upload_as(&t3, "/v1/media/avatar", &form, &[])
+            .await
+            .status,
         StatusCode::CREATED
     );
 }
@@ -989,7 +1002,11 @@ async fn a_users_queued_upload_gives_up_with_429() {
     assert_eq!(second.status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(second.error_code(), "RATE_LIMITED");
     assert!(second.header("retry-after").is_some());
-    assert_eq!(theirs.status, StatusCode::CREATED, "other users are unaffected");
+    assert_eq!(
+        theirs.status,
+        StatusCode::CREATED,
+        "other users are unaffected"
+    );
 }
 
 /// Regression (review finding): the upload budget counted requests, not processing time, so

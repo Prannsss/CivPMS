@@ -336,9 +336,9 @@ mod tests {
 
     #[test]
     fn pending_markers_outlive_the_upload_timeout() {
-        assert_eq!(pending_ttl_for(Duration::from_secs(60)), MIN_PENDING_TTL);
+        assert_eq!(pending_ttl_for(Duration::from_mins(1)), MIN_PENDING_TTL);
         assert_eq!(
-            pending_ttl_for(Duration::from_secs(600)),
+            pending_ttl_for(Duration::from_mins(10)),
             Duration::from_secs(630)
         );
     }
@@ -347,7 +347,7 @@ mod tests {
     async fn a_reservation_blocks_duplicates_until_the_pending_ttl() {
         let clock = ManualClock::new(1_000);
         let redis = Arc::new(RedisHandle::disabled(clock.clone()));
-        let ttl = pending_ttl_for(Duration::from_secs(600));
+        let ttl = pending_ttl_for(Duration::from_mins(10));
         let store = Arc::new(IdempotencyStore::new(redis, clock.clone(), ttl));
         let user = Uuid::new_v4();
         let Begin::Started(first) = store.begin("images", user, "client-0004").await else {
@@ -358,7 +358,7 @@ mod tests {
             store.begin("images", user, "client-0004").await,
             Begin::InProgress
         ));
-        clock.advance(Duration::from_secs(60));
+        clock.advance(Duration::from_mins(1));
         assert!(matches!(
             store.begin("images", user, "client-0004").await,
             Begin::Started(_)

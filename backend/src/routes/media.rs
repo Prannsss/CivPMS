@@ -355,7 +355,10 @@ async fn charge_processing(state: &AppState, user: &AuthUser, slot_held: Duratio
     let units = processing_charge(slot_held);
     if units > 0 {
         tracing::debug!(units, "upload budget charged for processing time");
-        state.limiter.charge(RateClass::Upload, user.id, units).await;
+        state
+            .limiter
+            .charge(RateClass::Upload, user.id, units)
+            .await;
     }
 }
 

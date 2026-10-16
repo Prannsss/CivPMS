@@ -192,7 +192,11 @@ mod tests {
         let err = gate.admit(b).await.unwrap_err();
         assert_eq!(err.code, ErrorCode::Busy);
         assert!(started.elapsed() < Duration::from_millis(500), "no waiting");
-        assert_eq!(gate.tracked_users(), 1, "b's refused attempt left nothing behind");
+        assert_eq!(
+            gate.tracked_users(),
+            1,
+            "b's refused attempt left nothing behind"
+        );
         drop(held);
         assert_eq!(gate.in_progress(), 0);
         // b's own slot was released with the refusal.

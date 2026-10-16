@@ -23,8 +23,7 @@ use uuid::Uuid;
 /// One service instance: its own memory, the shared Redis.
 fn instance(redis: &RedisServer, clock: &Arc<ManualClock>) -> Arc<IdempotencyStore> {
     let handle =
-        RedisHandle::connect_lazy(&redis.url(), Duration::from_millis(300), clock.clone())
-            .unwrap();
+        RedisHandle::connect_lazy(&redis.url(), Duration::from_millis(300), clock.clone()).unwrap();
     Arc::new(IdempotencyStore::new(
         Arc::new(handle),
         clock.clone(),
