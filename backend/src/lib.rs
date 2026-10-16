@@ -23,6 +23,7 @@ pub mod routes;
 pub mod state;
 pub mod supabase;
 pub mod telemetry;
+pub mod uploads;
 
 use std::any::Any;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -234,6 +235,7 @@ pub async fn run(config: Config) -> Result<(), StartupError> {
     }
     let state = AppState::new(config)?;
     state.warm_up().await;
+    state.startup_check()?;
 
     let shutdown = CancellationToken::new();
     let keepalive = tokio::spawn(keepalive::run(

@@ -216,6 +216,60 @@ async fn rejects_missing_invalid_expired_and_foreign_tokens() {
     );
 }
 
+/// Regression (review finding): after `JWKS_TTL` every authenticated request waited for its
+/// own 5 s JWKS fetch, one after another, while Supabase Auth was slow.
+#[tokio::test]
+async fn slow_supabase_auth_does_not_delay_requests_once_the_jwks_is_stale() {
+    let clock = civpms_media::clock::ManualClock::new(now_ms());
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(supabase, None, &[], clock.clone()).await;
+    assert_eq!(
+        app.get("/v1/holidays?year=2026").await.status,
+        StatusCode::OK
+    );
+
+    app.supabase.slow_jwks(Duration::from_secs(8)).await;
+    clock.advance(civpms_media::auth::jwks::JWKS_TTL + Duration::from_mins(1));
+    let started = std::time::Instant::now();
+    let (a, b, c) = tokio::join!(
+        app.get("/v1/holidays?year=2026"),
+        app.get("/v1/holidays?year=2026"),
+        app.get("/v1/holidays?year=2026"),
+    );
+    for response in [a, b, c] {
+        assert_eq!(response.status, StatusCode::OK);
+    }
+    for _ in 0..3 {
+        assert_eq!(
+            app.get("/v1/holidays?year=2026").await.status,
+            StatusCode::OK
+        );
+    }
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "requests waited for the JWKS fetch: {:?}",
+        started.elapsed()
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await; // let the background task connect
+    assert_eq!(
+        app.supabase
+            .count("GET", "/auth/v1/.well-known/jwks.json")
+            .await,
+        2,
+        "startup fetch + one background refresh"
+    );
+}
+
+fn now_ms() -> u64 {
+    u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap()
+}
+
 // ---------------------------------------------------------------------------
 // Avatars
 // ---------------------------------------------------------------------------
@@ -365,6 +419,94 @@ async fn rejects_non_images_bombs_and_oversized_files() {
         app.supabase.uploads("avatars").await.is_empty(),
         "nothing stored"
     );
+}
+
+/// Regression (review finding): a failed orientation self-test only logged an error while
+/// uploads went on storing rotated photos sideways (and Render checks `/healthz` only).
+/// Simulated with an ffmpeg wrapper that drops `-noautorotate`, so JPEGs rotate twice.
+#[tokio::test]
+async fn failed_orientation_selftest_refuses_uploads_and_startup() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = dir.path().join("ffmpeg");
+    let real = which("ffmpeg");
+    std::fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nfor a in \"$@\"; do shift; [ \"$a\" = \"-noautorotate\" ] || set -- \"$@\" \"$a\"; done\nexec {} \"$@\"\n",
+            real.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        &wrapper,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    let app = TestApp::start(None, &[("FFMPEG_PATH", wrapper.to_str().unwrap())]).await;
+    assert_eq!(
+        app.state.media.selftest(),
+        civpms_media::media::SelfTest::Failed
+    );
+    assert!(matches!(
+        app.state.startup_check(),
+        Err(civpms_media::StartupError::MediaSelfTest)
+    ));
+    let ready = app.get("/readyz").await;
+    assert_eq!(ready.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        ready.json()["checks"]["media"]["orientation_selftest"],
+        "failed"
+    );
+
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    let response = app.upload("/v1/media/avatar", &form).await;
+    assert_eq!(response.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.error_code(), "MEDIA_UNAVAILABLE");
+    assert!(app.supabase.uploads("avatars").await.is_empty());
+}
+
+fn which(tool: &str) -> std::path::PathBuf {
+    std::env::var_os("PATH")
+        .and_then(|paths| {
+            std::env::split_paths(&paths)
+                .map(|dir| dir.join(tool))
+                .find(|candidate| candidate.is_file())
+        })
+        .unwrap_or_else(|| panic!("{tool} not on PATH"))
+}
+
+/// Regression (review finding): the pixel cap ignored bit depth, so a small 16-bit PNG could
+/// need several hundred MB to decode. The decoder-memory estimate refuses it before ffprobe
+/// runs, while the same picture in 8-bit is fine.
+#[tokio::test]
+async fn decode_memory_limit_refuses_high_bit_depth_sources() {
+    let app = TestApp::start(None, &[("MAX_DECODE_MB", "32")]).await;
+    // 2100 × 2100: 35 MB as 16-bit RGBA (over 32 MiB), 17.6 MB as 8-bit RGBA.
+    let deep = common::image_with(2100, 2100, "png", "rgba64be");
+    let response = app
+        .upload(
+            "/v1/media/avatar",
+            &Multipart::new().file("file", "deep.png", deep),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.error_code(), "IMAGE_TOO_LARGE");
+    assert!(
+        response.json()["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("too much memory")
+    );
+
+    let normal = common::image_with(2100, 2100, "png", "rgba");
+    let response = app
+        .upload(
+            "/v1/media/avatar",
+            &Multipart::new().file("file", "normal.png", normal),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::CREATED);
+    assert_eq!(app.supabase.uploads("avatars").await.len(), 1);
 }
 
 #[tokio::test]
@@ -672,6 +814,7 @@ async fn ffmpeg_queue_full_returns_503_busy() {
         &[
             ("FFMPEG_CONCURRENCY", "1"),
             ("FFMPEG_QUEUE_TIMEOUT_SECS", "1"),
+            ("MAX_CONCURRENT_UPLOADS", "16"),
         ],
     )
     .await;
@@ -683,11 +826,14 @@ async fn ffmpeg_queue_full_returns_503_busy() {
             .text("project_id", &project.to_string())
             .file("file", "x.png", big.clone())
     };
+    // Six different users (one user's uploads are admitted one at a time).
     let forms: Vec<Multipart> = (0..6).map(|_| form()).collect();
+    let tokens: Vec<String> = (0..6).map(|_| app.other_user().1).collect();
     let responses = join_all(
         forms
             .iter()
-            .map(|f| app.upload("/v1/media/images", f))
+            .zip(&tokens)
+            .map(|(f, token)| app.upload_as(token, "/v1/media/images", f, &[]))
             .collect(),
     )
     .await;
@@ -709,6 +855,200 @@ async fn ffmpeg_queue_full_returns_503_busy() {
         6,
         "{:?}",
         responses.iter().map(|r| r.status).collect::<Vec<_>>()
+    );
+}
+
+/// An ffmpeg wrapper that sleeps `delay_secs` before each real encode (the runs that write
+/// `main.webp`) and appends `overlap` to `<dir>/log` when two encodes run at the same time.
+fn slow_ffmpeg(dir: &std::path::Path, delay_secs: f32) -> std::path::PathBuf {
+    let running = dir.join("running");
+    std::fs::create_dir_all(&running).unwrap();
+    let wrapper = dir.join("ffmpeg");
+    std::fs::write(
+        &wrapper,
+        format!(
+            r#"#!/bin/sh
+case "$*" in
+  *main.webp*)
+    if [ -n "$(ls -A {running})" ]; then echo overlap >> {log}; fi
+    touch {running}/$$
+    sleep {delay_secs}
+    {real} "$@"; rc=$?
+    rm -f {running}/$$
+    exit $rc ;;
+  *) exec {real} "$@" ;;
+esac
+"#,
+            running = running.display(),
+            log = dir.join("log").display(),
+            real = which("ffmpeg").display(),
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        &wrapper,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    wrapper
+}
+
+/// Regression (review finding): any account could keep the single ffmpeg slot busy by sending
+/// many slow uploads at once. Now one user's uploads are admitted one at a time (the others
+/// wait their turn, and other users' uploads run in between), and an instance-wide cap refuses
+/// extra uploads with 503 before their bodies are written to disk.
+#[tokio::test]
+async fn uploads_are_admitted_one_per_user_with_a_global_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 1.0);
+    let app = TestApp::start(
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("FFMPEG_CONCURRENCY", "4"),
+            ("MAX_CONCURRENT_UPLOADS", "2"),
+        ],
+    )
+    .await;
+    let _ = std::fs::remove_file(dir.path().join("log")); // the startup self-test
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+
+    // One user, three uploads at once: all succeed, but their encodes never overlap even
+    // though four ffmpeg slots are free.
+    let started = std::time::Instant::now();
+    let (a, b, c) = tokio::join!(
+        app.upload("/v1/media/avatar", &form),
+        app.upload("/v1/media/avatar", &form),
+        app.upload("/v1/media/avatar", &form),
+    );
+    for response in [&a, &b, &c] {
+        assert_eq!(
+            response.status,
+            StatusCode::CREATED,
+            "{:?}",
+            response.json()
+        );
+    }
+    assert!(
+        started.elapsed() >= Duration::from_secs(3),
+        "ran one at a time"
+    );
+    assert!(
+        !dir.path().join("log").exists(),
+        "one user's encodes overlapped"
+    );
+    assert_eq!(app.state.uploads.in_progress(), 0);
+
+    // Global cap (2): with two uploads in progress, a third user is refused at once.
+    let (_, t1) = app.other_user();
+    let (_, t2) = app.other_user();
+    let (_, t3) = app.other_user();
+    let third = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let at = std::time::Instant::now();
+        let response = app.upload_as(&t3, "/v1/media/avatar", &form, &[]).await;
+        (response, at.elapsed())
+    };
+    let (r1, r2, (r3, took)) = tokio::join!(
+        app.upload_as(&t1, "/v1/media/avatar", &form, &[]),
+        app.upload_as(&t2, "/v1/media/avatar", &form, &[]),
+        third,
+    );
+    assert_eq!(r1.status, StatusCode::CREATED);
+    assert_eq!(r2.status, StatusCode::CREATED);
+    assert_eq!(r3.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(r3.error_code(), "BUSY");
+    assert!(r3.header("retry-after").is_some());
+    assert!(
+        took < Duration::from_millis(500),
+        "refused without waiting: {took:?}"
+    );
+    // Once the others are done, the third user gets through.
+    assert_eq!(
+        app.upload_as(&t3, "/v1/media/avatar", &form, &[])
+            .await
+            .status,
+        StatusCode::CREATED
+    );
+}
+
+/// A user whose previous upload is still processing after `FFMPEG_QUEUE_TIMEOUT_SECS` gets
+/// 429 with Retry-After (and costs nobody else anything).
+#[tokio::test]
+async fn a_users_queued_upload_gives_up_with_429() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 2.5);
+    let app = TestApp::start(
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("FFMPEG_QUEUE_TIMEOUT_SECS", "1"),
+        ],
+    )
+    .await;
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    let (_, other) = app.other_user();
+    let second = async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        app.upload("/v1/media/avatar", &form).await
+    };
+    let theirs = async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        app.upload_as(&other, "/v1/media/avatar", &form, &[]).await
+    };
+    let (first, second, theirs) =
+        tokio::join!(app.upload("/v1/media/avatar", &form), second, theirs);
+    assert_eq!(first.status, StatusCode::CREATED);
+    assert_eq!(second.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(second.error_code(), "RATE_LIMITED");
+    assert!(second.header("retry-after").is_some());
+    assert_eq!(
+        theirs.status,
+        StatusCode::CREATED,
+        "other users are unaffected"
+    );
+}
+
+/// Regression (review finding): the upload budget counted requests, not processing time, so
+/// a few slow images per minute kept the free instance's only ffmpeg slot busy. Every second
+/// an upload holds the slot now costs one more unit of the user's budget.
+#[tokio::test]
+async fn processing_time_is_charged_to_the_upload_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 2.2);
+    let clock = civpms_media::clock::ManualClock::new(now_ms() / 60_000 * 60_000 + 1_000);
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(
+        supabase,
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("RATE_LIMIT_UPLOADS_PER_MIN", "4"),
+        ],
+        clock,
+    )
+    .await;
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    // 1 (request) + 2 (seconds) = 3, then 4 + 2 = 6: the third request is over budget,
+    // although a plain request count (3) would still be under 4.
+    assert_eq!(
+        app.upload("/v1/media/avatar", &form).await.status,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        app.upload("/v1/media/avatar", &form).await.status,
+        StatusCode::CREATED
+    );
+    let limited = app.upload("/v1/media/avatar", &form).await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(limited.error_code(), "RATE_LIMITED");
+    // Another user's budget is untouched.
+    let (_, other) = app.other_user();
+    assert_eq!(
+        app.upload_as(&other, "/v1/media/avatar", &form, &[])
+            .await
+            .status,
+        StatusCode::CREATED
     );
 }
 
@@ -846,6 +1186,55 @@ async fn reads_are_cached_per_user_with_stale_on_error() {
     // Entries live in Redis with a bounded lifetime.
     let keys = redis.cli(&["--scan", "--pattern", "c:v1:projects:*"]);
     assert_eq!(keys.lines().count(), 2, "{keys}");
+}
+
+/// Regression (review finding): with the default timeouts a hanging PostgREST made every
+/// read end in `504` (3 attempts × 4 s > the 10 s request timeout), stale entries were never
+/// served and the circuit breaker never opened.
+#[tokio::test]
+async fn hanging_supabase_reads_serve_stale_before_the_timeout_and_open_the_circuit() {
+    let clock = civpms_media::clock::ManualClock::new(now_ms());
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(
+        supabase,
+        None,
+        &[("CACHE_PROJECTS_TTL_SECS", "1")],
+        clock.clone(),
+    )
+    .await;
+    let mut uris = vec!["/v1/projects".to_owned()];
+    for _ in 0..5 {
+        let project = Uuid::new_v4();
+        app.supabase.add_project(project).await;
+        uris.push(format!("/v1/projects/{project}/summary"));
+    }
+    for uri in &uris {
+        assert_eq!(app.get(uri).await.header("x-cache"), Some("MISS"), "{uri}");
+    }
+
+    app.supabase.slow_rest(Duration::from_mins(1)).await;
+    clock.advance(Duration::from_secs(3)); // past ttl + swr, well inside stale_max
+    let started = std::time::Instant::now();
+    let responses = join_all(uris.iter().map(|uri| app.get(uri)).collect()).await;
+    let elapsed = started.elapsed();
+    for (uri, response) in uris.iter().zip(&responses) {
+        assert_eq!(response.status, StatusCode::OK, "{uri}: {response:?}");
+        assert_eq!(response.header("x-cache"), Some("STALE"), "{uri}");
+    }
+    assert!(elapsed < Duration::from_secs(10), "{elapsed:?}");
+    assert_eq!(
+        app.get("/readyz").await.json()["checks"]["supabase_reads_circuit"],
+        "open",
+        "timeouts count as failures"
+    );
+
+    // Circuit open: stale data at once, no upstream call.
+    let before = app.supabase.count("GET", "/rest/v1/").await;
+    let started = std::time::Instant::now();
+    let fast = app.get("/v1/projects").await;
+    assert_eq!(fast.header("x-cache"), Some("STALE"));
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(app.supabase.count("GET", "/rest/v1/").await, before);
 }
 
 #[tokio::test]
