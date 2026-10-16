@@ -1,6 +1,6 @@
 # CivPMS — build status & handoff
 
-Last updated: 2026-10-14 · branch `claude/exciting-sagan-7valgn` @ `c7bb833` (pushed to github.com/Prannsss/CivPMS).
+Last updated: 2026-10-16 · branch `claude/exciting-sagan-7valgn` (F4 merged; pushed to github.com/Prannsss/CivPMS).
 Scope in progress: **Phases 0–1** (foundations + planning core). Lessons learned / pitfalls live in `CLAUDE.md` → "Known pitfalls" — read them before working.
 
 ## 1. Finished and on the branch (verified)
@@ -15,8 +15,12 @@ Scope in progress: **Phases 0–1** (foundations + planning core). Lessons learn
 | App foundation | Authenticated layouts, connected top bar (live Realtime notifications bell, user menu, ⌘K palette), project sidebar + mobile drawer, loading/error/404 pages, shared invite-code + pending-invitation components, Playwright harness (`e2e/helpers/auth.ts` `loginAs`) | 25 e2e specs green |
 | F1 Auth & onboarding | Login, sign-up, forgot/reset password, check-email, 3-step onboarding (name → role → company or invite code / pending invitations / "No company yet"), `/invite/[token]` landing | 20 e2e specs green (live DB) |
 | F2 Projects home | Project cards (gradient, status + derived badges, progress), URL-synced filters/search/sort, create-project dialog (also `/?new=1`), archive/unarchive, delete with type-to-confirm + Undo, Recently deleted (owner), empty states per role | 10 e2e specs green (live DB) |
+| F3 Project workspace | Dashboard (status + derived badges, overdue banner, KPI cards, budget meter, needs-attention), project settings (details with Reload / Keep mine, status transitions, archive, owner-only delete with Undo), collaborators (members, Brevo email invitations, invite codes), audit trail + CSV export | `e2e/f3-*.spec.ts` green (live DB, `[F3]` tenant), screenshots `docs/screenshots/f3-*` |
+| F4 WBS + working calendar | `/projects/[id]/wbs`: list with inline edits (end dates recomputed on the server from calendar + holidays + overrides, STALE_VERSION → Reload / Keep mine), dnd-kit drag & drop with move validation and explained invalid drops, keyboard up/down/indent/outdent, Undo snackbar per move, delete confirm stating impact + Undo (`restore_activity`) + Recently deleted panel, D21 first-child takeover of cost/hours/dates, Hours \| Days toggle saved to the profile (`update_profile`), Graph \| List remembered in localStorage, budget bar + hours-weighting fallback warning, empty state with "Use sample structure", windowed list for large trees, `@xyflow/react` graph (collapsible branches, pan/zoom, neutral connectors, delayed flagged on cards). Read-only banner for inspectors and completed/cancelled projects; every WBS/calendar action refuses plan edits there (`planLockFor` → FORBIDDEN). `/projects/[id]/calendar`: settings card, month grid with context menu + keyboard alternative, holidays + overrides lists, staged changes, save previews moved activities → confirm → `save_calendar` in one transaction. No schema change. | `e2e/f4-wbs.spec.ts`, `f4-calendar.spec.ts`, `f4-wbs-large.spec.ts` (20 tests, live DB, fail on any console error/hydration warning), screenshots `docs/screenshots/f4-*` (light/dark/mobile) |
 
-After merging F1+F2: `npm run typecheck`, `npx eslint src e2e`, `npx vitest run` (32 files, 666 tests), `npm run build` all pass. The **combined** Playwright suite has not been re-run since the merge.
+After merging F4 (2026-10-16): `npm run typecheck`, `npx eslint src e2e`, `npx vitest run` (38 files, 715 tests) and `npm run build` pass. Playwright on the merged branch (`e2e/f4-*`, `shell`, `found-shell`, `f1-auth`, `f2-home`, `f3-dashboard`, `f3-settings`): 64 passed, 5 skipped (the opt-in `F4_SHOTS=1` screenshot generator). Not re-run on the merged branch: `f1-invite`, `f1-onboarding`, `f3-audit`, `f3-collaborators`, `found-invitations`, `styleguide`.
+
+Build fix during the F4 merge: `src/app/globals.css` now uses `@import "tailwindcss" source("..")` (class detection limited to `src/`). With the default (project root) the Tailwind scanner walked `.claude/worktrees` (agent checkouts with node_modules and a 7 GB Rust target) and `next build` was OOM-killed at ~14 GB. Keep class names inside `src/`.
 
 ## 2. Partially built — NOT on the branch
 
@@ -24,14 +28,13 @@ These exist only inside this cloud container as local commits. If the container 
 
 | Feature | Local branch / worktree | State |
 |---|---|---|
-| F3 Project workspace — dashboard, project settings (details, status transitions, archive, delete), collaborators (members, email invitations via Brevo, invite codes), audit trail + CSV export | `wf/workspace` @ `a173ce1` in `.claude/worktrees/wf_b818029a-bdf-6` | Code written (60 files). Live verification, screenshots and e2e specs not finished. WIP commit, unverified. |
-| F4 WBS (list + graph, inline edit, drag & drop, delete/undo, trash) + working calendar | `wf/wbs` @ `480fa55` in `.claude/worktrees/wf_b818029a-bdf-7` | Only server queries/actions started (14 files). UI not built. WIP commit, unverified. |
+| — | — | Nothing pending here: F3 and F4 are merged (see §1). F5 lives in `wf/account` (in progress). |
 
 ## 3. Not built yet
 
 - **F5** Profile (avatar, name, theme, hours/days, notification preferences, password), Company settings (rename, default calendar, members, company invite codes), Notifications page. Placeholder pages exist.
 - **Final merge & QA:** full Playwright suite on the merged app, golden-path walkthrough, multi-lens review (security/RLS, spec conformance, UX/visual, accessibility) and fixes.
-- Pages that are still placeholders on the branch: project dashboard, project settings, collaborators, audit trail, WBS, calendar, profile, company settings, notifications. Gantt and S-curve show a deliberate "coming next" state (Phase 2/3).
+- Pages that are still placeholders on the branch: profile, company settings, notifications (F5). Gantt and S-curve show a deliberate "coming next" state (Phase 2/3).
 - Later phases (per spec §21): Gantt + dependencies + CPM + baselines UI (Phase 2); progress updates, inspections, images, S-curve (Phase 3); sharing/viewers, PWA/offline (Phase 4); search, import/export, reports (Phase 5).
 
 ## 4. Known issues to fix
@@ -40,7 +43,9 @@ These exist only inside this cloud container as local commits. If the container 
 - Shared `FormField` (react-hook-form `Controller`) wipes text typed before hydration. F1 worked around it with `register()`; add a register-based variant to `src/components/ui`.
 - `initials()` / avatars show "[S" for names that start with a bracketed tag (test data only).
 - `supabase/templates/confirm-signup.html` hard-codes `next=/onboarding`; people who sign up from an invitation land in onboarding (the invite still appears there). Use `{{ .RedirectTo }}`.
-- DB allows WBS edits on completed/cancelled projects — the F4 UI must block them.
+- DB allows WBS edits on completed/cancelled projects — F4's UI and server actions block them (`planLockFor`); the RPCs themselves still accept them.
+- F4 graph view: the React Flow minimap (bottom right) can cover part of an edge card at 1440px. Cosmetic; hide it below a width breakpoint.
+- Dev log shows benign `The destination stream errored while writing data` when a Playwright test closes a page mid-stream.
 - 2027 Eid holidays not seeded (not proclaimed yet) — add by migration when declared.
 
 ## 5. Owner actions (outside the code)
@@ -53,12 +58,11 @@ These exist only inside this cloud container as local commits. If the container 
 
 ## 6. Next steps (in order)
 
-1. Resume F3 in its worktree → verify live + e2e → commit → merge → push.
-2. Resume F4 → build the WBS + calendar UI → verify → merge → push.
-3. Build F5 → verify → merge → push.
-4. Run the full e2e suite on the merged branch, walk the golden path (onboard → company → project → WBS → calendar → invite → accept → audit trail), fix.
-5. QA review pass (security/RLS, spec conformance, UX/visual, a11y) and fixes.
-6. Start Phase 2.
+1. F3 and F4 are merged and pushed.
+2. Build F5 → verify → merge → push.
+3. Run the full e2e suite on the merged branch, walk the golden path (onboard → company → project → WBS → calendar → invite → accept → audit trail), fix.
+4. QA review pass (security/RLS, spec conformance, UX/visual, a11y) and fixes.
+5. Start Phase 2.
 
 ## 7. Backend (media + cache service)
 
