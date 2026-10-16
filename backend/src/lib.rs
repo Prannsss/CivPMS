@@ -23,6 +23,7 @@ pub mod routes;
 pub mod state;
 pub mod supabase;
 pub mod telemetry;
+pub mod uploads;
 
 use std::any::Any;
 use std::net::{Ipv4Addr, SocketAddr};

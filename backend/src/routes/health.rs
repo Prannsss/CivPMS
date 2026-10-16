@@ -69,6 +69,10 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
             "media": media,
             "jwks": jwks,
             "supabase_reads_circuit": format!("{:?}", state.supabase.breaker().state()).to_lowercase(),
+            "uploads": {
+                "in_progress": state.uploads.in_progress(),
+                "capacity": state.uploads.capacity(),
+            },
         },
     });
     let status = if ready {

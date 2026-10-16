@@ -814,6 +814,7 @@ async fn ffmpeg_queue_full_returns_503_busy() {
         &[
             ("FFMPEG_CONCURRENCY", "1"),
             ("FFMPEG_QUEUE_TIMEOUT_SECS", "1"),
+            ("MAX_CONCURRENT_UPLOADS", "16"),
         ],
     )
     .await;
@@ -825,11 +826,14 @@ async fn ffmpeg_queue_full_returns_503_busy() {
             .text("project_id", &project.to_string())
             .file("file", "x.png", big.clone())
     };
+    // Six different users (one user's uploads are admitted one at a time).
     let forms: Vec<Multipart> = (0..6).map(|_| form()).collect();
+    let tokens: Vec<String> = (0..6).map(|_| app.other_user().1).collect();
     let responses = join_all(
         forms
             .iter()
-            .map(|f| app.upload("/v1/media/images", f))
+            .zip(&tokens)
+            .map(|(f, token)| app.upload_as(token, "/v1/media/images", f, &[]))
             .collect(),
     )
     .await;
@@ -851,6 +855,183 @@ async fn ffmpeg_queue_full_returns_503_busy() {
         6,
         "{:?}",
         responses.iter().map(|r| r.status).collect::<Vec<_>>()
+    );
+}
+
+/// An ffmpeg wrapper that sleeps `delay_secs` before each real encode (the runs that write
+/// `main.webp`) and appends `overlap` to `<dir>/log` when two encodes run at the same time.
+fn slow_ffmpeg(dir: &std::path::Path, delay_secs: f32) -> std::path::PathBuf {
+    let running = dir.join("running");
+    std::fs::create_dir_all(&running).unwrap();
+    let wrapper = dir.join("ffmpeg");
+    std::fs::write(
+        &wrapper,
+        format!(
+            r#"#!/bin/sh
+case "$*" in
+  *main.webp*)
+    if [ -n "$(ls -A {running})" ]; then echo overlap >> {log}; fi
+    touch {running}/$$
+    sleep {delay_secs}
+    {real} "$@"; rc=$?
+    rm -f {running}/$$
+    exit $rc ;;
+  *) exec {real} "$@" ;;
+esac
+"#,
+            running = running.display(),
+            log = dir.join("log").display(),
+            real = which("ffmpeg").display(),
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        &wrapper,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    wrapper
+}
+
+/// Regression (review finding): any account could keep the single ffmpeg slot busy by sending
+/// many slow uploads at once. Now one user's uploads are admitted one at a time (the others
+/// wait their turn, and other users' uploads run in between), and an instance-wide cap refuses
+/// extra uploads with 503 before their bodies are written to disk.
+#[tokio::test]
+async fn uploads_are_admitted_one_per_user_with_a_global_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 1.0);
+    let app = TestApp::start(
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("FFMPEG_CONCURRENCY", "4"),
+            ("MAX_CONCURRENT_UPLOADS", "2"),
+        ],
+    )
+    .await;
+    let _ = std::fs::remove_file(dir.path().join("log")); // the startup self-test
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+
+    // One user, three uploads at once: all succeed, but their encodes never overlap even
+    // though four ffmpeg slots are free.
+    let started = std::time::Instant::now();
+    let (a, b, c) = tokio::join!(
+        app.upload("/v1/media/avatar", &form),
+        app.upload("/v1/media/avatar", &form),
+        app.upload("/v1/media/avatar", &form),
+    );
+    for response in [&a, &b, &c] {
+        assert_eq!(response.status, StatusCode::CREATED, "{:?}", response.json());
+    }
+    assert!(started.elapsed() >= Duration::from_secs(3), "ran one at a time");
+    assert!(
+        !dir.path().join("log").exists(),
+        "one user's encodes overlapped"
+    );
+    assert_eq!(app.state.uploads.in_progress(), 0);
+
+    // Global cap (2): with two uploads in progress, a third user is refused at once.
+    let (_, t1) = app.other_user();
+    let (_, t2) = app.other_user();
+    let (_, t3) = app.other_user();
+    let third = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let at = std::time::Instant::now();
+        let response = app.upload_as(&t3, "/v1/media/avatar", &form, &[]).await;
+        (response, at.elapsed())
+    };
+    let (r1, r2, (r3, took)) = tokio::join!(
+        app.upload_as(&t1, "/v1/media/avatar", &form, &[]),
+        app.upload_as(&t2, "/v1/media/avatar", &form, &[]),
+        third,
+    );
+    assert_eq!(r1.status, StatusCode::CREATED);
+    assert_eq!(r2.status, StatusCode::CREATED);
+    assert_eq!(r3.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(r3.error_code(), "BUSY");
+    assert!(r3.header("retry-after").is_some());
+    assert!(took < Duration::from_millis(500), "refused without waiting: {took:?}");
+    // Once the others are done, the third user gets through.
+    assert_eq!(
+        app.upload_as(&t3, "/v1/media/avatar", &form, &[]).await.status,
+        StatusCode::CREATED
+    );
+}
+
+/// A user whose previous upload is still processing after `FFMPEG_QUEUE_TIMEOUT_SECS` gets
+/// 429 with Retry-After (and costs nobody else anything).
+#[tokio::test]
+async fn a_users_queued_upload_gives_up_with_429() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 2.5);
+    let app = TestApp::start(
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("FFMPEG_QUEUE_TIMEOUT_SECS", "1"),
+        ],
+    )
+    .await;
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    let (_, other) = app.other_user();
+    let second = async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        app.upload("/v1/media/avatar", &form).await
+    };
+    let theirs = async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        app.upload_as(&other, "/v1/media/avatar", &form, &[]).await
+    };
+    let (first, second, theirs) =
+        tokio::join!(app.upload("/v1/media/avatar", &form), second, theirs);
+    assert_eq!(first.status, StatusCode::CREATED);
+    assert_eq!(second.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(second.error_code(), "RATE_LIMITED");
+    assert!(second.header("retry-after").is_some());
+    assert_eq!(theirs.status, StatusCode::CREATED, "other users are unaffected");
+}
+
+/// Regression (review finding): the upload budget counted requests, not processing time, so
+/// a few slow images per minute kept the free instance's only ffmpeg slot busy. Every second
+/// an upload holds the slot now costs one more unit of the user's budget.
+#[tokio::test]
+async fn processing_time_is_charged_to_the_upload_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = slow_ffmpeg(dir.path(), 2.2);
+    let clock = civpms_media::clock::ManualClock::new(now_ms() / 60_000 * 60_000 + 1_000);
+    let supabase = common::FakeSupabase::start().await;
+    let app = TestApp::with_clock(
+        supabase,
+        None,
+        &[
+            ("FFMPEG_PATH", wrapper.to_str().unwrap()),
+            ("RATE_LIMIT_UPLOADS_PER_MIN", "4"),
+        ],
+        clock,
+    )
+    .await;
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    // 1 (request) + 2 (seconds) = 3, then 4 + 2 = 6: the third request is over budget,
+    // although a plain request count (3) would still be under 4.
+    assert_eq!(
+        app.upload("/v1/media/avatar", &form).await.status,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        app.upload("/v1/media/avatar", &form).await.status,
+        StatusCode::CREATED
+    );
+    let limited = app.upload("/v1/media/avatar", &form).await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(limited.error_code(), "RATE_LIMITED");
+    // Another user's budget is untouched.
+    let (_, other) = app.other_user();
+    assert_eq!(
+        app.upload_as(&other, "/v1/media/avatar", &form, &[])
+            .await
+            .status,
+        StatusCode::CREATED
     );
 }
 

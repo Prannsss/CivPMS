@@ -16,6 +16,7 @@ use crate::media::MediaProcessor;
 use crate::ratelimit::RateLimiter;
 use crate::redis_client::RedisHandle;
 use crate::supabase::Supabase;
+use crate::uploads::UploadGate;
 
 /// Errors that prevent the service from starting.
 #[derive(Debug, thiserror::Error)]
@@ -49,6 +50,7 @@ pub struct Inner {
     pub jwks: Arc<JwksCache>,
     pub verifier: Verifier,
     pub media: MediaProcessor,
+    pub uploads: Arc<UploadGate>,
     pub activity: Arc<ActivityTracker>,
     pub started_at: Instant,
 }
@@ -101,6 +103,10 @@ impl AppState {
         ));
         let verifier = Verifier::new(config.jwt_issuer(), Arc::clone(&jwks));
         let media = MediaProcessor::new(&config);
+        let uploads = Arc::new(UploadGate::new(
+            config.max_concurrent_uploads,
+            config.ffmpeg_queue_timeout,
+        ));
         let activity = Arc::new(ActivityTracker::new(clock.clone()));
         Ok(Self(Arc::new(Inner {
             config,
@@ -114,6 +120,7 @@ impl AppState {
             jwks,
             verifier,
             media,
+            uploads,
             activity,
             started_at: Instant::now(),
         })))

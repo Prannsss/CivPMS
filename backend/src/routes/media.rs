@@ -1,9 +1,11 @@
 //! Upload endpoints and signed URLs.
 //!
-//! Flow for every upload: authenticate → rate-limit → stream the multipart file to a private
-//! temp dir (size-capped) → validate fields → process with ffmpeg → upload to Storage **with
-//! the caller's token** (Storage RLS decides) → respond. Object names are generated here;
-//! nothing from the client ends up in a storage path except a validated project UUID.
+//! Flow for every upload: authenticate → rate-limit → admission (one upload per user, a cap
+//! on uploads in progress; see `uploads.rs`) → stream the multipart file to a private temp dir
+//! (size-capped) → validate fields → process with ffmpeg (the time spent holding an ffmpeg
+//! slot is charged to the user's upload budget) → upload to Storage **with the caller's
+//! token** (Storage RLS decides) → respond. Object names are generated here; nothing from the
+//! client ends up in a storage path except a validated project UUID.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -31,6 +33,7 @@ use crate::media::transcode::Preset;
 use crate::ratelimit::RateClass;
 use crate::routes::reads::cached_response;
 use crate::state::AppState;
+use crate::uploads::processing_charge;
 
 const WEBP: &str = "image/webp";
 /// Objects are immutable (unique names), so browsers and CDNs may cache them for a year.
@@ -185,14 +188,18 @@ pub async fn upload_avatar(
     multipart: Result<Multipart, MultipartRejection>,
 ) -> Result<Response, AppError> {
     state.limiter.check(RateClass::Upload, user.id).await?;
+    let _admitted = state.uploads.admit(user.id).await?;
     let dir = temp_dir()?;
     let form = read_form(multipart, dir.path(), state.config.max_upload_bytes, &[]).await?;
     let (input, input_bytes) = form.file.ok_or_else(missing_file)?;
 
+    let mut slot_held = Duration::ZERO;
     let processed = state
         .media
-        .process(&input, dir.path(), Preset::AVATAR)
-        .await?;
+        .process_metered(&input, dir.path(), Preset::AVATAR, &mut slot_held)
+        .await;
+    charge_processing(&state, &user, slot_held).await;
+    let processed = processed?;
     let path = format!("{}/{}.webp", user.id, Uuid::new_v4());
     let bucket = &state.config.avatar_bucket;
     state
@@ -278,6 +285,7 @@ pub async fn upload_image(
     multipart: Result<Multipart, MultipartRejection>,
 ) -> Result<Response, AppError> {
     state.limiter.check(RateClass::Upload, user.id).await?;
+    let _admitted = state.uploads.admit(user.id).await?;
     let dir = temp_dir()?;
     let form = read_form(
         multipart,
@@ -311,17 +319,19 @@ pub async fn upload_image(
         },
     };
 
+    let mut slot_held = Duration::ZERO;
     let result = store_image(
         &state,
         &user,
         project_id,
         kind,
         client_id,
-        &input,
-        input_bytes,
+        (&input, input_bytes),
         dir.path(),
+        &mut slot_held,
     )
     .await;
+    charge_processing(&state, &user, slot_held).await;
     match (result, reservation) {
         (Ok(stored), Some(reservation)) => {
             let value = serde_json::to_value(&stored).map_err(AppError::internal)?;
@@ -340,6 +350,15 @@ pub async fn upload_image(
     }
 }
 
+/// Charges the time an upload held an ffmpeg slot to the user's upload budget.
+async fn charge_processing(state: &AppState, user: &AuthUser, slot_held: Duration) {
+    let units = processing_charge(slot_held);
+    if units > 0 {
+        tracing::debug!(units, "upload budget charged for processing time");
+        state.limiter.charge(RateClass::Upload, user.id, units).await;
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn store_image(
     state: &AppState,
@@ -347,12 +366,15 @@ async fn store_image(
     project_id: Uuid,
     kind: Option<String>,
     client_id: Option<String>,
-    input: &Path,
-    input_bytes: u64,
+    (input, input_bytes): (&Path, u64),
     work_dir: &Path,
+    slot_held: &mut Duration,
 ) -> Result<StoredImage, AppError> {
     ensure_project_visible(state, user, project_id).await?;
-    let processed = state.media.process(input, work_dir, Preset::PHOTO).await?;
+    let processed = state
+        .media
+        .process_metered(input, work_dir, Preset::PHOTO, slot_held)
+        .await?;
     let thumb = processed
         .thumb
         .clone()

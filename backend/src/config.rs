@@ -70,8 +70,11 @@ pub struct Config {
     pub ffprobe_path: PathBuf,
     pub ffmpeg_concurrency: usize,
     pub ffmpeg_timeout: Duration,
-    /// How long an upload may wait for a free ffmpeg slot before getting `503 BUSY`.
+    /// How long an upload may wait for a free ffmpeg slot before getting `503 BUSY` (also how
+    /// long a user's next upload waits for their previous one).
     pub ffmpeg_queue_timeout: Duration,
+    /// Uploads that may be in progress at once on this instance (see `uploads.rs`).
+    pub max_concurrent_uploads: usize,
     pub avatar_bucket: String,
     pub media_bucket: String,
     pub signed_url_ttl: Duration,
@@ -112,6 +115,7 @@ impl fmt::Debug for Config {
             .field("ffprobe_path", &self.ffprobe_path)
             .field("ffmpeg_concurrency", &self.ffmpeg_concurrency)
             .field("ffmpeg_timeout", &self.ffmpeg_timeout)
+            .field("max_concurrent_uploads", &self.max_concurrent_uploads)
             .field("avatar_bucket", &self.avatar_bucket)
             .field("media_bucket", &self.media_bucket)
             .field("keepalive", &self.keepalive)
@@ -183,6 +187,14 @@ impl Config {
         let ffmpeg_concurrency = p.number::<usize>("FFMPEG_CONCURRENCY", cores.max(1), 1, 64);
         let ffmpeg_timeout = p.secs("FFMPEG_TIMEOUT_SECS", 30, 1, 300);
         let ffmpeg_queue_timeout = p.secs("FFMPEG_QUEUE_TIMEOUT_SECS", 20, 1, 120);
+        // One being processed per ffmpeg slot plus a short queue; more would only wait for
+        // `503 BUSY` while holding temp disk (each up to MAX_UPLOAD_MB).
+        let max_concurrent_uploads = p.number::<usize>(
+            "MAX_CONCURRENT_UPLOADS",
+            (ffmpeg_concurrency * 4).min(1024),
+            1,
+            1024,
+        );
 
         let avatar_bucket = p.bucket("AVATAR_BUCKET", "avatars");
         let media_bucket = p.bucket("MEDIA_BUCKET", "project-media");
@@ -266,6 +278,7 @@ impl Config {
             ffmpeg_concurrency,
             ffmpeg_timeout,
             ffmpeg_queue_timeout,
+            max_concurrent_uploads,
             avatar_bucket,
             media_bucket,
             signed_url_ttl,
@@ -291,7 +304,7 @@ impl Config {
     /// One-line, secret-free summary for the startup banner.
     pub fn summary(&self) -> String {
         format!(
-            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} max_decode={}MiB ffmpeg_concurrency={} ffmpeg_timeout={}s buckets=({}, {}) keepalive={} idle={}s",
+            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} max_decode={}MiB ffmpeg_concurrency={} ffmpeg_timeout={}s max_uploads={} upload_budget={}/min buckets=({}, {}) keepalive={} idle={}s",
             self.port,
             self.supabase_url,
             self.redis_url
@@ -303,6 +316,8 @@ impl Config {
             self.max_decode_bytes / MIB,
             self.ffmpeg_concurrency,
             self.ffmpeg_timeout.as_secs(),
+            self.max_concurrent_uploads,
+            self.rate_limits.uploads_per_minute,
             self.avatar_bucket,
             self.media_bucket,
             if self.keepalive.enabled {
@@ -554,6 +569,7 @@ mod tests {
         assert!(!cfg.keepalive.enabled, "keep-alive is opt-in");
         assert_eq!(cfg.keepalive.idle, Duration::from_mins(14));
         assert!(cfg.ffmpeg_concurrency >= 1);
+        assert_eq!(cfg.max_concurrent_uploads, cfg.ffmpeg_concurrency * 4);
         assert_eq!(
             cfg.rate_limits,
             RateLimitConfig {
@@ -688,6 +704,22 @@ mod tests {
         assert_eq!(
             parse(&env).unwrap().upstream_read_budget,
             Duration::from_secs(4)
+        );
+    }
+
+    #[test]
+    fn upload_admission_follows_ffmpeg_concurrency_unless_set() {
+        let mut env = base();
+        env.insert("FFMPEG_CONCURRENCY", "1");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 4);
+        env.insert("MAX_CONCURRENT_UPLOADS", "2");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 2);
+        env.insert("MAX_CONCURRENT_UPLOADS", "0");
+        assert!(
+            parse(&env)
+                .unwrap_err()
+                .to_string()
+                .contains("MAX_CONCURRENT_UPLOADS must be between 1 and 1024")
         );
     }
 

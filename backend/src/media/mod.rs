@@ -265,6 +265,21 @@ impl MediaProcessor {
         work_dir: &Path,
         preset: Preset,
     ) -> Result<Processed, AppError> {
+        let mut slot_held = Duration::ZERO;
+        self.process_metered(input, work_dir, preset, &mut slot_held)
+            .await
+    }
+
+    /// Like [`MediaProcessor::process`], and reports in `slot_held` how long the job held an
+    /// ffmpeg slot, on failure too (a job killed at `FFMPEG_TIMEOUT_SECS` held it the
+    /// longest), so the caller can charge it to the user's upload budget.
+    pub async fn process_metered(
+        &self,
+        input: &Path,
+        work_dir: &Path,
+        preset: Preset,
+        slot_held: &mut Duration,
+    ) -> Result<Processed, AppError> {
         if self.selftest() == SelfTest::Failed {
             // Rotated photos would be stored sideways: refuse instead of corrupting them.
             return Err(AppError::new(
@@ -312,6 +327,10 @@ impl MediaProcessor {
                 "The server is busy processing other images. Try again shortly.",
             )
             .with_retry_after(5));
+        };
+        let _meter = SlotMeter {
+            started: Instant::now(),
+            out: slot_held,
         };
 
         // Bomb guard #2: ffprobe with -max_pixels (also the only size source for HEIF/AVIF).
@@ -458,6 +477,18 @@ impl MediaProcessor {
                 ))
             }
         }
+    }
+}
+
+/// Writes how long the ffmpeg slot was held into `out` when dropped (on every exit path).
+struct SlotMeter<'a> {
+    started: Instant,
+    out: &'a mut Duration,
+}
+
+impl Drop for SlotMeter<'_> {
+    fn drop(&mut self) {
+        *self.out = self.started.elapsed();
     }
 }
 
