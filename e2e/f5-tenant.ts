@@ -10,6 +10,7 @@
  * - f5-member: inspector the specs promote, demote and remove; `ensureF5Member()` re-adds them.
  * - f5-profile: Owner PM of "[F5] Profile Sandbox Co"; the profile specs edit this account.
  */
+import { createClient } from "@supabase/supabase-js";
 import { supabaseAs, type Who } from "./helpers/auth";
 
 export const F5 = {
@@ -211,4 +212,51 @@ export async function ensureF5Tenant(): Promise<F5Tenant> {
   await ensureOwnCompany(F5.profile, F5_PROFILE_COMPANY);
 
   return { companyId, projectId: project.id, alertProjectId: alert.id, ownerId, pmId: pm.userId, inspectorId, memberId };
+}
+
+/**
+ * A 640×480 PNG photo stand-in drawn by the browser (a gradient with initials), for upload tests.
+ * Landscape on purpose, so the square crop is exercised.
+ */
+export async function makeAvatarPng(page: import("@playwright/test").Page, initials = "PN"): Promise<Buffer> {
+  const dataUrl = await page.evaluate((text) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no canvas");
+    const gradient = ctx.createLinearGradient(0, 0, 640, 480);
+    gradient.addColorStop(0, "#0866FF");
+    gradient.addColorStop(1, "#14B8A6");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 640, 480);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "600 180px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 320, 250);
+    return canvas.toDataURL("image/png");
+  }, initials);
+  return Buffer.from(dataUrl.split(",")[1], "base64");
+}
+
+/** Safety net for the password spec: signs in with `from` and sets the password back to `to`. */
+export async function restorePassword(email: string, from: string, to: string): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const signedIn = await client.auth.signInWithPassword({ email, password: from });
+  if (signedIn.error) return;
+  await client.auth.updateUser({ password: to });
+  await client.auth.signOut({ scope: "local" });
+}
+
+/** True when `email` can sign in with `password` (a throwaway session, signed out again). */
+export async function canSignIn(email: string, password: string): Promise<boolean> {
+  const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "", process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "", {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (!error) await client.auth.signOut({ scope: "local" });
+  return !error;
 }
