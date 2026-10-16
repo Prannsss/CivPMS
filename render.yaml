@@ -34,9 +34,14 @@ services:
         value: "false"
       - key: MAX_UPLOAD_MB
         value: "15"
-      # The free instance has 512 MB RAM: decode one photo at a time.
+      # The free instance has 512 MB RAM and 0.1 CPU: decode one photo at a time, with a short
+      # queue (more uploads in progress get 503 BUSY before their body is read). Each user's
+      # uploads are admitted one at a time, and every second of processing costs one unit of
+      # RATE_LIMIT_UPLOADS_PER_MIN (default 30). See backend/README.md -> API.
       - key: FFMPEG_CONCURRENCY
         value: "1"
+      - key: MAX_CONCURRENT_UPLOADS
+        value: "4"
       - key: RUST_LOG
         value: info
 

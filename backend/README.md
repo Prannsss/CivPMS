@@ -29,12 +29,16 @@ key** and forwards the caller's own access token on every upstream call.
    │                   → error envelope → activity tracker (keep-alive) → catch-panic
    │ per route group: timeout (uploads 60 s, reads 10 s) + body limit
    │
-   ├─ auth/      ES256 JWT verified locally against the project's JWKS
-   │             (memory + Redis copy, 10 min TTL, single-flight refresh on unknown kid)
-   ├─ ratelimit  per user, sliding window; Redis (shared) or in-memory fallback
-   ├─ media/     sniff magic bytes → header dimensions (bomb guard 1) → ffmpeg semaphore
-   │             → ffprobe -max_pixels (bomb guard 2) → EXIF orientation → one ffmpeg run
-   │             → WebP outputs verified → per-request temp dir always deleted
+   ├─ auth/      ES256 JWT verified locally against the project's JWKS (memory + Redis
+   │             copy; after 10 min one throttled background refresh while the old keys
+   │             keep working for up to 6 h; unknown kid → at most one refresh per 30 s)
+   ├─ ratelimit  per user, sliding window; Redis (shared) or in-memory fallback;
+   │             uploads also pay one unit per second of ffmpeg time
+   ├─ uploads    admission before the body is read: one upload per user at a time,
+   │             at most MAX_CONCURRENT_UPLOADS in progress
+   ├─ media/     sniff magic bytes → header dimensions + decoder-memory estimate (bomb
+   │             guard 1) → ffmpeg semaphore → ffprobe -max_pixels (bomb guard 2) → EXIF
+   │             orientation → one ffmpeg run → WebP outputs verified → temp dir deleted
    ├─ idempotency  (user, client_id) → pending marker / stored result for 24 h
    ├─ cache/     cache-aside: Redis → in-memory LRU mirror; stale-while-revalidate,
    │             stale-on-error (≤ 10 min), single-flight per key
@@ -50,7 +54,7 @@ key** and forwards the caller's own access token on every upstream call.
 Source layout: `src/main.rs` (thin entry point), `src/lib.rs` (`build_app(state)` used by the
 tests, `run(config)`), `config.rs`, `error.rs`, `state.rs`, `auth/`, `supabase.rs`, `media/`
 (`sniff`, `exif`, `transcode`, `tools`, `capabilities`), `cache/` (`memory`, `singleflight`),
-`circuit.rs`, `ratelimit.rs`, `idempotency.rs`, `keepalive.rs`, `redis_client.rs`,
+`circuit.rs`, `ratelimit.rs`, `uploads.rs`, `idempotency.rs`, `keepalive.rs`, `redis_client.rs`,
 `routes/` (`health`, `media`, `reads`), `telemetry.rs`, `clock.rs` (injectable clock).
 
 ---
@@ -77,11 +81,12 @@ Errors always look like this, and clients switch on `code`, never on `message`:
 | `CONFLICT` | 409 | `client_id` reused for another project; duplicate still processing after 10 s |
 | `PAYLOAD_TOO_LARGE` | 413 | file over `MAX_UPLOAD_MB` |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | not JPEG/PNG/WebP/GIF/HEIC/AVIF by magic bytes; HEIC on an ffmpeg without HEIF support; tiled HEIF/AVIF |
-| `IMAGE_TOO_LARGE` | 422 | more than `MAX_IMAGE_PIXELS` (checked before decoding) |
+| `IMAGE_TOO_LARGE` | 422 | more than `MAX_IMAGE_PIXELS`, or decoding would need more than `MAX_DECODE_MB` (16-bit, alpha or progressive sources); both checked before decoding |
 | `PROCESSING_FAILED` | 422 | damaged image, ffmpeg error or timeout |
 | `VALIDATION` | 422 | bad form fields / query parameters |
-| `RATE_LIMITED` | 429 | per-user budget exhausted (`Retry-After` set) |
-| `BUSY` | 503 | no ffmpeg slot free within `FFMPEG_QUEUE_TIMEOUT_SECS` (`Retry-After: 5`) |
+| `RATE_LIMITED` | 429 | per-user budget exhausted, or (uploads) the user's previous upload is still being processed after `FFMPEG_QUEUE_TIMEOUT_SECS` (`Retry-After` set) |
+| `BUSY` | 503 | `MAX_CONCURRENT_UPLOADS` uploads already in progress on the instance (refused before the body is read), or no ffmpeg slot free within `FFMPEG_QUEUE_TIMEOUT_SECS` (`Retry-After: 5`) |
+| `MEDIA_UNAVAILABLE` | 503 | image processing disabled because the orientation self-test failed (the process also refuses to start in that case) |
 | `UPSTREAM_UNAVAILABLE` | 503 | Supabase down and nothing cached (`Retry-After: 5`) |
 | `TIMEOUT` | 504 | request exceeded 60 s (uploads) / 10 s (reads) |
 | `INTERNAL` | 500 | bug; details are logged under the `request_id` |
@@ -92,12 +97,22 @@ Errors always look like this, and clients switch on `code`, never on `message`:
 |---|---|---|---|
 | `GET /healthz` | – | – | Liveness. No dependencies are checked (Render's health check). |
 | `GET /readyz` | – | – | Readiness: Redis ping, ffmpeg/ffprobe + decoders (incl. HEIC/AVIF), orientation self-test, JWKS loaded, circuit state. `503` with the same JSON when not ready. |
-| `POST /v1/media/avatar` | ✓ | upload 30/min | multipart `file` → 256×256 center-cropped WebP (q82) at `avatars/<uid>/<uuid>.webp`. **201** `{url, path, width, height, bytes, content_type}` |
-| `POST /v1/media/images` | ✓ | upload 30/min | multipart `file`, `project_id` (uuid), optional `client_id`, optional `kind`. Photo ≤ 1600 px (q80) + thumbnail ≤ 400 px (q75) at `project-media/<project_id>/<yyyy>/<mm>/<uuid>.webp` and `…_thumb.webp`. **201** (or **200** + `idempotent-replayed: true` on replay) |
+| `POST /v1/media/avatar` | ✓ | upload 30/min¹ | multipart `file` → 256×256 center-cropped WebP (q82) at `avatars/<uid>/<uuid>.webp`. **201** `{url, path, width, height, bytes, content_type}` |
+| `POST /v1/media/images` | ✓ | upload 30/min¹ | multipart `file`, `project_id` (uuid), optional `client_id`, optional `kind`. Photo ≤ 1600 px (q80) + thumbnail ≤ 400 px (q75) at `project-media/<project_id>/<yyyy>/<mm>/<uuid>.webp` and `…_thumb.webp`. **201** (or **200** + `idempotent-replayed: true` on replay) |
 | `GET /v1/media/signed-url?path=` | ✓ | read 120/min | Fresh signed URL (10 min) for a project image path; cached per user + path until 1 min before expiry (`x-cache`). |
 | `GET /v1/projects` | ✓ | read 120/min | The caller's `project_overview` rows (newest first). Per-user cache, 30 s. |
 | `GET /v1/projects/{id}/summary` | ✓ | read 120/min | One `project_overview` row. Per-user cache, 30 s. |
 | `GET /v1/holidays?year=YYYY` | ✓ | read 120/min | Philippine holidays (`date`, `name`, `type`). Shared cache, 24 h. |
+
+¹ **Upload budget and admission.** Each upload request costs one unit of the per-user
+budget, plus one unit for every full second it held an ffmpeg slot (failures and timeouts
+included), so slow images use the budget up in proportion to the processing time they take.
+A user's uploads are admitted **one at a time** (the next one waits up to
+`FFMPEG_QUEUE_TIMEOUT_SECS` for the previous one, then gets `429`), and the ffmpeg queue is
+first-come, first-served, so one account cannot keep the slot from everyone else. At most
+`MAX_CONCURRENT_UPLOADS` uploads are in progress per instance; more get `503 BUSY` before their
+body is written to disk. `/readyz` shows `uploads.in_progress` / `uploads.capacity`. Spreading
+load over several accounts is still possible; per-user limits cannot prevent that.
 
 Cached reads set `x-cache: HIT | MISS | STALE | BYPASS` and `Age`. Send
 `Cache-Control: no-cache` to bypass the cache (e.g. right after a mutation); the fresh value is
@@ -136,9 +151,16 @@ curl -sS -H "Authorization: Bearer $TOKEN" "$API/v1/holidays?year=2026"
 `x-client-id` header; 8–128 chars of `[A-Za-z0-9_.:-]`, a UUID works) makes uploads safe to
 retry: the same user + `client_id` within 24 h gets the stored result (`200`,
 `idempotent-replayed: true`, fresh signed URLs) instead of a second upload. A duplicate that
-arrives while the first is still running waits for it (up to 10 s) and replays its result; if
-the first attempt fails, the duplicate takes over. Reusing a `client_id` for another project
-is a `409`.
+arrives while the first is still running waits for it (on the same instance in upload
+admission, up to `FFMPEG_QUEUE_TIMEOUT_SECS`; otherwise up to 10 s, then `409`) and replays its
+result; if the first attempt fails, the duplicate takes over. Reusing a `client_id` for another
+project is a `409`. Records live in Redis (shared) and in memory (this instance), and the two
+cannot disagree in a way that uploads twice: reservations are written to both, this instance's
+own record is checked first, results are written with compare-and-set on the reservation (a
+late commit never overwrites someone else's) and retried in the background for about a minute
+when Redis fails, and the pending marker lives `UPLOAD_REQUEST_TIMEOUT_SECS` + 30 s (at least
+2 min), longer than any attempt can run. With Redis down for good, a retry that lands on
+**another** instance may upload again (per-instance memory); the free plan runs one instance.
 
 ---
 
@@ -161,20 +183,22 @@ invalid configuration:
 | `APP_ORIGINS` | – (required) | Comma-separated exact origins for CORS, e.g. `https://civpms.vercel.app,http://localhost:3000`. No `*`. |
 | `REDIS_URL` | unset | `redis://[user:pass@]host:port` (Render Key Value internal URL). Unset/down → in-memory cache and rate limits (degraded, per instance). `rediss://` is not supported by this build. |
 | `MAX_UPLOAD_MB` | `15` | 1–100. |
-| `MAX_IMAGE_PIXELS` | `50000000` | Decompression-bomb limit (width × height). |
+| `MAX_IMAGE_PIXELS` | `50000000` | Decompression-bomb limit (width × height). If big photos time out on the free plan's fraction of a CPU, lower it (`30000000` still accepts 24 MP phone photos). |
+| `MAX_DECODE_MB` | `200` | Decoder memory an image may need, estimated from the header (PNG bit depth/channels, JPEG subsampling/progressive; HEIF/AVIF from ffprobe's pixel format). 200 keeps one ffmpeg run under ≈ 280 MB RSS (512 MB free instance). Measurements in `src/media/sniff.rs`. |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | Resolved on `PATH` once at startup (children run with an empty environment). |
 | `FFMPEG_CONCURRENCY` | CPU cores (cgroup-aware), min 1 | Parallel ffmpeg runs. Use `1` on 512 MB instances. |
 | `FFMPEG_TIMEOUT_SECS` | `30` | Per ffmpeg/ffprobe run; the child is killed and reaped. |
-| `FFMPEG_QUEUE_TIMEOUT_SECS` | `20` | Wait for a free slot before `503 BUSY`. |
+| `FFMPEG_QUEUE_TIMEOUT_SECS` | `20` | Wait for a free ffmpeg slot before `503 BUSY`; also how long a user's next upload waits for their previous one before `429`. |
+| `MAX_CONCURRENT_UPLOADS` | `4 × FFMPEG_CONCURRENCY` | Uploads in progress per instance (1–1024); more get `503 BUSY` before their body is read, so temp disk stays under this × `MAX_UPLOAD_MB`. |
 | `AVATAR_BUCKET` / `MEDIA_BUCKET` | `avatars` / `project-media` | |
 | `SIGNED_URL_TTL_SECS` | `600` | Lifetime of signed URLs (60–3600). |
 | `KEEPALIVE_ENABLED` | **`false`** | Opt-in self-ping; see [Keep-alive](#keep-alive). |
 | `KEEPALIVE_URL` | `${RENDER_EXTERNAL_URL}/healthz` | Required when enabled outside Render. |
 | `KEEPALIVE_IDLE_SECS` | `840` (14 min) | Ping after this long without inbound requests. |
 | `CACHE_PROJECTS_TTL_SECS` / `CACHE_HOLIDAYS_TTL_SECS` / `CACHE_STALE_MAX_SECS` | `30` / `86400` / `600` | Freshness and how long stale data may be served on errors (holidays: up to 7 days). |
-| `RATE_LIMIT_UPLOADS_PER_MIN` / `RATE_LIMIT_READS_PER_MIN` | `30` / `120` | Per user. |
-| `UPLOAD_REQUEST_TIMEOUT_SECS` / `READ_REQUEST_TIMEOUT_SECS` | `60` / `10` | Whole-request deadlines. |
-| `UPSTREAM_READ_TIMEOUT_SECS` / `UPSTREAM_WRITE_TIMEOUT_SECS` | `4` / `20` | Per Supabase attempt. Reads retry twice with full jitter; writes never retry. |
+| `RATE_LIMIT_UPLOADS_PER_MIN` / `RATE_LIMIT_READS_PER_MIN` | `30` / `120` | Per user. Uploads also cost one unit per full second of ffmpeg processing (see ¹ above). |
+| `UPLOAD_REQUEST_TIMEOUT_SECS` / `READ_REQUEST_TIMEOUT_SECS` | `60` / `10` | Whole-request deadlines. `READ_REQUEST_TIMEOUT_SECS` must be ≥ `UPSTREAM_READ_TIMEOUT_SECS` + 2. |
+| `UPSTREAM_READ_TIMEOUT_SECS` / `UPSTREAM_WRITE_TIMEOUT_SECS` | `4` / `20` | Per Supabase attempt. A read (retries included) must finish 2 s before the read request times out, so stale data can still be served; it retries (up to twice, full jitter) only while a useful attempt still fits. Writes never retry. |
 | `SHUTDOWN_GRACE_SECS` | `25` | Drain time after SIGTERM. |
 | `LOG_FORMAT` | `json` | `json` (Render) or `pretty` (local). |
 | `RUST_LOG` | `info` | e.g. `info,civpms_media=debug`. |
@@ -230,7 +254,12 @@ scripts/smoke-live.sh           # LIVE: real Supabase + local Redis (see below)
   file renamed `.jpg`, a truncated PNG. They check WebP output, dimensions, metadata removal
   (ffprobe + RIFF chunk list), thumbnails, idempotent replay incl. concurrent duplicates, auth
   failures, CORS preflight, `/readyz` with Redis down, STALE reads while PostgREST returns
-  503, the circuit opening, 429s, `503 BUSY`, and the keep-alive loop.
+  503 or hangs (served before the request times out, then the circuit opens), requests not
+  waiting for a slow JWKS refresh, 429s, `503 BUSY`, upload admission (one per user, the
+  global cap, processing time charged to the budget; driven by an ffmpeg wrapper that sleeps),
+  a failed orientation self-test refusing uploads and startup, the decoder-memory limit, and
+  the keep-alive loop. `tests/idempotency.rs` makes a real `redis-server` refuse writes
+  (`maxmemory 1`) to check that Redis and memory records never allow a second upload.
 - **Live smoke** (`scripts/smoke-live.sh`): signs in `owner@civpms.test` with the GoTrue
   password grant (`DEMO_PASSWORD` is read from the repo's `.env.local` at runtime and never
   printed), starts a throwaway Redis and the release binary, uploads an avatar and a photo
@@ -267,51 +296,67 @@ The Blueprint is `render.yaml` at the repository root: web service **civpms-medi
    `Cargo.toml`/`Cargo.lock` are unchanged).
 5. Check: `https://civpms-media.onrender.com/healthz` → `{"status":"ok"}` and
    `/readyz` → `"status":"ready"` with `redis.status = up`, `jwks.status = loaded`,
-   `media.orientation_selftest = passed`. If the self-test says `failed`, do not use the
-   service for photos and open an issue (it means the installed ffmpeg rotates differently).
+   `media.orientation_selftest = passed`. If the self-test fails, the process refuses to start
+   (the deploy fails with "the image orientation self-test failed" in the log) instead of
+   storing rotated photos sideways: the installed ffmpeg rotates differently; open an issue.
 6. **Vercel:** add `NEXT_PUBLIC_MEDIA_API_URL=https://civpms-media.onrender.com` (no trailing
-   slash) to the web app's environment and redeploy.
+   slash) to the web app's environment and **redeploy** (`NEXT_PUBLIC_*` values are built into
+   the client bundle). The profile page then sends avatars through the service (see below).
 7. Deploys are manual: Dashboard → civpms-media → **Manual Deploy → Deploy latest commit**
    (or set `autoDeployTrigger: commit` in `render.yaml`; `buildFilter` already limits builds to
    `backend/**`).
 
 Free-plan facts to keep in mind: the web service has 512 MB RAM and a fraction of a CPU
-(hence `FFMPEG_CONCURRENCY=1`; a 12 MP photo needs ≈ 0.7 s of CPU, so expect several seconds
-there, and very large images can approach `FFMPEG_TIMEOUT_SECS`), it **sleeps after 15 minutes
+(hence `FFMPEG_CONCURRENCY=1` and `MAX_CONCURRENT_UPLOADS=4` in `render.yaml`: one photo
+decoded at a time plus a short queue; a 12 MP photo needs ≈ 0.7 s of CPU, so expect several
+seconds there, each of which also costs the uploader one unit of the upload budget, and very
+large images can approach `FFMPEG_TIMEOUT_SECS`), it **sleeps after 15 minutes
 without inbound traffic** (the next request waits for a cold start of ~30–60 s), and the free
 Key Value has 25 MB and no persistence (fine: it only holds caches, rate-limit counters and
 24 h idempotency records; under memory pressure `allkeys-lru` evicts the oldest).
 
 ### How the web app uses it
 
-`NEXT_PUBLIC_MEDIA_API_URL` is optional. When it is set, the profile page (F5) uploads the
-avatar to `POST ${NEXT_PUBLIC_MEDIA_API_URL}/v1/media/avatar` with the signed-in user's
-`Authorization: Bearer <access_token>` and saves the returned `url` with
-`update_profile({ avatar_url })`. When it is unset, or the call fails with a network error,
-`5xx` or `BUSY`, the page falls back to uploading the (unprocessed) file straight to the
-`avatars` bucket with the Supabase client, as before. `4xx` answers (too large, not an
-image) are shown to the user instead of falling back.
+Today only the **profile photo** (F5, `/profile`) uses the service; everything else in the web
+app talks to Supabase directly, and nothing calls `/v1/media/images`, `/v1/media/signed-url` or
+the cached reads yet.
 
-```ts
-const { data: { session } } = await supabase.auth.getSession();
-const form = new FormData();
-form.append("file", file);
-const res = await fetch(`${process.env.NEXT_PUBLIC_MEDIA_API_URL}/v1/media/avatar`, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${session!.access_token}` },
-  body: form,
-});
-if (res.ok) {
-  const { url } = await res.json();          // public WebP URL
-  await supabase.rpc("update_profile", { p_patch: { avatar_url: url } });
-} else {
-  const { error } = await res.json();         // { code, message, request_id }
-}
-```
+- `NEXT_PUBLIC_MEDIA_API_URL` (optional; listed in the repo's `.env.example`) is parsed by
+  `src/lib/env.ts` → `publicMediaApiUrl`: an absolute `http(s)` URL with trailing slashes
+  removed; empty or invalid means unset. Being a `NEXT_PUBLIC_` variable, it is inlined at
+  **build** time, so a change on Vercel needs a redeploy.
+- `src/components/profile/avatar-upload.ts` (`uploadAvatar`, unit-tested in
+  `avatar-upload.test.ts`) decides, and `avatar-image.ts` wires it to the browser:
+  1. The picked file is checked first: JPEG/PNG/WebP/GIF/HEIC (MIME type, or a `.heic`/`.heif`
+     name), at most 15 MB.
+  2. URL set → `POST ${NEXT_PUBLIC_MEDIA_API_URL}/v1/media/avatar` with
+     `Authorization: Bearer <session.access_token>` and the original file in the multipart
+     field `file`. `200`/`201` with an `http(s)` `url` → done.
+  3. A network error (this includes a CORS refusal: `APP_ORIGINS` must list the web app's
+     origin), any `5xx` (`503 BUSY`, `MEDIA_UNAVAILABLE`, `UPSTREAM_UNAVAILABLE`, `504 TIMEOUT`)
+     or a malformed success body → the fallback below. `4xx` answers are final and shown in
+     plain language: 401 sign in again, 403 not saved, 413 and 422 `IMAGE_TOO_LARGE` too large,
+     415 unsupported, other 422 unreadable, 429 "Too many uploads in a row. Try again in N
+     seconds." (from `Retry-After`).
+  4. URL unset, or fallback → the browser crops the centre square, resizes it to a 256 px WebP
+     on a canvas (PNG where the browser cannot encode WebP; re-encoding drops EXIF/GPS) and
+     uploads it with the Supabase client to `avatars/<uid>/<uuid>.<ext>` (≤ 2 MB, no upsert).
+     HEIC works on this path only where the browser can decode HEIC.
+- `src/components/profile/avatar-editor.tsx` then saves the URL with the `setAvatar` server
+  action (`src/server/actions/profile.ts`: zod-validated `https` URL → RPC
+  `update_profile({ avatar_url })`), deletes the previous photo when it was in the user's own
+  `avatars/<uid>/` folder, and offers Undo when a photo is removed.
+- There is no client-side timeout: while a free instance wakes up (~30–60 s) the upload button
+  keeps spinning, then the service answers normally.
 
-Project photos (Phase 3: progress updates, inspections) use `POST /v1/media/images` with a
-`client_id` per queued item, store `path`/`thumb_path` in the database, and ask
-`/v1/media/signed-url` (or Supabase's `createSignedUrl`) for URLs when showing them.
+So with the variable set and the service up, avatars are compressed on the server (256×256
+WebP, all metadata removed); without it, or while the service fails, they are still resized
+and stripped of metadata by the browser.
+
+Planned (not built yet): project photos (Phase 3: progress updates, inspections) will use
+`POST /v1/media/images` with a `client_id` per queued offline item, store `path`/`thumb_path` in
+the database, and ask `/v1/media/signed-url` (or Supabase's `createSignedUrl`) for URLs when
+showing them.
 
 ---
 
@@ -422,6 +467,29 @@ in-flight requests for up to `SHUTDOWN_GRACE_SECS`, then exits; panics in handle
   inspectors), names must match the generated pattern; DELETE only for managers (Owner PM,
   project PMs); no UPDATE. Avatars stay in the public `avatars` bucket under the user's own
   folder.
+- **Objects in `project-media` (and `avatars`) are untrusted input.** Because uploads use the
+  caller's own token (no secret key in this service), the INSERT policy has to let project
+  members write, and a member can therefore also upload **directly** with the Storage API and
+  their own session: any bytes up to 3 MB, declared as `image/webp`, under a valid generated
+  name in a project they can see. The pipeline's guarantees (really WebP, re-encoded, metadata
+  stripped, ≤ 1600 px, a `_thumb` next to every photo) hold only for objects this service
+  wrote. Accepted trade-off (the alternative is a privileged upload path: a secret key here, or
+  an Edge Function plus a service-to-service secret); consumers must:
+  - show these images only through `<img>` from the signed URL (Storage serves them from the
+    Supabase origin with the declared type), with explicit width/height, `loading="lazy"`,
+    and a placeholder on error; do not route them through `next/image` optimization or any
+    other server-side decoder;
+  - never decode, embed (PDF reports, exports) or forward them server-side without validating
+    them again (magic bytes, header dimensions, size), e.g. by sending them through
+    `/v1/media/images`;
+  - not rely on the `_thumb.webp` twin existing (fall back to the main image), and list photos
+    from database rows the app created, never from bucket listings;
+  - remember the damage is limited to projects the uploader can see: the policy refuses other
+    projects, malformed or `..` names, UPDATE, and reads outside the uploader's projects
+    (`supabase/tests/10_project_media_storage.sql`).
+  If Phase 3 needs the guarantees to hold, move INSERT to a privileged, service-only path
+  (e.g. one-time signed upload URLs issued to this service) and drop the `authenticated`
+  INSERT policy.
 - **Inputs**: every field is validated (UUIDs, `kind` = short lowercase word, `client_id`
   charset, signed-URL paths must match the generated pattern exactly); unknown multipart
   fields are rejected; at most 8 fields.
