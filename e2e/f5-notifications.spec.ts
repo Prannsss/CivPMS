@@ -70,12 +70,15 @@ test("show older notifications (keyset pagination) and deep links", async ({ pag
   await page.goto("/notifications");
   const rows = page.getByTestId("notification-row");
   await expect(rows).toHaveCount(20);
-  const firstPage = await rows.allTextContents();
+  const ids = () => rows.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id") ?? ""));
+  const firstPage = await ids();
   await page.getByRole("button", { name: "Show older notifications" }).click();
   await expect.poll(() => rows.count()).toBeGreaterThan(20);
-  const all = await rows.allTextContents();
-  // The first page is unchanged and the second page holds the next rows (up to 20 more).
+  const all = await ids();
+  // The first page is unchanged, nothing repeats at the boundary, and the second page holds the
+  // next rows (up to 20 more).
   expect(all.slice(0, 20)).toEqual(firstPage);
+  expect(new Set(all).size).toBe(all.length);
   const { client } = await supabaseAs(F5.pm);
   const { count } = await client.from("notifications").select("id", { count: "exact", head: true }).eq("in_app", true);
   expect(all.length).toBe(Math.min(count ?? 0, 40));

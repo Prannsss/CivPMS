@@ -314,6 +314,7 @@ function NotificationRow({ item, now, onRead }: { item: NotificationRecord; now:
   return (
     <div
       data-testid="notification-row"
+      data-id={item.id}
       data-unread={unread ? "true" : "false"}
       className={cn("group relative flex items-start gap-2 px-5 py-4 transition-colors hover:bg-surface-sunken/60 sm:px-6", unread && "bg-primary-soft/35")}
     >
