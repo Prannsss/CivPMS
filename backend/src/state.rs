@@ -30,6 +30,10 @@ pub enum StartupError {
     Bind(std::io::Error),
     #[error("server error: {0}")]
     Serve(std::io::Error),
+    #[error(
+        "the image orientation self-test failed: this ffmpeg build would store rotated photos sideways; refusing to start (see README → Image pipeline)"
+    )]
+    MediaSelfTest,
 }
 
 #[derive(Debug)]
@@ -122,5 +126,16 @@ impl AppState {
         if let Err(e) = jwks {
             tracing::warn!(error = %e, "JWKS not loaded at startup; will retry on first request");
         }
+    }
+
+    /// Problems that must stop the process after [`AppState::warm_up`]. A failed orientation
+    /// self-test is deterministic for a given image (ffmpeg build), so exiting makes the
+    /// deploy fail visibly instead of going live and storing photos sideways. (Uploads are
+    /// refused as well, in case the state is used without this check.)
+    pub fn startup_check(&self) -> Result<(), StartupError> {
+        if self.media.selftest() == crate::media::SelfTest::Failed {
+            return Err(StartupError::MediaSelfTest);
+        }
+        Ok(())
     }
 }

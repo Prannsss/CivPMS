@@ -64,6 +64,8 @@ pub struct Config {
     pub app_origins: Vec<String>,
     pub max_upload_bytes: u64,
     pub max_image_pixels: u64,
+    /// Estimated decoder memory an image may need (see `media::sniff::HeaderInfo`).
+    pub max_decode_bytes: u64,
     pub ffmpeg_path: PathBuf,
     pub ffprobe_path: PathBuf,
     pub ffmpeg_concurrency: usize,
@@ -105,6 +107,7 @@ impl fmt::Debug for Config {
             .field("app_origins", &self.app_origins)
             .field("max_upload_bytes", &self.max_upload_bytes)
             .field("max_image_pixels", &self.max_image_pixels)
+            .field("max_decode_bytes", &self.max_decode_bytes)
             .field("ffmpeg_path", &self.ffmpeg_path)
             .field("ffprobe_path", &self.ffprobe_path)
             .field("ffmpeg_concurrency", &self.ffmpeg_concurrency)
@@ -168,6 +171,8 @@ impl Config {
         let max_upload_mb = p.number::<u64>("MAX_UPLOAD_MB", 15, 1, 100);
         let max_image_pixels =
             p.number::<u64>("MAX_IMAGE_PIXELS", 50_000_000, 1_000_000, 200_000_000);
+        // 200 MB keeps one ffmpeg run under ~280 MB RSS (fits Render's 512 MB free plan).
+        let max_decode_mb = p.number::<u64>("MAX_DECODE_MB", 200, 32, 4096);
         let ffmpeg_path =
             PathBuf::from(p.optional("FFMPEG_PATH").unwrap_or_else(|| "ffmpeg".into()));
         let ffprobe_path = PathBuf::from(
@@ -255,6 +260,7 @@ impl Config {
             app_origins,
             max_upload_bytes: max_upload_mb * MIB,
             max_image_pixels,
+            max_decode_bytes: max_decode_mb * MIB,
             ffmpeg_path,
             ffprobe_path,
             ffmpeg_concurrency,
@@ -285,7 +291,7 @@ impl Config {
     /// One-line, secret-free summary for the startup banner.
     pub fn summary(&self) -> String {
         format!(
-            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} ffmpeg_concurrency={} ffmpeg_timeout={}s buckets=({}, {}) keepalive={} idle={}s",
+            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} max_decode={}MiB ffmpeg_concurrency={} ffmpeg_timeout={}s buckets=({}, {}) keepalive={} idle={}s",
             self.port,
             self.supabase_url,
             self.redis_url
@@ -294,6 +300,7 @@ impl Config {
             self.app_origins.join(","),
             self.max_upload_bytes / MIB,
             self.max_image_pixels,
+            self.max_decode_bytes / MIB,
             self.ffmpeg_concurrency,
             self.ffmpeg_timeout.as_secs(),
             self.avatar_bucket,
@@ -540,6 +547,7 @@ mod tests {
         );
         assert_eq!(cfg.max_upload_bytes, 15 * MIB);
         assert_eq!(cfg.max_image_pixels, 50_000_000);
+        assert_eq!(cfg.max_decode_bytes, 200 * MIB);
         assert_eq!(cfg.avatar_bucket, "avatars");
         assert_eq!(cfg.media_bucket, "project-media");
         assert_eq!(cfg.redis_url, None);

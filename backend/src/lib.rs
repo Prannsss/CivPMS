@@ -234,6 +234,7 @@ pub async fn run(config: Config) -> Result<(), StartupError> {
     }
     let state = AppState::new(config)?;
     state.warm_up().await;
+    state.startup_check()?;
 
     let shutdown = CancellationToken::new();
     let keepalive = tokio::spawn(keepalive::run(

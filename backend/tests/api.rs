@@ -421,6 +421,94 @@ async fn rejects_non_images_bombs_and_oversized_files() {
     );
 }
 
+/// Regression (review finding): a failed orientation self-test only logged an error while
+/// uploads went on storing rotated photos sideways (and Render checks `/healthz` only).
+/// Simulated with an ffmpeg wrapper that drops `-noautorotate`, so JPEGs rotate twice.
+#[tokio::test]
+async fn failed_orientation_selftest_refuses_uploads_and_startup() {
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = dir.path().join("ffmpeg");
+    let real = which("ffmpeg");
+    std::fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nfor a in \"$@\"; do shift; [ \"$a\" = \"-noautorotate\" ] || set -- \"$@\" \"$a\"; done\nexec {} \"$@\"\n",
+            real.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        &wrapper,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    let app = TestApp::start(None, &[("FFMPEG_PATH", wrapper.to_str().unwrap())]).await;
+    assert_eq!(
+        app.state.media.selftest(),
+        civpms_media::media::SelfTest::Failed
+    );
+    assert!(matches!(
+        app.state.startup_check(),
+        Err(civpms_media::StartupError::MediaSelfTest)
+    ));
+    let ready = app.get("/readyz").await;
+    assert_eq!(ready.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        ready.json()["checks"]["media"]["orientation_selftest"],
+        "failed"
+    );
+
+    let form = Multipart::new().file("file", "me.jpg", image(320, 240, "jpg"));
+    let response = app.upload("/v1/media/avatar", &form).await;
+    assert_eq!(response.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.error_code(), "MEDIA_UNAVAILABLE");
+    assert!(app.supabase.uploads("avatars").await.is_empty());
+}
+
+fn which(tool: &str) -> std::path::PathBuf {
+    std::env::var_os("PATH")
+        .and_then(|paths| {
+            std::env::split_paths(&paths)
+                .map(|dir| dir.join(tool))
+                .find(|candidate| candidate.is_file())
+        })
+        .unwrap_or_else(|| panic!("{tool} not on PATH"))
+}
+
+/// Regression (review finding): the pixel cap ignored bit depth, so a small 16-bit PNG could
+/// need several hundred MB to decode. The decoder-memory estimate refuses it before ffprobe
+/// runs, while the same picture in 8-bit is fine.
+#[tokio::test]
+async fn decode_memory_limit_refuses_high_bit_depth_sources() {
+    let app = TestApp::start(None, &[("MAX_DECODE_MB", "32")]).await;
+    // 2100 × 2100: 35 MB as 16-bit RGBA (over 32 MiB), 17.6 MB as 8-bit RGBA.
+    let deep = common::image_with(2100, 2100, "png", "rgba64be");
+    let response = app
+        .upload(
+            "/v1/media/avatar",
+            &Multipart::new().file("file", "deep.png", deep),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.error_code(), "IMAGE_TOO_LARGE");
+    assert!(
+        response.json()["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("too much memory")
+    );
+
+    let normal = common::image_with(2100, 2100, "png", "rgba");
+    let response = app
+        .upload(
+            "/v1/media/avatar",
+            &Multipart::new().file("file", "normal.png", normal),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::CREATED);
+    assert_eq!(app.supabase.uploads("avatars").await.len(), 1);
+}
+
 #[tokio::test]
 async fn accepts_webp_gif_and_avif_sources() {
     let app = TestApp::start(None, &[]).await;

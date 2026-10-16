@@ -582,6 +582,11 @@ impl Multipart {
 
 /// Generates an image with ffmpeg's test pattern. `ext` picks the format (jpg/png/webp/gif).
 pub fn image(width: u32, height: u32, ext: &str) -> Vec<u8> {
+    image_with(width, height, ext, "")
+}
+
+/// Like [`image`], with an explicit output pixel format (e.g. `rgba64be` for a 16-bit PNG).
+pub fn image_with(width: u32, height: u32, ext: &str, pix_fmt: &str) -> Vec<u8> {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join(format!("img.{ext}"));
     let status = Command::new("ffmpeg")
@@ -601,6 +606,11 @@ pub fn image(width: u32, height: u32, ext: &str) -> Vec<u8> {
             &["-c:v", "libaom-av1", "-still-picture", "1"][..]
         } else {
             &[]
+        })
+        .args(if pix_fmt.is_empty() {
+            Vec::new()
+        } else {
+            vec!["-pix_fmt", pix_fmt]
         })
         .arg(&out)
         .status()
