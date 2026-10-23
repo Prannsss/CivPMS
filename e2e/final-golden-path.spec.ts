@@ -16,8 +16,9 @@
  *        -- then run supabase/seed/qa-e2e.sql in the same session
  *   2. QA_STAMP=1016072430 BASE_URL=http://localhost:3210 npx playwright test e2e/final-golden-path.spec.ts
  *
- * QA_SHOTS=1 also writes docs/screenshots/final-*.png (light, dark, 390 px phone); QA_SHOTS_DIR
- * writes them somewhere else.
+ * QA_SHOTS=1 also writes docs/screenshots/final-qa-*.png (light, dark, 390 px phone) of the QA
+ * accounts; QA_SHOTS_DIR writes them somewhere else. The README gallery (final-<screen>-*.png, demo
+ * accounts) comes from e2e/final-screenshots.spec.ts.
  */
 import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
@@ -121,7 +122,7 @@ async function shoot(
     await page.mouse.move(0, 0);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(800);
-    await page.screenshot({ path: path.join(SHOTS_DIR, `final-${shot.name}-${variant.suffix}.png`), fullPage: variant.fullPage });
+    await page.screenshot({ path: path.join(SHOTS_DIR, `final-qa-${shot.name}-${variant.suffix}.png`), fullPage: variant.fullPage });
     console.expectClean();
     await context.close();
   }
@@ -382,7 +383,7 @@ test("8 · another company sees none of it (UI and database)", async ({ page, co
 });
 
 test("9 · screenshots (QA_SHOTS=1)", async ({ browser }) => {
-  test.skip(!SHOTS, "Set QA_SHOTS=1 to write docs/screenshots/final-*.png");
+  test.skip(!SHOTS, "Set QA_SHOTS=1 to write docs/screenshots/final-qa-*.png");
   const p = `/projects/${await qaProjectId()}`;
   await shoot(browser, PM, { name: "home", path: "/", heading: "Projects" });
   await shoot(browser, PM, { name: "dashboard", path: p, heading: "Dashboard" });
