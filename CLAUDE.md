@@ -172,6 +172,6 @@ Code
 - `tailwind-merge` drops custom `text-h1…text-caption` utilities unless registered (done in `cn()` — keep it that way when adding new type utilities).
 - `#0866FF` fails AA as small text on `primary-soft` and on black → use the `primary-text` token for blue text/links; `#0866FF` only for fills.
 - Realtime: a row created between server render and subscription is lost → subscribe with `wait` and catch up once on every (re)subscribe, de-duplicating by id (see the notification bell).
-- In development Next logs Server Action arguments → passwords sent to actions appear in the dev log. Do not paste dev logs anywhere public.
+- In development Next logs Server Action arguments (passwords included) unless `logging.serverFunctions: false` in `next.config.ts` — keep it off. Still, never paste dev logs anywhere public.
 - Never hard-code demo data assumptions in e2e specs without tagging test records (`[F3] …`); the database is shared by all agents.
 - Shared e2e account pools (`f1-pool-*`) are used by every container, but the "used" list (`test-results/.f1-pool.json`) is per container → a pool account can be half-onboarded by another run. `claimFreshAccount()` skips accounts with a saved role; do the same for any new pool.
