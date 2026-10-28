@@ -31,13 +31,13 @@ Version 1.1 · 28 Oct 2026 (includes owner decision **D7**: offline mode dropped
 
 | Stage | Packages | Agent-days | Notes |
 |---|---:|---:|---|
-| Before Phase 2 (foundations) | 9 | 4.75 | Final QA (B-01) already done; plus owner setup actions (section 2) |
+| Before Phase 2 (foundations) | 10 | 5.25 | Final QA (B-01) already done; plus owner setup actions (section 2) |
 | Phase 2 – Scheduling | 29 | 24 | +1 day contingency if the first Gantt library fails its spike |
 | Phase 3 – Field & tracking | 30 | 25 | Includes the D7 replacements (P3-23 to P3-25) |
 | Phase 4 – Sharing & viewers | 13 | 9.75 | Offline work removed by D7 |
 | Phase 5 – Polish | 53 | 45.75 | Optional cut list ≈ 4 days, plus an optional 0.5-day sample project (section 4.4) |
 | UAT (2 weeks, client) | 1 buffer | ≤ 5 | One ≤ 1-day package per serious defect |
-| **Total** | **135** | **≈ 109 + UAT** | ≈ 54–61 working days of build with 2 heavy agents, then 2 weeks of UAT (≈ 3½ months) |
+| **Total** | **136** | **≈ 110 + UAT** | ≈ 54–61 working days of build with 2 heavy agents, then 2 weeks of UAT (≈ 3½ months) |
 
 The 9 owner questions that block Phases 2–3 are listed first in section 7 ("Decide first").
 
@@ -65,6 +65,7 @@ These foundations come first because the live database now holds the owner's rea
 | B-08 | Small debt that later forms depend on (pulled forward from P5-40): register-based `FormField` variant in `components/ui` (the `Controller` one loses text typed before hydration), `{{ .RedirectTo }}` in `supabase/templates/confirm-signup.html`, hide the WBS graph minimap below a width breakpoint | Agent | 0.5 d | Before P3-11a |
 | B-09 | Offline clean-up for **D7**: hide the "Offline sync conflicts" row in Profile → Notifications (`src/components/profile/notification-prefs.ts`; nothing produces it — keep the `sync_conflicts` key in `NOTIFICATION_EVENT_TYPES` so stored preferences still validate); keep the audit via label "Offline sync" (`src/components/audit/audit-format.ts`) and the database enum values (removing Postgres enum values is not worth it); write D7 in DECISIONS.md (Platform group) and, with the owner's approval, drop offline/PWA from the scope line in `CLAUDE.md` | Agent | 0.25 d | Before Phase 2 |
 | B-10 | Security fix from HANDOFF §4: restrict `profiles.avatar_url` to the `avatars` bucket and Google photo hosts (an outside image link would leak teammates' IP addresses) — small migration (DB lane, before P2-06) + SQL test `19_avatar_url.sql` | Agent | 0.5 d | Before P2-06 |
+| B-11 | Faster linting with **Oxlint** (Rust, from the Oxc project), owner request 2026-10-28: add `oxlint` + `.oxlintrc.json` (plugins: typescript, react incl. hooks rules, nextjs, jsx-a11y, import, vitest; ignore generated `database.types.ts`, `.next`, `backend/`), run it first in `npm run lint`, and keep ESLint only for rules Oxlint lacks (`eslint-plugin-oxlint` turns the overlapping ESLint rules off) — or drop ESLint entirely if a written rule-coverage comparison shows nothing important is lost. Measure lint time before/after. Vitest (5.0.4) stays the unit-test runner: it is already fast (~4 s for 766 tests); optionally try `isolate: false` and keep it only if every test stays green. Not Rust: Vitest runs on Vite. | Agent | 0.5 d | Before B-05 (so CI uses it) |
 | O-7 | Supabase Auth URL configuration: Site URL `https://civpms.prannsss.dev`, redirect `https://civpms.prannsss.dev/auth/callback`, localhost and the staging/preview URLs; paste `supabase/templates/*` | Owner | 15 min | Now |
 | O-8 | Brevo sender `no-reply@civpms.prannsss.dev` with SPF/DKIM/DMARC on `prannsss.dev` (question 32), then Supabase Auth custom SMTP through Brevo | Owner | 1 h | Before Phase 3 emails |
 | O-9 | Render: `civpms-media` is already live (free plan, Singapore, `APP_ORIGINS` = localhost + `https://civpms.prannsss.dev`). Remaining: set Health Check Path `/healthz` (Render's own readiness check, not an outside pinger; keep-alive stays **off**), add any preview origin to `APP_ORIGINS`, set `NEXT_PUBLIC_MEDIA_API_URL=https://civpms-media.onrender.com` on Vercel and redeploy; redeploy Render manually after backend changes (auto-deploy off) | Owner | 15 min | Before P3-10 |
@@ -73,7 +74,7 @@ These foundations come first because the live database now holds the owner's rea
 | O-12 | Google sign-in: Google Cloud project, consent screen in Testing mode with test users, Supabase Google provider; publish the consent screen once `/privacy` exists (P5-31a) | Owner | 1 h | Before P4-10 |
 | O-13 | Approve the `CLAUDE.md` data-access exception for browser-side search (question 27) so agents may edit `CLAUDE.md` | Owner | 5 min | Before P5-18 |
 
-The open foundations cost 4.75 agent-days (B-01 is done). B-02 to B-10 are light and can run in parallel; B-10 is the only one that touches the database lane. The home-screen icon is **not** here but in early Phase 3 (P3-25): nothing in Phase 2 needs it, and it is checked on the same phones as the mobile-first field pass.
+The open foundations cost 5.25 agent-days (B-01 is done). B-02 to B-11 are light and can run in parallel; B-10 is the only one that touches the database lane. The home-screen icon is **not** here but in early Phase 3 (P3-25): nothing in Phase 2 needs it, and it is checked on the same phones as the mobile-first field pass.
 
 ---
 
@@ -819,7 +820,7 @@ One list, de-duplicated. Answer only where you disagree with the recommendation.
 | 14 | Unverified platform facts (react-pdf and the ₱ glyph, Vercel limits and region, MS Project XML codes, `btree_gin` on uuid, Chrome install criteria) | Spikes and fixtures before the dependent UI (P5-24, P5-14, P3-25), documented fallbacks |
 | 15 | Free-plan limits in production (Supabase pausing after inactivity, Vercel Hobby non-commercial) | Questions 2 and 8; Pro plans at go-live |
 | 16 | Holidays missing for future years (2027 Eid, 2028+) push wrong dates | `ensure_calendar_years` and an info pill (P2), holidays migration when proclaimed (P5-40) |
-| 17 | Estimates are wrong | ≈ 109 agent-days ± 20 %; an explicit 4-day cut list; re-plan at the end of each phase from actual numbers |
+| 17 | Estimates are wrong | ≈ 110 agent-days ± 20 %; an explicit 4-day cut list; re-plan at the end of each phase from actual numbers |
 | 18 | Privacy texts are legally inadequate | Drafts marked for counsel review before go-live; not legal advice |
 
 ---
@@ -841,7 +842,7 @@ The four phase plans were reviewed (17 gaps, 24 conflicts, 19 oversized packages
 - Conflict 5 / gap 17: the "project unavailable" page is built in Phase 4 (P4-11), not P5-32, so one package owns the whole request-access flow.
 - Conflict 10: `push_default` is added to the notification catalog in P3-02a, so P5-09 needs no function drop at all.
 - Conflict 9: the 7-day media grace was only needed by the offline queue; with D7 it stays at 24 h, matching the media service's replay window (D44).
-- Effort: the review estimated ≈ 97–100 agent-days; this roadmap plans ≈ 109 because splitting exposed real sizes and the gap fixes add work, while D7 removed ≈ 14.5 days of offline work and added ≈ 3 days of simpler replacements (P3-23 to P3-25, B-09, the push-only worker).
+- Effort: the review estimated ≈ 97–100 agent-days; this roadmap plans ≈ 110 because splitting exposed real sizes and the gap fixes add work, while D7 removed ≈ 14.5 days of offline work and added ≈ 3 days of simpler replacements (P3-23 to P3-25, B-09, the push-only worker).
 
 ---
 
@@ -867,7 +868,7 @@ READ FIRST, in this order: CLAUDE.md (especially "Known pitfalls"), docs/HANDOFF
 WHERE THINGS STAND
 - Phases 0–1 (foundations + planning core) are built, merged, verified and pushed: auth and onboarding, projects home, project dashboard/settings/collaborators/audit trail, WBS (list + graph) and working calendar, profile, company settings and notifications. Next.js 16.4.2 on Vercel, Supabase, Brevo. The database refuses plan edits on completed/cancelled projects (migration 20261023090000_plan_lock).
 - The Rust media + cache service in backend/ is deployed on Render and passed a 15/15 live smoke test.
-- docs/ROADMAP.md is the proposed plan for Phases 2–5 (≈ 109 agent-days + UAT). It is a proposal: the owner still has to answer its "Decide first" questions (section 7).
+- docs/ROADMAP.md is the proposed plan for Phases 2–5 (≈ 110 agent-days + UAT). It is a proposal: the owner still has to answer its "Decide first" questions (section 7).
 
 LIVE SYSTEMS (be careful: they hold the owner's real data)
 - Supabase project CivPMS, ref bxfohhwvzbvmyokcsmwq (ap-southeast-1). There is no staging project yet (roadmap item B-03), so tests run on the live database. Tag every test record you create (e.g. "[P2] …") and never modify data you did not create.
@@ -895,6 +896,6 @@ ENVIRONMENT LESSONS (full list in CLAUDE.md → Known pitfalls)
 FIRST STEPS
 1. Verify the state: `git log --oneline -5`, the working tree is clean, Supabase list_migrations ends at 20261023090000_plan_lock, and https://civpms-media.onrender.com/healthz answers (the first call after idle can take 30–60 s).
 2. Show me the "Decide first" questions (ROADMAP §7), each with its recommended default, and wait for my answers. Record them in docs/DECISIONS.md.
-3. Then run "Before Phase 2" (ROADMAP §2) package by package, verifying each one: tests, typecheck, lint, build, e2e where relevant, then commit and push. B-10 (the profiles.avatar_url privacy fix) must land before Phase 2's first migration.
+3. Then run "Before Phase 2" (ROADMAP §2) package by package — start with B-11 (Oxlint, the Rust-based linter, owner request) so every later package and the CI (B-05) lint fast —, verifying each one: tests, typecheck, lint, build, e2e where relevant, then commit and push. B-10 (the profiles.avatar_url privacy fix) must land before Phase 2's first migration.
 4. Then start Phase 2 (ROADMAP §4.1) in the listed package order. Keep docs/HANDOFF.md and the ROADMAP status columns current as packages merge.
 ```
