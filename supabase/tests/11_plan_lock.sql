@@ -177,9 +177,9 @@ select tests.eq((select count(*)::text from public.activities where project_id =
 select tests.ok((select name = 'Work package' and est_cost = 250000 and parent_id = tests.id('d') and deleted_at is null
                    and version = tests.get('v_w')::integer
                    from public.activities where id = tests.id('w')), 'work package untouched');
-select tests.ok((select deleted_at is not null from public.activities where id = tests.id('gone')), 'trash untouched');
--- reads and project-level actions still work
-select tests.eq((select count(*) from public.activity_trash(tests.id('p'))), 1::bigint, 'trash still readable');
+-- reads and project-level actions still work (activities RLS hides deleted rows: read the trash)
+select tests.ok(exists (select 1 from public.activity_trash(tests.id('p')) t where t.batch_id = tests.id('batch')),
+                'trash untouched and still readable');
 select tests.eq((public.set_project_archived(tests.id('p'), true)).is_archived, true, 'completed project can be archived');
 select tests.logout();
 
