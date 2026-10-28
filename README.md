@@ -4,9 +4,10 @@
 Primavera and ProjectLibre, the field focus of Procore, with a modern, plain-language interface.
 Built for Philippine contractors (₱, Asia/Manila, PH holidays) but not tied to them.
 
-> Status: **Phases 0–1 (foundations + planning core) are built and verified.** Gantt,
-> dependencies/CPM, progress updates, inspections, S-curve, sharing, offline and import/export
-> come next (see [docs/HANDOFF.md](docs/HANDOFF.md)).
+> Status: **Phases 0–1 (foundations + planning core) are built and verified** — type check, lint,
+> 766 unit tests, production build, the full Playwright suite and a golden-path run on brand-new
+> accounts. Gantt, dependencies/CPM, progress updates, inspections, S-curve, sharing, offline and
+> import/export come next (see [docs/HANDOFF.md](docs/HANDOFF.md)).
 
 ![Projects home](docs/screenshots/final-home-light.png)
 
@@ -35,23 +36,35 @@ Built for Philippine contractors (₱, Asia/Manila, PH holidays) but not tied to
   per-event in-app/email preferences with a daily digest, live notification bell (Realtime) and
   a notifications page.
 - **Security** — Row Level Security on every table and `SECURITY DEFINER` RPCs that check the
-  caller's role: the database is the security boundary, never the UI.
+  caller's role (including the plan lock on Completed/Cancelled projects): the database is the
+  security boundary, never the UI. Append-only audit log written by triggers.
 - **Design** — Poppins, primary blue `#0866FF`, light **and** dark mode, WCAG 2.1 AA colours,
   keyboard friendly (⌘/Ctrl+K command palette, visible focus), skeleton loading, plain-language
   errors, confirm dialogs for destructive actions and Undo snackbars.
 
 ## Screenshots
 
+Demo company "Dela Cruz Builders" (seeded by `supabase/seed/demo.sql`), signed in as its Owner PM.
+
 | | |
 |---|---|
-| ![Work breakdown](docs/screenshots/final-wbs-light.png) Work breakdown (list) | ![Work breakdown graph](docs/screenshots/final-wbs-graph-dark.png) Graph view, dark mode |
-| ![Calendar](docs/screenshots/final-calendar-light.png) Working calendar | ![Dashboard](docs/screenshots/final-dashboard-dark.png) Project dashboard, dark mode |
-| ![Collaborators](docs/screenshots/final-collaborators-light.png) Collaborators | ![Audit trail](docs/screenshots/final-audit-light.png) Audit trail |
-| ![Inspector view](docs/screenshots/final-inspector-wbs-light.png) Inspector: read-only WBS | ![Company settings](docs/screenshots/final-company-light.png) Company settings |
+| ![Project dashboard](docs/screenshots/final-dashboard-light.png) **Project dashboard** — KPIs, needs attention, budget, schedule | ![Project dashboard, dark mode](docs/screenshots/final-dashboard-dark.png) **Dark mode** |
+| ![Work breakdown list](docs/screenshots/final-wbs-light.png) **Work breakdown** — inline edits, roll-ups, Delayed flags | ![Work breakdown graph](docs/screenshots/final-wbs-graph-dark.png) **WBS graph view** (dark) |
+| ![Working calendar](docs/screenshots/final-calendar-light.png) **Working calendar** — PH holidays, overrides, reschedule preview | ![Collaborators](docs/screenshots/final-collaborators-light.png) **Collaborators** — members, email invitations, invite codes |
+| ![Audit trail](docs/screenshots/final-audit-light.png) **Audit trail** — append-only, filters, CSV export | ![Company settings](docs/screenshots/final-company-dark.png) **Company settings** (dark) |
+| ![Profile](docs/screenshots/final-profile-light.png) **Profile** — photo, Hours \| Days, theme, notification preferences | ![Notifications](docs/screenshots/final-notifications-light.png) **Notifications** |
 
-Phone layouts: [`docs/screenshots/final-*-mobile.png`](docs/screenshots). Every screen of every
-feature: [`docs/screenshots/`](docs/screenshots) (`f1-*` auth & onboarding, `f2-*` home, `f3-*`
-workspace, `f4-*` WBS & calendar, `f5-*` profile, company & notifications, `final-*` golden path).
+<p>
+  <img src="docs/screenshots/final-home-mobile.png" alt="Projects home on a phone" width="200">
+  <img src="docs/screenshots/final-calendar-mobile.png" alt="Calendar on a phone" width="200">
+  <img src="docs/screenshots/final-collaborators-mobile.png" alt="Collaborators on a phone" width="200">
+</p>
+
+Every gallery screen also exists as `-light`, `-dark` and `-mobile` (390 px phone):
+[`docs/screenshots/final-*`](docs/screenshots). Per-feature screens: `f1-*` auth & onboarding,
+`f2-*` projects home, `f3-*` project workspace, `f4-*` WBS & calendar, `f5-*` profile, company &
+notifications. Regenerate the gallery with
+`FINAL_SHOTS=1 BASE_URL=http://localhost:3000 npx playwright test e2e/final-screenshots.spec.ts`.
 
 ## Stack
 
@@ -85,12 +98,26 @@ Demo accounts and projects: [supabase/seed/README.md](supabase/seed/README.md).
 | `npm run test:e2e` | Playwright end-to-end tests against the live Supabase project |
 | `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` |
 
+### Tests
+
+- **Unit** (`npm test`): pure business rules in `src/lib/domain` and server helpers.
+- **Database** (`supabase/tests/*.sql`): RLS and RPC behaviour; each file runs in one transaction
+  and rolls back (psql or the Supabase SQL editor).
+- **End-to-end** (`npm run test:e2e`): Playwright against the live Supabase project. Specs sign in
+  through `e2e/helpers/auth.ts` (needs `DEMO_PASSWORD` in `.env.local`) and tag their records
+  (`[F3] …`, `[QA] …`). Opt-in specs: the golden path on fresh accounts
+  (`e2e/final-golden-path.spec.ts`, `QA_STAMP` + `supabase/seed/qa-e2e.sql`), the media service
+  (`e2e/final-media-service.spec.ts`) and the screenshot generators (`*_SHOTS=1`); each file's
+  header says how to run it.
+
 ## Media service (optional)
 
 `backend/` holds **civpms-media**, a small Rust service (axum + ffmpeg + Redis) for image
 uploads (EXIF-stripped WebP) and cached, resilient reads. The web app works without it: when
 `NEXT_PUBLIC_MEDIA_API_URL` is not set, profile photos are resized in the browser and uploaded
-straight to Supabase Storage. Build, configure and deploy it (Render Blueprint `render.yaml`):
+straight to Supabase Storage. It runs on Render as `civpms-media`
+(<https://civpms-media.onrender.com>); set `NEXT_PUBLIC_MEDIA_API_URL` to that URL to use it.
+Build, configure and deploy it (Render Blueprint `render.yaml`):
 **[backend/README.md](backend/README.md)**.
 
 ## Project structure
