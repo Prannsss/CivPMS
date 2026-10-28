@@ -896,6 +896,6 @@ ENVIRONMENT LESSONS (full list in CLAUDE.md → Known pitfalls)
 FIRST STEPS
 1. Verify the state: `git log --oneline -5`, the working tree is clean, Supabase list_migrations ends at 20261023090000_plan_lock, and https://civpms-media.onrender.com/healthz answers (the first call after idle can take 30–60 s).
 2. Show me the "Decide first" questions (ROADMAP §7), each with its recommended default, and wait for my answers. Record them in docs/DECISIONS.md.
-3. Then run "Before Phase 2" (ROADMAP §2) package by package — start with B-11 (Oxlint, the Rust-based linter, owner request) so every later package and the CI (B-05) lint fast —, verifying each one: tests, typecheck, lint, build, e2e where relevant, then commit and push. B-10 (the profiles.avatar_url privacy fix) must land before Phase 2's first migration.
+3. Then run "Before Phase 2" (ROADMAP §2) package by package — start with B-11 (Oxlint, the Rust-based linter, owner request) so every later package and the CI (B-05) lint fast. Verify each one (tests, typecheck, lint, build, e2e where relevant), then commit and push. B-10 (the profiles.avatar_url privacy fix) must land before Phase 2's first migration.
 4. Then start Phase 2 (ROADMAP §4.1) in the listed package order. Keep docs/HANDOFF.md and the ROADMAP status columns current as packages merge.
 ```
