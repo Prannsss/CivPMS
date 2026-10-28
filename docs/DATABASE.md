@@ -40,6 +40,7 @@ Supabase project **CivPMS** (ref `bxfohhwvzbvmyokcsmwq`, ap-southeast-1, Postgre
 | `20261012001600_advisor_fixes.sql` | Explicit deny-all policy on `invite_code_attempts` |
 | `20261014090000_notification_email_digest.sql` | Daily email digest: `notification_prefs.email_digest` (`off`\|`daily`), outbox states `digest`/`digested`, `private.send_email_digests()`, pg_cron job `civpms-email-digest` at 22:55 UTC (06:55 Manila) |
 | `20261015100000_project_media_bucket.sql` | Private `project-media` bucket (WebP, 3 MB) + Storage policies for the media service (`backend/`) |
+| `20261023090000_plan_lock.sql` | Plan lock: `private.assert_plan_open()`; `private.lock_wbs()` and `private.get_managed_activity()` call it, so every WBS RPC and `save_calendar` refuse Completed/Cancelled projects with `FORBIDDEN` (after the permission check) |
 
 All of these are applied to the live project. `supabase_migrations.schema_migrations` holds the same versions and byte-identical statements as these files. Add changes as **new** migrations with a later timestamp; never edit an applied file.
 
@@ -199,6 +200,8 @@ Input normalisation: upper-case, spaces and dashes stripped, `O→0`, `I/L→1`,
 | `activity_trash(p_project_id uuid)` | Manager | `setof (batch_id, activity_id, wbs_code, name, level, total, deliverables, sub_deliverables, work_packages, deleted_at, deleted_by, deleted_by_name, restore_until, parent_deleted)`, deleted ≤ 30 days ago | `NOT_FOUND`, `FORBIDDEN` |
 
 The schedule math (end date from start + duration + calendar, D20) and the rollups (D21, D23) are done by the TS module. The database validates basic constraints and stores leaf values.
+
+**Plan lock:** every WBS RPC above that changes data (and `save_calendar`) raises `FORBIDDEN` with "This project is completed, so its plan is locked. Reopen it from Project settings to make changes." or "This project is cancelled, so its plan can't be changed." while the project is Completed or Cancelled. Reads (`activity_trash`) still work; reopening (Completed → Active) unlocks the plan.
 
 ### Calendar (spec §7)
 
@@ -377,6 +380,7 @@ supabase db push                                 # applies new files in supabase
 | `08_overview_jobs.sql` | `project_overview` numbers (allocated, parents ignored, cost/hours weights with fallbacks, `budget_state` at 90 % and exactly 100 %), budget-crossing alerts once and again after reset, delayed detection and reset, purge keeping log snapshots, email outbox claim/complete, preferences |
 | `09_notification_digest.sql` | `email_digest` validation and merge, digest hold in `notify()` only for email-eligible rows, one summary row per person with the capped list, held rows marked `digested`, job revoked from clients |
 | `10_project_media_storage.sql` | `project-media` bucket config and policies: owner/project PM/inspector read + upload under their project, generated-name pattern enforced, non-member PM and other company see and write nothing, inspectors cannot delete, PMs and the Owner PM can, avatars bucket unaffected |
+| `11_plan_lock.sql` | Completed project: create/update/move/delete/restore, `apply_schedule` and `save_calendar` all `FORBIDDEN` with the reason and nothing changes; trash still readable, archive still works; outsiders still get `NOT_FOUND` first; reopening unlocks; Cancelled stays locked |
 
 Run them with psql (PowerShell). Use the **Session pooler** connection string from Dashboard → Connect, and never commit it:
 
@@ -389,7 +393,7 @@ Get-ChildItem supabase/tests/*.sql | Sort-Object Name | ForEach-Object {
 }
 ```
 
-You can also paste a file into the Dashboard SQL editor, or run it through the Supabase MCP `execute_sql` tool. All eight passed against the live project on 2026-10-12.
+You can also paste a file into the Dashboard SQL editor, or run it through the Supabase MCP `execute_sql` tool. All eight passed against the live project on 2026-10-12; 10 on 2026-10-15; 11 on 2026-10-28 (through MCP `execute_sql`, ending in a raised sentinel instead of `ROLLBACK`, see `CLAUDE.md`).
 
 ## Advisors
 
