@@ -64,12 +64,17 @@ pub struct Config {
     pub app_origins: Vec<String>,
     pub max_upload_bytes: u64,
     pub max_image_pixels: u64,
+    /// Estimated decoder memory an image may need (see `media::sniff::HeaderInfo`).
+    pub max_decode_bytes: u64,
     pub ffmpeg_path: PathBuf,
     pub ffprobe_path: PathBuf,
     pub ffmpeg_concurrency: usize,
     pub ffmpeg_timeout: Duration,
-    /// How long an upload may wait for a free ffmpeg slot before getting `503 BUSY`.
+    /// How long an upload may wait for a free ffmpeg slot before getting `503 BUSY` (also how
+    /// long a user's next upload waits for their previous one).
     pub ffmpeg_queue_timeout: Duration,
+    /// Uploads that may be in progress at once on this instance (see `uploads.rs`).
+    pub max_concurrent_uploads: usize,
     pub avatar_bucket: String,
     pub media_bucket: String,
     pub signed_url_ttl: Duration,
@@ -77,6 +82,10 @@ pub struct Config {
     pub read_request_timeout: Duration,
     /// Timeout of one upstream (Supabase) attempt for reads.
     pub upstream_read_timeout: Duration,
+    /// Overall deadline of one upstream read, retries included: `READ_REQUEST_TIMEOUT_SECS`
+    /// minus [`READ_DEADLINE_MARGIN`], so a failed read still leaves time to serve stale data
+    /// (and to count the failure) before the request itself times out.
+    pub upstream_read_budget: Duration,
     /// Timeout of one upstream (Supabase Storage) upload.
     pub upstream_write_timeout: Duration,
     pub shutdown_grace: Duration,
@@ -101,10 +110,12 @@ impl fmt::Debug for Config {
             .field("app_origins", &self.app_origins)
             .field("max_upload_bytes", &self.max_upload_bytes)
             .field("max_image_pixels", &self.max_image_pixels)
+            .field("max_decode_bytes", &self.max_decode_bytes)
             .field("ffmpeg_path", &self.ffmpeg_path)
             .field("ffprobe_path", &self.ffprobe_path)
             .field("ffmpeg_concurrency", &self.ffmpeg_concurrency)
             .field("ffmpeg_timeout", &self.ffmpeg_timeout)
+            .field("max_concurrent_uploads", &self.max_concurrent_uploads)
             .field("avatar_bucket", &self.avatar_bucket)
             .field("media_bucket", &self.media_bucket)
             .field("keepalive", &self.keepalive)
@@ -122,6 +133,9 @@ pub struct ConfigError {
 }
 
 const MIB: u64 = 1024 * 1024;
+
+/// Time kept free at the end of a read request for the stale fallback and the response.
+pub const READ_DEADLINE_MARGIN: Duration = Duration::from_secs(2);
 
 impl Config {
     /// Reads the process environment.
@@ -161,6 +175,8 @@ impl Config {
         let max_upload_mb = p.number::<u64>("MAX_UPLOAD_MB", 15, 1, 100);
         let max_image_pixels =
             p.number::<u64>("MAX_IMAGE_PIXELS", 50_000_000, 1_000_000, 200_000_000);
+        // 200 MB keeps one ffmpeg run under ~280 MB RSS (fits Render's 512 MB free plan).
+        let max_decode_mb = p.number::<u64>("MAX_DECODE_MB", 200, 32, 4096);
         let ffmpeg_path =
             PathBuf::from(p.optional("FFMPEG_PATH").unwrap_or_else(|| "ffmpeg".into()));
         let ffprobe_path = PathBuf::from(
@@ -171,6 +187,15 @@ impl Config {
         let ffmpeg_concurrency = p.number::<usize>("FFMPEG_CONCURRENCY", cores.max(1), 1, 64);
         let ffmpeg_timeout = p.secs("FFMPEG_TIMEOUT_SECS", 30, 1, 300);
         let ffmpeg_queue_timeout = p.secs("FFMPEG_QUEUE_TIMEOUT_SECS", 20, 1, 120);
+        // Bounds temp disk (each upload up to MAX_UPLOAD_MB). Room for a short ffmpeg queue,
+        // and for a few slow clients still sending their bodies (each holds a place for up to
+        // UPLOAD_REQUEST_TIMEOUT_SECS) without refusing everyone else.
+        let max_concurrent_uploads = p.number::<usize>(
+            "MAX_CONCURRENT_UPLOADS",
+            (ffmpeg_concurrency * 4).clamp(8, 1024),
+            1,
+            1024,
+        );
 
         let avatar_bucket = p.bucket("AVATAR_BUCKET", "avatars");
         let media_bucket = p.bucket("MEDIA_BUCKET", "project-media");
@@ -180,6 +205,15 @@ impl Config {
         let read_request_timeout = p.secs("READ_REQUEST_TIMEOUT_SECS", 10, 1, 120);
         let upstream_read_timeout = p.secs("UPSTREAM_READ_TIMEOUT_SECS", 4, 1, 60);
         let upstream_write_timeout = p.secs("UPSTREAM_WRITE_TIMEOUT_SECS", 20, 1, 300);
+        if read_request_timeout < upstream_read_timeout + READ_DEADLINE_MARGIN {
+            p.problem(format!(
+                "READ_REQUEST_TIMEOUT_SECS ({}) must be at least UPSTREAM_READ_TIMEOUT_SECS ({}) + {}, so stale data can be served before a read request times out",
+                read_request_timeout.as_secs(),
+                upstream_read_timeout.as_secs(),
+                READ_DEADLINE_MARGIN.as_secs()
+            ));
+        }
+        let upstream_read_budget = read_request_timeout.saturating_sub(READ_DEADLINE_MARGIN);
         let shutdown_grace = p.secs("SHUTDOWN_GRACE_SECS", 25, 1, 300);
 
         let render_external_url = p
@@ -239,17 +273,20 @@ impl Config {
             app_origins,
             max_upload_bytes: max_upload_mb * MIB,
             max_image_pixels,
+            max_decode_bytes: max_decode_mb * MIB,
             ffmpeg_path,
             ffprobe_path,
             ffmpeg_concurrency,
             ffmpeg_timeout,
             ffmpeg_queue_timeout,
+            max_concurrent_uploads,
             avatar_bucket,
             media_bucket,
             signed_url_ttl,
             upload_request_timeout,
             read_request_timeout,
             upstream_read_timeout,
+            upstream_read_budget,
             upstream_write_timeout,
             shutdown_grace,
             keepalive,
@@ -268,7 +305,7 @@ impl Config {
     /// One-line, secret-free summary for the startup banner.
     pub fn summary(&self) -> String {
         format!(
-            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} ffmpeg_concurrency={} ffmpeg_timeout={}s buckets=({}, {}) keepalive={} idle={}s",
+            "port={} supabase={} redis={} origins={} max_upload={}MiB max_pixels={} max_decode={}MiB ffmpeg_concurrency={} ffmpeg_timeout={}s max_uploads={} upload_budget={}/min buckets=({}, {}) keepalive={} idle={}s",
             self.port,
             self.supabase_url,
             self.redis_url
@@ -277,8 +314,11 @@ impl Config {
             self.app_origins.join(","),
             self.max_upload_bytes / MIB,
             self.max_image_pixels,
+            self.max_decode_bytes / MIB,
             self.ffmpeg_concurrency,
             self.ffmpeg_timeout.as_secs(),
+            self.max_concurrent_uploads,
+            self.rate_limits.uploads_per_minute,
             self.avatar_bucket,
             self.media_bucket,
             if self.keepalive.enabled {
@@ -523,12 +563,17 @@ mod tests {
         );
         assert_eq!(cfg.max_upload_bytes, 15 * MIB);
         assert_eq!(cfg.max_image_pixels, 50_000_000);
+        assert_eq!(cfg.max_decode_bytes, 200 * MIB);
         assert_eq!(cfg.avatar_bucket, "avatars");
         assert_eq!(cfg.media_bucket, "project-media");
         assert_eq!(cfg.redis_url, None);
         assert!(!cfg.keepalive.enabled, "keep-alive is opt-in");
         assert_eq!(cfg.keepalive.idle, Duration::from_mins(14));
         assert!(cfg.ffmpeg_concurrency >= 1);
+        assert_eq!(
+            cfg.max_concurrent_uploads,
+            (cfg.ffmpeg_concurrency * 4).max(8)
+        );
         assert_eq!(
             cfg.rate_limits,
             RateLimitConfig {
@@ -645,6 +690,43 @@ mod tests {
             );
         }
         assert!(summary.contains("redis://***@red-abc:6379"));
+    }
+
+    #[test]
+    fn read_timeouts_leave_room_for_the_stale_fallback() {
+        let cfg = parse(&base()).unwrap();
+        assert_eq!(cfg.upstream_read_budget, Duration::from_secs(8));
+        let mut env = base();
+        env.insert("READ_REQUEST_TIMEOUT_SECS", "5");
+        env.insert("UPSTREAM_READ_TIMEOUT_SECS", "4");
+        let text = parse(&env).unwrap_err().to_string();
+        assert!(
+            text.contains("READ_REQUEST_TIMEOUT_SECS (5) must be at least"),
+            "{text}"
+        );
+        env.insert("READ_REQUEST_TIMEOUT_SECS", "6");
+        assert_eq!(
+            parse(&env).unwrap().upstream_read_budget,
+            Duration::from_secs(4)
+        );
+    }
+
+    #[test]
+    fn upload_admission_follows_ffmpeg_concurrency_unless_set() {
+        let mut env = base();
+        env.insert("FFMPEG_CONCURRENCY", "1");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 8);
+        env.insert("FFMPEG_CONCURRENCY", "4");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 16);
+        env.insert("MAX_CONCURRENT_UPLOADS", "2");
+        assert_eq!(parse(&env).unwrap().max_concurrent_uploads, 2);
+        env.insert("MAX_CONCURRENT_UPLOADS", "0");
+        assert!(
+            parse(&env)
+                .unwrap_err()
+                .to_string()
+                .contains("MAX_CONCURRENT_UPLOADS must be between 1 and 1024")
+        );
     }
 
     #[test]

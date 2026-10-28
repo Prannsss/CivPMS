@@ -6,12 +6,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::response::{IntoResponse, Response};
 use http::header::{AGE, CACHE_CONTROL, PRAGMA};
+use http::request::Parts;
 use http::{HeaderMap, HeaderValue};
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::time::Instant;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
@@ -22,6 +24,23 @@ use crate::state::AppState;
 
 /// Holidays change by proclamation a few times a year: serve stale copies for up to a week.
 const HOLIDAYS_STALE_MAX: Duration = Duration::from_hours(7 * 24);
+
+/// When upstream reads for this request must have finished: the request's arrival plus
+/// `Config::upstream_read_budget`. Extract it **first** (before `AuthUser`) so the time
+/// spent authenticating counts.
+#[derive(Debug, Clone, Copy)]
+pub struct ReadDeadline(pub Instant);
+
+impl FromRequestParts<AppState> for ReadDeadline {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(Instant::now() + state.config.upstream_read_budget))
+    }
+}
 
 pub(crate) fn wants_bypass(headers: &HeaderMap) -> bool {
     let has_no_cache = |value: Option<&HeaderValue>| {
@@ -55,6 +74,7 @@ fn policy(ttl: Duration, stale_max: Duration) -> CachePolicy {
 
 /// `GET /v1/projects`: the caller's projects (rows of `project_overview`).
 pub async fn list_projects(
+    ReadDeadline(deadline): ReadDeadline,
     State(state): State<AppState>,
     user: AuthUser,
     headers: HeaderMap,
@@ -69,21 +89,29 @@ pub async fn list_projects(
     let token: Arc<str> = Arc::from(user.token());
     let result = state
         .cache
-        .get_or_fetch(key, policy, wants_bypass(&headers), move || async move {
-            fetch_state
-                .supabase
-                .rest_get(
-                    &token,
-                    "/rest/v1/project_overview?select=*&order=updated_at.desc",
-                )
-                .await
-        })
+        .get_or_fetch(
+            key,
+            policy,
+            wants_bypass(&headers),
+            deadline,
+            move || async move {
+                fetch_state
+                    .supabase
+                    .rest_get(
+                        &token,
+                        "/rest/v1/project_overview?select=*&order=updated_at.desc",
+                        deadline,
+                    )
+                    .await
+            },
+        )
         .await?;
     Ok(cached_response(&result))
 }
 
 /// `GET /v1/projects/{id}/summary`: one row of `project_overview`.
 pub async fn project_summary(
+    ReadDeadline(deadline): ReadDeadline,
     State(state): State<AppState>,
     user: AuthUser,
     Path(raw_id): Path<String>,
@@ -101,16 +129,23 @@ pub async fn project_summary(
     let token: Arc<str> = Arc::from(user.token());
     let result = state
         .cache
-        .get_or_fetch(key, policy, wants_bypass(&headers), move || async move {
-            let rows = fetch_state
-                .supabase
-                .rest_get(
-                    &token,
-                    &format!("/rest/v1/project_overview?select=*&id=eq.{project_id}&limit=1"),
-                )
-                .await?;
-            first_row(rows)
-        })
+        .get_or_fetch(
+            key,
+            policy,
+            wants_bypass(&headers),
+            deadline,
+            move || async move {
+                let rows = fetch_state
+                    .supabase
+                    .rest_get(
+                        &token,
+                        &format!("/rest/v1/project_overview?select=*&id=eq.{project_id}&limit=1"),
+                        deadline,
+                    )
+                    .await?;
+                first_row(rows)
+            },
+        )
         .await?;
     Ok(cached_response(&result))
 }
@@ -134,6 +169,7 @@ pub struct HolidayQuery {
 
 /// `GET /v1/holidays?year=YYYY`: Philippine holidays (same for every signed-in user).
 pub async fn holidays(
+    ReadDeadline(deadline): ReadDeadline,
     State(state): State<AppState>,
     user: AuthUser,
     Query(query): Query<HolidayQuery>,
@@ -155,17 +191,24 @@ pub async fn holidays(
     let token: Arc<str> = Arc::from(user.token());
     let result = state
         .cache
-        .get_or_fetch(key, policy, wants_bypass(&headers), move || async move {
-            fetch_state
+        .get_or_fetch(
+            key,
+            policy,
+            wants_bypass(&headers),
+            deadline,
+            move || async move {
+                fetch_state
                 .supabase
                 .rest_get(
                     &token,
                     &format!(
                         "/rest/v1/ph_holidays?select=date,name,type&year=eq.{year}&order=date.asc"
                     ),
+                    deadline,
                 )
                 .await
-        })
+            },
+        )
         .await?;
     Ok(cached_response(&result))
 }

@@ -267,7 +267,7 @@ impl FakeSupabase {
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([
                 {"id": id.to_string(), "name": "Test project", "progress_pct": 12.5}
             ])))
-            .with_priority(1)
+            .with_priority(2) // below the outage simulations (priority 1)
             .mount(&self.server)
             .await;
     }
@@ -278,6 +278,34 @@ impl FakeSupabase {
             .and(path("/rest/v1/project_overview"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
             .with_priority(10)
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Makes the Auth JWKS endpoint hang for `delay` before answering.
+    pub async fn slow_jwks(&self, delay: Duration) {
+        Mock::given(method("GET"))
+            .and(path("/auth/v1/.well-known/jwks.json"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(jwks_json())
+                    .set_delay(delay),
+            )
+            .with_priority(1)
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Makes every PostgREST read hang for `delay` before answering (a slow Supabase).
+    pub async fn slow_rest(&self, delay: Duration) {
+        Mock::given(method("GET"))
+            .and(path_regex("^/rest/v1/.*"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([]))
+                    .set_delay(delay),
+            )
+            .with_priority(1)
             .mount(&self.server)
             .await;
     }
@@ -377,9 +405,20 @@ impl TestApp {
         redis_url: Option<&str>,
         extra: &[(&str, &str)],
     ) -> Self {
+        Self::with_clock(supabase, redis_url, extra, civpms_media::clock::system()).await
+    }
+
+    /// Like [`TestApp::with_supabase`], with an injectable clock (cache ages, JWKS age, rate
+    /// windows, breaker cool-downs). Token `exp` is still checked against the real time.
+    pub async fn with_clock(
+        supabase: FakeSupabase,
+        redis_url: Option<&str>,
+        extra: &[(&str, &str)],
+        clock: civpms_media::clock::SharedClock,
+    ) -> Self {
         let vars = env(&supabase.url(), redis_url, extra);
         let config = Config::from_lookup(|k| vars.get(k).cloned()).expect("valid test config");
-        let state = AppState::new(config).expect("state");
+        let state = AppState::with_clock(config, clock).expect("state");
         state.warm_up().await;
         let user = Uuid::new_v4();
         let token = mint(&supabase.issuer(), user, 3600, 0x42, KID);
@@ -543,6 +582,11 @@ impl Multipart {
 
 /// Generates an image with ffmpeg's test pattern. `ext` picks the format (jpg/png/webp/gif).
 pub fn image(width: u32, height: u32, ext: &str) -> Vec<u8> {
+    image_with(width, height, ext, "")
+}
+
+/// Like [`image`], with an explicit output pixel format (e.g. `rgba64be` for a 16-bit PNG).
+pub fn image_with(width: u32, height: u32, ext: &str, pix_fmt: &str) -> Vec<u8> {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join(format!("img.{ext}"));
     let status = Command::new("ffmpeg")
@@ -562,6 +606,11 @@ pub fn image(width: u32, height: u32, ext: &str) -> Vec<u8> {
             &["-c:v", "libaom-av1", "-still-picture", "1"][..]
         } else {
             &[]
+        })
+        .args(if pix_fmt.is_empty() {
+            Vec::new()
+        } else {
+            vec!["-pix_fmt", pix_fmt]
         })
         .arg(&out)
         .status()

@@ -1,4 +1,5 @@
-//! Image pipeline: sniff → header bomb guard → ffprobe → orientation → ffmpeg → verify.
+//! Image pipeline: sniff → header bomb guard (pixels and decoder memory) → ffprobe →
+//! orientation → ffmpeg → verify.
 //!
 //! Input files live in a per-request temporary directory that is deleted when the request
 //! ends (success, error, timeout or client disconnect). ffmpeg runs are limited by a
@@ -58,6 +59,7 @@ pub struct MediaProcessor {
     timeout: Duration,
     queue_timeout: Duration,
     max_pixels: u64,
+    max_decode_bytes: u64,
     capabilities: parking_lot::RwLock<Capabilities>,
     selftest: parking_lot::RwLock<SelfTest>,
 }
@@ -78,21 +80,33 @@ struct ProbeOutput {
     streams: Vec<ProbeStream>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 pub struct ProbeStream {
     #[serde(default)]
     pub width: u32,
     #[serde(default)]
     pub height: u32,
+    #[serde(default)]
+    pub pix_fmt: Option<String>,
+    #[serde(default)]
+    pub disposition: Disposition,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub struct Disposition {
+    /// 1 for the stream the container marks as the default (HEIF: the primary item).
+    #[serde(default)]
+    pub default: u8,
 }
 
 /// The picture to decode, chosen from the video streams ffprobe listed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Primary {
     /// Position among the input's video streams (`[0:v:N]`).
     pub stream: usize,
     pub width: u32,
     pub height: u32,
+    pub pix_fmt: Option<String>,
 }
 
 /// Why no single picture could be chosen.
@@ -106,7 +120,9 @@ pub enum PickError {
 }
 
 /// Picks the primary picture: the only stream, or the larger of a picture + its embedded
-/// thumbnail. More than two pictures means a tiled image ([`PickError::Tiled`]).
+/// thumbnail. Equal sizes (e.g. a picture and its alpha plane) go to the stream marked
+/// default, then to the first one. More than two pictures means a tiled image
+/// ([`PickError::Tiled`]).
 pub fn pick_primary(streams: &[ProbeStream]) -> Result<Primary, PickError> {
     let usable: Vec<(usize, &ProbeStream)> = streams
         .iter()
@@ -118,11 +134,18 @@ pub fn pick_primary(streams: &[ProbeStream]) -> Result<Primary, PickError> {
     }
     usable
         .into_iter()
-        .max_by_key(|(_, s)| u64::from(s.width) * u64::from(s.height))
+        .max_by_key(|(index, s)| {
+            (
+                u64::from(s.width) * u64::from(s.height),
+                s.disposition.default > 0,
+                std::cmp::Reverse(*index),
+            )
+        })
         .map(|(stream, s)| Primary {
             stream,
             width: s.width,
             height: s.height,
+            pix_fmt: s.pix_fmt.clone(),
         })
         .ok_or(PickError::Empty)
 }
@@ -138,6 +161,7 @@ impl MediaProcessor {
             timeout: config.ffmpeg_timeout,
             queue_timeout: config.ffmpeg_queue_timeout,
             max_pixels: config.max_image_pixels,
+            max_decode_bytes: config.max_decode_bytes,
             capabilities: parking_lot::RwLock::new(Capabilities::default()),
             selftest: parking_lot::RwLock::new(SelfTest::NotRun),
         }
@@ -241,6 +265,28 @@ impl MediaProcessor {
         work_dir: &Path,
         preset: Preset,
     ) -> Result<Processed, AppError> {
+        let mut slot_held = Duration::ZERO;
+        self.process_metered(input, work_dir, preset, &mut slot_held)
+            .await
+    }
+
+    /// Like [`MediaProcessor::process`], and reports in `slot_held` how long the job held an
+    /// ffmpeg slot, on failure too (a job killed at `FFMPEG_TIMEOUT_SECS` held it the
+    /// longest), so the caller can charge it to the user's upload budget.
+    pub async fn process_metered(
+        &self,
+        input: &Path,
+        work_dir: &Path,
+        preset: Preset,
+        slot_held: &mut Duration,
+    ) -> Result<Processed, AppError> {
+        if self.selftest() == SelfTest::Failed {
+            // Rotated photos would be stored sideways: refuse instead of corrupting them.
+            return Err(AppError::new(
+                ErrorCode::MediaUnavailable,
+                "Image processing is unavailable on this server. Try again later.",
+            ));
+        }
         let started = Instant::now();
         let head = read_head(input).await?;
         let kind = sniff::sniff(&head).ok_or_else(|| {
@@ -258,9 +304,11 @@ impl MediaProcessor {
             return Err(AppError::new(ErrorCode::UnsupportedMediaType, message));
         }
 
-        // Bomb guard #1: dimensions from the container header, before any decoding.
-        if let Some((w, h)) = sniff::header_dimensions(kind, &head) {
-            self.check_pixels(w, h)?;
+        // Bomb guard #1: dimensions and decoder memory from the container header, before any
+        // decoding (ffprobe itself decodes a PNG frame).
+        if let Some(info) = sniff::header_info(kind, &head) {
+            self.check_pixels(info.width, info.height)?;
+            self.check_decode_memory(info.width, info.height, info.decode_bytes)?;
         } else if !matches!(kind, ImageKind::Heif | ImageKind::Avif) {
             return Err(AppError::new(
                 ErrorCode::ProcessingFailed,
@@ -280,11 +328,26 @@ impl MediaProcessor {
             )
             .with_retry_after(5));
         };
+        let _meter = SlotMeter {
+            started: Instant::now(),
+            out: slot_held,
+        };
 
         // Bomb guard #2: ffprobe with -max_pixels (also the only size source for HEIF/AVIF).
         let primary = self.probe(input, kind).await?;
         let (src_w, src_h) = (primary.width, primary.height);
         self.check_pixels(src_w, src_h)?;
+        if kind.container_orientation() {
+            // No header estimate for HEIF/AVIF: use the decoder's pixel format, doubled for
+            // the HEVC/AV1 decoders' own picture buffers.
+            let per_pixel = primary
+                .pix_fmt
+                .as_deref()
+                .map_or(8.0, sniff::pix_fmt_bytes_per_pixel);
+            let pixels = u64::from(src_w) * u64::from(src_h);
+            let estimate = (pixels as f64 * per_pixel * 2.0).ceil() as u64;
+            self.check_decode_memory(src_w, src_h, estimate)?;
+        }
 
         let orientation = if kind.container_orientation() {
             None
@@ -357,6 +420,25 @@ impl MediaProcessor {
         Ok(())
     }
 
+    fn check_decode_memory(&self, w: u32, h: u32, estimate: u64) -> Result<(), AppError> {
+        if estimate <= self.max_decode_bytes {
+            return Ok(());
+        }
+        tracing::info!(
+            width = w,
+            height = h,
+            estimate_mb = estimate / (1024 * 1024),
+            limit_mb = self.max_decode_bytes / (1024 * 1024),
+            "image refused: decoding would need too much memory"
+        );
+        Err(AppError::new(
+            ErrorCode::ImageTooLarge,
+            format!(
+                "This {w}×{h} image needs too much memory to process (high bit depth, transparency or progressive encoding). Save it as a normal JPEG or make it smaller."
+            ),
+        ))
+    }
+
     async fn probe(&self, input: &Path, kind: ImageKind) -> Result<Primary, AppError> {
         let args = transcode::ffprobe_args(input, kind, self.max_pixels);
         let output = tools::run(&self.ffprobe, &args, self.timeout)
@@ -398,6 +480,18 @@ impl MediaProcessor {
     }
 }
 
+/// Writes how long the ffmpeg slot was held into `out` when dropped (on every exit path).
+struct SlotMeter<'a> {
+    started: Instant,
+    out: &'a mut Duration,
+}
+
+impl Drop for SlotMeter<'_> {
+    fn drop(&mut self) {
+        *self.out = self.started.elapsed();
+    }
+}
+
 async fn read_head(input: &Path) -> Result<Vec<u8>, AppError> {
     let file = tokio::fs::File::open(input)
         .await
@@ -434,8 +528,12 @@ async fn read_output(path: &Path) -> Result<Encoded, AppError> {
 mod tests {
     use super::*;
 
-    const fn stream(width: u32, height: u32) -> ProbeStream {
-        ProbeStream { width, height }
+    fn stream(width: u32, height: u32) -> ProbeStream {
+        ProbeStream {
+            width,
+            height,
+            ..ProbeStream::default()
+        }
     }
 
     #[test]
@@ -445,9 +543,35 @@ mod tests {
             Ok(Primary {
                 stream: 0,
                 width: 4032,
-                height: 3024
+                height: 3024,
+                pix_fmt: None,
             })
         );
+    }
+
+    /// Regression (review finding): `max_by_key` returns the *last* of equal maxima, so a
+    /// picture followed by its same-sized alpha plane decoded the alpha plane.
+    #[test]
+    fn equal_sizes_prefer_the_default_stream_then_the_first() {
+        let pick = |streams: &[ProbeStream]| pick_primary(streams).map(|p| p.stream);
+        assert_eq!(pick(&[stream(640, 480), stream(640, 480)]), Ok(0));
+        let mut default = stream(640, 480);
+        default.disposition.default = 1;
+        assert_eq!(pick(&[stream(640, 480), default.clone()]), Ok(1));
+        assert_eq!(pick(&[default, stream(640, 480)]), Ok(0));
+        // Size still wins over the flag (a default-marked thumbnail is not the picture).
+        let mut thumb = stream(320, 240);
+        thumb.disposition.default = 1;
+        assert_eq!(pick(&[thumb, stream(4032, 3024)]), Ok(1));
+    }
+
+    #[test]
+    fn probe_output_with_disposition_and_pixel_format_parses() {
+        let json = br#"{"streams":[{"index":0,"codec_name":"av1","width":640,"height":480,"pix_fmt":"yuv420p","disposition":{"default":1}}]}"#;
+        let streams = serde_json::from_slice::<ProbeOutput>(json).unwrap().streams;
+        let primary = pick_primary(&streams).unwrap();
+        assert_eq!(primary.pix_fmt.as_deref(), Some("yuv420p"));
+        assert_eq!(streams[0].disposition.default, 1);
     }
 
     #[test]
@@ -456,6 +580,7 @@ mod tests {
             stream: 1,
             width: 4032,
             height: 3024,
+            pix_fmt: None,
         });
         assert_eq!(
             pick_primary(&[stream(320, 240), stream(4032, 3024)]),

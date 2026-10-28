@@ -133,7 +133,7 @@ header() { grep -i "^$1:" "$WORK/headers" | tail -n 1 | cut -d' ' -f2- | tr -d '
 ms() { awk -v s="$1" 'BEGIN { printf "%.0f ms", s * 1000 }'; }
 
 read -r status secs < <(api GET /readyz)
-say "  /readyz → $status in $(ms "$secs"): $(jq -c '{status, redis: .checks.redis.status, jwks: .checks.jwks.status, ffmpeg: .checks.media.ffmpeg_version, heic: .checks.media.formats.heic, avif: .checks.media.formats.avif, selftest: .checks.media.orientation_selftest}' "$WORK/body")"
+say "  /readyz → $status in $(ms "$secs"): $(jq -c '{status, redis: .checks.redis.status, jwks: .checks.jwks.status, ffmpeg: .checks.media.ffmpeg_version, heic: .checks.media.formats.heic, avif: .checks.media.formats.avif, selftest: .checks.media.orientation_selftest, uploads: .checks.uploads}' "$WORK/body")"
 check '[[ "$status" == 200 ]]' "GET /readyz → 200 (Redis up, JWKS loaded, ffmpeg ready)"
 
 # ---------------------------------------------------------------------------

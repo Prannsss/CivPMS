@@ -35,6 +35,7 @@ pub enum ErrorCode {
     RateLimited,
     UpstreamUnavailable,
     Busy,
+    MediaUnavailable,
     Timeout,
     Validation,
     Internal,
@@ -54,7 +55,9 @@ impl ErrorCode {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
-            Self::UpstreamUnavailable | Self::Busy => StatusCode::SERVICE_UNAVAILABLE,
+            Self::UpstreamUnavailable | Self::Busy | Self::MediaUnavailable => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             Self::Timeout => StatusCode::GATEWAY_TIMEOUT,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -74,6 +77,7 @@ impl ErrorCode {
             Self::RateLimited => "RATE_LIMITED",
             Self::UpstreamUnavailable => "UPSTREAM_UNAVAILABLE",
             Self::Busy => "BUSY",
+            Self::MediaUnavailable => "MEDIA_UNAVAILABLE",
             Self::Timeout => "TIMEOUT",
             Self::Validation => "VALIDATION",
             Self::Internal => "INTERNAL",
@@ -97,6 +101,7 @@ impl ErrorCode {
                 "The data service is unavailable right now. Try again shortly."
             }
             Self::Busy => "The server is busy processing other images. Try again shortly.",
+            Self::MediaUnavailable => "Image processing is unavailable on this server.",
             Self::Timeout => "The request took too long. Try again.",
             Self::Validation => "The request is not valid.",
             Self::Internal => "Something went wrong on our side. Try again.",

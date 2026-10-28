@@ -220,6 +220,12 @@ describe("initials", () => {
     ["", "?"],
     [null, "?"],
     ["@", "?"],
+    ["[QA] Ivan Reyes", "IR"],
+    ["[F4] Olivia Ocampo", "OO"],
+    ["(Demo) maria", "M"],
+    ["[F4]", "F"],
+    ["Juan (Engr.) Cruz", "JC"],
+    ["- & -", "?"],
   ])("%j → %s", (name, expected) => {
     expect(initials(name)).toBe(expected);
   });

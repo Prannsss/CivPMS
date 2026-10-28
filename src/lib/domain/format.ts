@@ -171,10 +171,22 @@ export function parseDurationInput(text: string, unit: DurationUnit, hoursPerDay
   return roundTo(amount * hoursPerDay, 2);
 }
 
-/** Avatar initials: 'Maria Santos' → 'MS', 'maria' → 'M', 'maria@x.com' → 'M', '' → '?'. */
+/** Words of a name for initials: leading punctuation dropped, words without letters/digits skipped. */
+function initialWords(text: string): string[] {
+  return text
+    .split(/[\s._-]+/)
+    .map((word) => word.replace(/^[^\p{L}\p{N}]+/u, ""))
+    .filter((word) => word.length > 0);
+}
+
+/**
+ * Avatar initials: 'Maria Santos' → 'MS', 'maria' → 'M', 'maria@x.com' → 'M', '' → '?'.
+ * A leading tag in brackets is skipped ('[QA] Ivan Reyes' → 'IR') unless it is all there is.
+ */
 export function initials(name: string | null | undefined): string {
   const base = (name ?? "").split("@")[0]!.trim();
-  const words = base.split(/[\s._-]+/).filter((w) => w.length > 0);
+  const untagged = initialWords(base.replace(/^[[(][^\])]*[\])]/, ""));
+  const words = untagged.length > 0 ? untagged : initialWords(base);
   if (words.length === 0) return "?";
   const first = Array.from(words[0]!)[0]!;
   if (words.length === 1) return first.toUpperCase();

@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
-import { Bell } from "lucide-react";
-import { ScreenPlaceholder } from "@/components/app-shell/screen-placeholder";
+import { NotificationsView } from "@/components/notifications-page/notifications-view";
 import { requireOnboarded } from "@/server/context";
+import {
+  getNotificationsOverview,
+  getNotificationsPage,
+  parseNotificationsFilter,
+} from "@/server/queries/notifications-page";
 
 export const metadata: Metadata = { title: "Notifications" };
 
-/** Placeholder: the notifications team replaces this page (spec §14). The bell already works. */
-export default async function NotificationsPage() {
+/** All your notifications (spec §14), newest first, with filters in the URL. */
+export default async function NotificationsPage({ searchParams }: PageProps<"/notifications">) {
   await requireOnboarded();
-  return (
-    <ScreenPlaceholder
-      title="Notifications"
-      description="Invitations, project alerts and updates"
-      icon={<Bell />}
-      upcoming="Your full notification history with filters by project and type. Until then, the bell at the top shows your latest notifications."
-    />
-  );
+  const params = await searchParams;
+  const filter = parseNotificationsFilter({ filter: params.filter, project: params.project });
+  const [page, overview] = await Promise.all([getNotificationsPage(filter), getNotificationsOverview()]);
+  const key = `${filter.unread ? "unread" : "all"}:${filter.projectId ?? "all"}`;
+  return <NotificationsView key={key} page={page} filter={filter} overview={overview} now={new Date().toISOString()} />;
 }

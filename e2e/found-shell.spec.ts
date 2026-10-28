@@ -24,7 +24,10 @@ test("the user menu shows Company settings to the Owner PM only", async ({ page,
   await expect(page.getByRole("menu").getByRole("menuitem", { name: "Company settings" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Company settings are for the Owner PM" })).toBeVisible();
+  // F5: other PMs get a read-only view of the company (no rename form).
+  await expect(page.getByRole("heading", { level: 1, name: "Company settings" })).toBeVisible();
+  await expect(page.getByText("Only the Owner PM can change company details and members.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("form", { name: "Rename company" })).toHaveCount(0);
 });
 
 test("the palette remembers opened projects and switches the theme", async ({ page, context }) => {
