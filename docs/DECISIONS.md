@@ -12,6 +12,7 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D4 | Product name **CivPMS**, brand blue **#0866FF**, Poppins, black/white backgrounds. | Owner decision (answers Q16 except final logo, which is `public/logo.svg`). |
 | D5 | **Dark mode ships in v1** (light/dark/system). | Owner decision; overrides spec §17.1 "light only". Brand blue fails AA as small text on black, so dark mode uses `#4C8DFF` for blue text/links and keeps `#0866FF` for filled buttons. |
 | D6 | `cacheComponents` disabled. | Almost every screen is per-user and dynamic; Suspense streaming + skeletons still apply. |
+| D7 | **Offline mode is out of scope**: no service worker caching, offline queue or background sync. Field forms instead keep what was typed (including picked photos) when a save fails, autosave a local draft, and every save is retry-safe (`client_id`). An installable "Add to Home screen" icon is kept (web manifest + icons only, roadmap P3-25). | Owner decision 2026-10-28. Removes about 14.5 agent-days and the riskiest technology from Phase 4; spec §13 offline items and the §17.2 "offline queue" line are dropped (confirm with the client). See `docs/ROADMAP.md`. |
 
 ## Onboarding & membership
 
