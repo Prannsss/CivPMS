@@ -149,6 +149,8 @@ Environment (cloud container)
 - `tsc` alone fails on `LayoutProps` → always use `npm run typecheck` (runs `next typegen` first).
 - Playwright 1.56.1 with Chromium in `/opt/pw-browsers`; never run `playwright install`.
 - Machine has 4 CPUs / 15 GB → at most 2 heavy agents (dev server + build) at a time.
+- Never `pkill -f "<pattern>"` from the Bash tool: the tool's own shell command line contains the pattern, so it kills itself (exit 144). Find the PID (`ps -eo pid,args`) and `kill <pid>`.
+- `NEXT_PUBLIC_*` values are inlined when `next dev` compiles, and two dev servers in one checkout share `.next/dev` → to test another value (e.g. `NEXT_PUBLIC_MEDIA_API_URL`), stop the server, delete `.next/dev` and start it again with the new env.
 
 Long-running agent work
 - **Usage limits interrupt agents mid-task** (happened 4 times). Commit WIP early and often (checkpoint commits on the feature branch), keep each agent's scope small, and on resume give the agent a "RESUME MODE" note: worktree path, branch, what is done, what is left. Never assume uncommitted work survives.
@@ -161,7 +163,8 @@ Supabase
 - Users created by SQL need rows in **both** `auth.users` and `auth.identities`, with token columns `''` (not NULL), or GoTrue refuses the sign-in.
 - Default Supabase SMTP only emails project team members → sign-up confirmation fails for real users until Brevo SMTP is configured. Google OAuth is not configured yet (UI shows a friendly toast).
 - `redeem_invite_code` returns `{ ok:false, error_code }` instead of raising (the failed-attempt row must persist for rate limiting) → handle with `errorFromRpcResult`.
-- The DB allows WBS edits on completed/cancelled projects → the UI must block them.
+- Since `20261023090000_plan_lock.sql` the database refuses WBS/calendar edits on Completed/Cancelled projects (FORBIDDEN from `private.assert_plan_open`, called by `private.lock_wbs` and `private.get_managed_activity`). New WBS/calendar RPCs must call one of them after their permission check; keep the UI lock and `planLockFor` for the friendly message.
+- Running a `supabase/tests/*.sql` file through MCP `execute_sql`: replace the final `select … passed; rollback;` with `do $$ begin raise exception 'ROLLBACK-SENTINEL: all assertions passed'; end $$;` — the error proves every assertion ran and forces the rollback. Inside tests, `activities` RLS hides soft-deleted rows: read the trash through `activity_trash()`.
 - Demo password lives only in `.env.local` (`DEMO_PASSWORD`); seed files read it via `current_setting('civpms.demo_password')`. Never write it into a file or report.
 
 Code
@@ -171,3 +174,4 @@ Code
 - Realtime: a row created between server render and subscription is lost → subscribe with `wait` and catch up once on every (re)subscribe, de-duplicating by id (see the notification bell).
 - In development Next logs Server Action arguments → passwords sent to actions appear in the dev log. Do not paste dev logs anywhere public.
 - Never hard-code demo data assumptions in e2e specs without tagging test records (`[F3] …`); the database is shared by all agents.
+- Shared e2e account pools (`f1-pool-*`) are used by every container, but the "used" list (`test-results/.f1-pool.json`) is per container → a pool account can be half-onboarded by another run. `claimFreshAccount()` skips accounts with a saved role; do the same for any new pool.
