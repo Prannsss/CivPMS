@@ -29,7 +29,7 @@ pitfalls live in `CLAUDE.md` → "Known pitfalls" — read them before working.
 | `npx eslint src e2e` | pass (0 problems) |
 | `npx vitest run` | 42 files, 766 tests passed |
 | `npm run build` (without `NODE_USE_ENV_PROXY`) | pass — 28 routes + proxy |
-| Full Playwright suite (`BASE_URL=http://localhost:3210 npx playwright test`) | __E2E_FINAL__ |
+| Full Playwright suite (`BASE_URL=http://localhost:3210 npx playwright test`) | **104 passed, 0 failed**, 45 skipped (opt-in only), 8.4 min — final run on 2026-10-28 after every change, including the database plan lock |
 | Golden path, fresh accounts (`QA_STAMP=1028045926`, seed `supabase/seed/qa-e2e.sql`) | 8 / 8 passed: onboard → company → project → WBS → calendar reschedule → email invite → inspector accepts (read-only) → audit trail → profile/company/notifications → rival company sees nothing (UI + database) |
 | Media service spec, local `civpms-media` (build of `9cdcc5c`) + Redis | `QA_MEDIA_EXPECT=service` passed (upload through the service, 256×256 WebP); `QA_MEDIA_EXPECT=fallback` passed (service stopped → browser resize + direct Storage upload) |
 | `supabase/tests/11_plan_lock.sql` on the live DB (rolled back) | all assertions passed; Supabase advisors after the migration: no new findings |
@@ -40,7 +40,8 @@ Earlier runs of the same day: Playwright 103 passed, 1 failed, 44 skipped. The f
 data, not the app: `f1-pool-24` had been left half-onboarded (name + Inspector saved) by a run in
 another container, so onboarding resumed at step 3. `claimFreshAccount()` now skips such accounts
 (`e2e/f1-support.ts`); the spec then passed 4/4. The 44 skipped tests are the opt-in generators and
-specs (`f2/f3/f4/f5-screenshots`, `final-screenshots`, `final-golden-path`, `final-media-service`).
+specs (`f2/f3/f4/f5-screenshots`, `final-golden-path`, `final-media-service`; the final run also
+counts the new `final-screenshots`, hence 45).
 
 Review of `src/server/actions/**` (11 files) and every `src/app/**/route.ts` (6 handlers): every
 action validates with zod, runs as the signed-in user (`@/lib/supabase/server`, RLS + RPC role
