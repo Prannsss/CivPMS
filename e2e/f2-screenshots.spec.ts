@@ -98,7 +98,7 @@ const SHOTS: Shot[] = [
   {
     name: "home-no-match",
     who: "owner",
-    url: "/?q=marikina",
+    url: "/?status=completed",
     prepare: async (page) => {
       await expect(page.getByTestId("projects-filter-empty")).toBeVisible();
     },

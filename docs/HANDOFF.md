@@ -77,6 +77,8 @@ branch contains the earlier ones, so its PR shows only its own commits once the 
 10. `feat/scurve-planned`: Stage A S-curve (`/projects/[id]/s-curve`), planned line from the baseline,
     `domain/scurve.ts`, `e2e/p2-scurve.spec.ts`; `shell` / `found-shell` specs expect the live pages.
 11. `fix/topbar-search-center`: the top-bar search pill sits in the middle of the bar (`1fr auto 1fr`).
+12. `feat/home-toolbar`: projects home: status filter spans the row, the page search box is gone (⌘K
+    searches; old `?q=` links are ignored), the sort sits beside Add project.
 
 Not run in this session: the **full** Playwright suite (the cloud environment has no `DEMO_PASSWORD` or
 secret keys, so the demo accounts can't sign in). Run against the live project instead: `e2e/styleguide`
