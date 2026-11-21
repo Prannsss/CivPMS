@@ -106,8 +106,8 @@ function TopBarSkeleton({ className }: { className?: string }) {
 export function ProjectFrameSkeleton() {
   return (
     <div className="flex min-h-dvh bg-background">
-      <div aria-hidden className="sticky top-0 hidden h-dvh w-[18.5rem] shrink-0 p-3 pr-0 lg:block">
-        <div className="flex h-full flex-col rounded-2xl bg-sidebar-bg p-3 shadow-md dark:border dark:border-sidebar-border">
+      <div aria-hidden className="sticky top-0 hidden h-dvh w-[17.75rem] shrink-0 lg:block">
+        <div className="flex h-full flex-col rounded-r-md bg-sidebar-bg p-3 shadow-md dark:border-r dark:border-sidebar-border">
           <div className="h-9 w-32 rounded-full bg-sidebar-hover" />
           <div className="flex items-center gap-3 px-2 pt-4 pb-5">
             <div className="size-12 shrink-0 rounded-full bg-sidebar-hover" />

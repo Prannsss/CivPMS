@@ -16,7 +16,8 @@ export type ProjectShellProps = {
 };
 
 /**
- * Project workspace frame (mockup 8): floating blue sidebar (collapsible to icons on lg),
+ * Project workspace frame (mockup 8): blue sidebar flush with the left edge, full height, with
+ * 12 px rounded top-right and bottom-right corners (collapsible to icons on lg),
  * top bar and content. Below lg the sidebar becomes an off-canvas sheet opened from the
  * top bar's hamburger.
  */
@@ -37,8 +38,8 @@ export function ProjectShell({ sidebar, topBar, palette, children, contentClassN
       <aside
         aria-label="Project navigation"
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 p-3 pr-0 transition-[width] duration-200 ease-out lg:block",
-          collapsed ? "w-[5.75rem]" : "w-[18.5rem]",
+          "sticky top-0 hidden h-dvh shrink-0 transition-[width] duration-200 ease-out lg:block",
+          collapsed ? "w-[5rem]" : "w-[17.75rem]",
         )}
       >
         <ProjectSidebar
@@ -46,14 +47,14 @@ export function ProjectShell({ sidebar, topBar, palette, children, contentClassN
           mode="rail"
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
-          className="rounded-2xl border border-transparent shadow-md dark:border-sidebar-border"
+          className="rounded-r-md border-r border-transparent shadow-md dark:border-sidebar-border"
         />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side="left"
-          className="border-sidebar-border bg-sidebar-bg p-0 lg:hidden"
+          className="overflow-hidden rounded-r-md border-sidebar-border bg-sidebar-bg p-0 lg:hidden"
           closeClassName="text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg focus-visible:outline-sidebar-fg"
         >
           <SheetTitle className="sr-only">{sidebar.project.name} navigation</SheetTitle>

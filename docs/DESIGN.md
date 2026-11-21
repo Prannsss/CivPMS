@@ -68,7 +68,7 @@ All colors are CSS variables on `:root` (light) and `.dark`, exposed to Tailwind
 | `success` / `-soft` / `-text` / `-foreground` | `#16A34A` / `#DCFCE7` / `#166534` / `#0A0A0A` | `#22C55E` / `rgba(34,197,94,.16)` / `#4ADE80` / `#0A0A0A` | Completed |
 | `info` / `-soft` / `-text` / `-foreground` | `#0EA5E9` / `#E0F2FE` / `#075985` / `#0A0A0A` | `#38BDF8` / `rgba(56,189,248,.16)` / `#7DD3FC` / `#0A0A0A` | Ongoing |
 | `neutral` / `-soft` / `-text` / `-foreground` | `#64748B` / `#F1F5F9` / `#334155` / white | `#71717A` / `rgba(161,161,170,.16)` / `#D4D4D8` / white | Not Started, Planning, Cancelled |
-| `sidebar-bg` / `-fg` / `-muted` / `-hover` | `#0866FF` / white / `#CFE0FF` / `#0757E0` | `#0B0B0C` / `#E4E4E7` / `#A1A1AA` / `#1C1C20` | project sidebar (D33) |
+| `sidebar-bg` / `-fg` / `-muted` / `-hover` | `#0866FF` / white / `#CFE0FF` / `#0757E0` | `#0B0B0C` / `#E4E4E7` / `#A1A1AA` / `#1C1C20` | project sidebar (D33): flush with the left edge, full height, `rounded-r-md` (12 px) top-right and bottom-right |
 | `sidebar-active-bg` / `-active-fg` / `-border` | white / `#0A0A0A` / `rgba(255,255,255,.2)` | `#0866FF` / white / `#27272A` | active nav pill |
 | `inverse` / `inverse-foreground` | `#18181B` / `#FAFAFA` | `#27272A` / `#FAFAFA` | tooltips |
 | `ring` | `#0866FF` | `#4C8DFF` | focus ring |
