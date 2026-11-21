@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Download, Search, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { DateInput } from "@/components/ui/date-input";
 import { Field } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
@@ -131,20 +132,18 @@ export function AuditFiltersBar({
         )}
       >
         <Field label="Person">
-          <Select value={filters.person ?? ALL} onValueChange={(value) => apply({ person: value === ALL ? null : value })}>
-            <SelectTrigger>
-              <SelectValue placeholder="Everyone">{filters.person ? (personName ?? "Selected person") : "Everyone"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Everyone</SelectItem>
-              {actors.length > 0 ? <SelectSeparator /> : null}
-              {actors.map((actor) => (
-                <SelectItem key={actor.id} value={actor.id}>
-                  {actor.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={filters.person ?? ALL}
+            onValueChange={(value) => apply({ person: value === ALL ? null : value })}
+            options={[
+              { value: ALL, label: "Everyone" },
+              // A person from the URL who is no longer listed still shows as the current choice.
+              ...(filters.person && !personName ? [{ value: filters.person, label: "Selected person" }] : []),
+              ...actors.map((actor) => ({ value: actor.id, label: actor.name })),
+            ]}
+            placeholder="Everyone"
+            emptyMessage="Nobody by that name made changes here. Check the spelling or pick Everyone."
+          />
         </Field>
         <Field label="Type">
           <Select value={filters.type ?? ALL} onValueChange={(value) => apply({ type: value === ALL ? null : (value as AuditType) })}>

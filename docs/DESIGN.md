@@ -359,7 +359,8 @@ import { HomeShell, ProjectShell, TopBarGreeting } from "@/components/shell";
 | `PasswordInput` | all `Input` props | Show/hide toggle with `aria-pressed`. |
 | `Textarea` | `invalid` | |
 | `Label` | `required` | Red `*` marker plus a screen-reader "required". |
-| `Select` (+ `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`) | Radix Select | The trigger reads Field context. |
+| `Select` (+ `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`) | Radix Select | The trigger reads Field context. Use for **short fixed lists** (≤ ~8 options: sort order, expiry, audit type). |
+| `Combobox` | `options [{value, label, keywords?}]`, `value`, `onValueChange`, `placeholder`, `emptyMessage`, `invalid`, `disabled`, `className`, `contentClassName` | Use for **lists that grow with the data** (projects, people). The input is the search box: click or type to filter (every word, any order, case- and accent-insensitive), ↑/↓, Enter, Esc; the current choice stays as the placeholder while searching. WAI-ARIA combobox + listbox (`aria-expanded`, `aria-activedescendant`, `aria-selected`), reads Field context, panel matches the input width and is edge-safe. Used by the Notifications page and bell project filters and the audit Person filter. |
 | `Checkbox` | `label`, `description`, `checked` (`true` · `false` · `"indeterminate"`) | |
 | `Switch` | `label`, `description` | |
 | `RadioGroup` / `RadioGroupItem` | `label`, `description` | |

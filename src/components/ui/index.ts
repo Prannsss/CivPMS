@@ -7,6 +7,7 @@ export * from "./badge";
 export * from "./button";
 export * from "./card";
 export * from "./checkbox";
+export * from "./combobox";
 export * from "./color-swatch-picker";
 export * from "./confirm-dialog";
 export * from "./control-classes";
