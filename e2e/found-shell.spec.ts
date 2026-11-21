@@ -12,7 +12,9 @@ test("the user menu shows Company settings to the Owner PM only", async ({ page,
   await page.goto("/");
   await page.getByRole("button", { name: "Account menu for Juan Dela Cruz" }).click();
   const menu = page.getByRole("menu");
-  await expect(menu.getByText("Owner PM · Dela Cruz Builders")).toBeVisible();
+  await expect(menu.getByText("Owner PM", { exact: true })).toBeVisible();
+  await expect(menu.getByText("Dela Cruz Builders", { exact: true })).toBeVisible();
+  await expect(menu.getByText("owner@civpms.test")).toHaveCount(0);
   await menu.getByRole("menuitem", { name: "Company settings" }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { level: 1, name: "Company settings" })).toBeVisible();

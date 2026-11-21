@@ -2,11 +2,11 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { LogOut, Moon, Settings, UserRound } from "lucide-react";
+import { LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -25,7 +25,11 @@ export type UserMenuUser = {
   name: string;
   email: string;
   avatarUrl?: string | null;
-  /** Shown under the email, e.g. "Owner PM · Dela Cruz Builders". */
+  /** Role badge in the menu header, e.g. "Owner PM". */
+  role?: string;
+  /** Company line under the name, e.g. "Dela Cruz Builders" or "No company yet". */
+  company?: string;
+  /** Older single line ("Owner PM · Dela Cruz Builders"); used when `role`/`company` are absent. */
   subtitle?: string;
 };
 
@@ -86,13 +90,19 @@ export function UserMenu({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-72" sideOffset={8}>
+          {/* Name first, then who they are at work: role badge + company. No email (it's on Profile). */}
           <div className="flex items-center gap-3 px-2.5 pt-2.5 pb-3">
-            <Avatar name={user.name} src={user.avatarUrl} size="md" />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate text-sm leading-5 font-semibold text-foreground">{user.name}</span>
-              <span className="truncate text-xs leading-4 text-muted-foreground">{user.email}</span>
-              {user.subtitle ? (
-                <span className="mt-1 truncate text-xs leading-4 font-medium text-primary-text">{user.subtitle}</span>
+            <Avatar name={user.name} src={user.avatarUrl} size="lg" />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="truncate text-[15px] leading-5 font-semibold text-foreground">{user.name}</span>
+              {user.company ? <span className="truncate text-xs leading-4 text-muted-foreground">{user.company}</span> : null}
+              {user.role ? (
+                <Badge tone="primary" size="sm" className="mt-0.5 self-start">
+                  {user.role}
+                </Badge>
+              ) : null}
+              {!user.role && !user.company && user.subtitle ? (
+                <span className="truncate text-xs leading-4 text-muted-foreground">{user.subtitle}</span>
               ) : null}
             </div>
           </div>
@@ -114,15 +124,16 @@ export function UserMenu({
             ) : null}
             {children}
             {showTheme ? (
-              <DropdownMenuCheckboxItem
-                checked={theme === "dark"}
-                onCheckedChange={toggle}
-                // Stay open so the switch is visible.
-                onSelect={(event) => event.preventDefault()}
+              <DropdownMenuItem
+                // Stays open so the change is visible; the label always says what a click does.
+                onSelect={(event) => {
+                  event.preventDefault();
+                  toggle();
+                }}
               >
-                <Moon aria-hidden />
-                Dark mode
-              </DropdownMenuCheckboxItem>
+                {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
+                {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              </DropdownMenuItem>
             ) : null}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
