@@ -1,6 +1,6 @@
 # CivPMS — build status & handoff
 
-Last updated: 2026-10-28 · branch `claude/exciting-sagan-7valgn` (pushed to github.com/Prannsss/CivPMS).
+Last updated: 2026-11-21 · integration branch `main`; each package arrives as a PR the owner opens from a `feat/`, `fix/`, `chore/` or `docs/` branch (D8). The "Decide first" roadmap questions are answered (DECISIONS.md → Owner answers).
 **Phases 0–1 (foundations + planning core) are built, merged and verified.** Lessons learned /
 pitfalls live in `CLAUDE.md` → "Known pitfalls" — read them before working.
 

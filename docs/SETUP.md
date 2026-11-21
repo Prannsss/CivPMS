@@ -45,14 +45,14 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ## 2. Get the code
 
 Your folder `C:\Users\HP\Project Management System` is already a git repository linked to
-`github.com/Prannsss/CivPMS`. The work lives on the branch **`claude/exciting-sagan-7valgn`**.
+`github.com/Prannsss/CivPMS`. The finished work lives on **`main`** (each change arrives as a pull request from a `feat/…`, `fix/…`, `chore/…` or `docs/…` branch).
 The folder name has spaces, so keep the quotes.
 
 ```powershell
 cd "C:\Users\HP\Project Management System"
 git status                                  # check for local changes you want to keep
 git fetch origin
-git checkout claude/exciting-sagan-7valgn
+git checkout main
 git pull                                    # get the newest commits on that branch
 ```
 
@@ -223,9 +223,8 @@ sign-in keeps working.
 
 1. <https://vercel.com> → **Add New… → Project** → import the GitHub repository `Prannsss/CivPMS`.
    The framework preset is detected as **Next.js**; leave the build settings as they are.
-2. **Production branch.** Vercel deploys `main` to production by default. Either merge
-   `claude/exciting-sagan-7valgn` into `main`, or point production at that branch (project
-   **Settings → Environments → Production → Branch Tracking**).
+2. **Production branch.** Vercel deploys `main` to production by default. Keep it that way:
+   finished work is merged into `main` through pull requests.
 3. **Environment variables** (project **Settings → Environment Variables**). Add every variable from
    your `.env.local` **except** `DEMO_PASSWORD`, with these differences:
 

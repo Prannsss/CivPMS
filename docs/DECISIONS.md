@@ -13,6 +13,7 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D5 | **Dark mode ships in v1** (light/dark/system). | Owner decision; overrides spec §17.1 "light only". Brand blue fails AA as small text on black, so dark mode uses `#4C8DFF` for blue text/links and keeps `#0866FF` for filled buttons. |
 | D6 | `cacheComponents` disabled. | Almost every screen is per-user and dynamic; Suspense streaming + skeletons still apply. |
 | D7 | **Offline mode is out of scope**: no service worker caching, offline queue or background sync. Field forms instead keep what was typed (including picked photos) when a save fails, autosave a local draft, and every save is retry-safe (`client_id`). An installable "Add to Home screen" icon is kept (web manifest + icons only, roadmap P3-25). | Owner decision 2026-10-28. Removes about 14.5 agent-days and the riskiest technology from Phase 4; spec §13 offline items and the §17.2 "offline queue" line are dropped (confirm with the client). See `docs/ROADMAP.md`. |
+| D8 | **Git workflow**: `main` is the integration branch; each work package is pushed to its own branch named by type (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`); **only the owner opens and merges pull requests**. | Owner decision 2026-11-21. Replaces the single long-lived `claude/…` work branch. |
 
 ## Onboarding & membership
 
@@ -32,6 +33,7 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D21 | When a leaf gains its first child, its own cost/hours/dates stop counting (parents always derive from leaves). The UI warns and offers to carry the values to the new child. | Spec §6.1–6.2 leave this case undefined. |
 | D22 | WBS depth is fixed at 3 (Deliverable → Sub-deliverable → Work Package); moves that would exceed depth 3 are rejected. | Spec §6.1. |
 | D23 | Rollups (dates, hours, cost, weighted %) are computed by the pure TS module `src/lib/domain`; the database stores leaf values only. A SQL view mirrors the budget/progress totals for list screens, with tests to keep both in sync. | Spec §18.4. |
+| D24 | **Plan lock in the database**: every WBS/calendar RPC refuses Completed/Cancelled projects with `FORBIDDEN` (`private.assert_plan_open`, called by `private.lock_wbs` and `private.get_managed_activity`). New planning RPCs must call one of them after their permission check; the UI lock and `planLockFor` stay for the friendly message. | Closes the HANDOFF §4 gap "the DB allows WBS edits on completed/cancelled projects". Migration `20261023090000_plan_lock.sql`, SQL test 11 (`910219c`). |
 
 ## Visual design (improvements over the mockups)
 
@@ -57,6 +59,24 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D47 | HEIC is accepted only where ffmpeg ≥ 7.1 can demux it (the Debian trixie image); tiled HEIF/AVIF (most iPhone photos) are refused with a clear `415` instead of storing one tile. | Never store a wrong image silently; browsers usually convert HEIC to JPEG on upload anyway. |
 | D48 | Objects in `project-media` (and `avatars`) are **untrusted input**: project members can also write any ≤ 3 MB bytes under a valid generated name with the Storage API and their own session, so the pipeline's guarantees (re-encoded WebP, no metadata, `_thumb` twin) hold only for objects the service wrote. Consumers show them only via `<img>` from signed URLs (no `next/image` optimization or other server-side decoding), re-validate before any server-side use, list photos from database rows, and tolerate a missing thumbnail. | Keeping INSERT on the caller's token keeps D41 (no secret key in the service). A privileged service-only upload path is the upgrade if Phase 3 needs the guarantees (`backend/README.md` → Security model). |
 | D49 | Upload admission in the media service: **one upload per user at a time** per instance, at most `MAX_CONCURRENT_UPLOADS` (default 4 × `FFMPEG_CONCURRENCY`, at least 8) in progress (extra → `503 BUSY` before the body is read), and every second an upload holds an ffmpeg slot costs one more unit of the per-user upload budget. | Review finding: one account could keep the free instance's single ffmpeg slot busy and lock everyone else out of uploads. |
+
+## Owner answers to the roadmap questions
+
+`docs/ROADMAP.md` §7. Answered by the owner on **2026-11-21**: every "Decide first" question accepted as recommended. The decision numbers in the right column are written in full by the package that builds them.
+
+| Q | Answer | Lands in |
+|---|---|---|
+| 1 | **Staging:** create a free second Supabase project `civpms-staging` (Singapore) for heavy seeds, load tests and destructive drills, before Phase 2. | O-3, B-03 |
+| 2 | **Backups and plan:** nightly encrypted off-site copy now (client-owned bucket, client holds the key); production moves to Supabase **Pro** at go-live; PITR only if a contract needs < 24 h of possible data loss. | O-4, B-04, D95 |
+| 3 | **Linked work moves earlier too** when a predecessor finishes early; "Start no earlier than" pins a date; every move has Undo. | D52, P2-04a |
+| 4 | **Lag in whole working days**, also in the Hours display (2 days shows as 16 h). | D51, P2-04a, P2-06 |
+| 5 | A **removed link comes back only through Undo**, not the 30-day trash; links of a deleted activity return when it is restored. | D56, P2-06 |
+| 6 | **Set new baseline** and progress updates only while the project is **Active or On-Hold**; Baseline v1 stays automatic on activation. | D57, D63, P2-08, P3-02b |
+| 7 | **Assigned inspector:** PMs may assign an inspector when scheduling; results come from the proposer, the assignee or a project PM; the "assignee" filter becomes an "Inspector" filter. | D66, P3-03a/b, P3-13b |
+| 8 | **Vercel Pro** with functions in Singapore (`sin1`), plus the 5-minute database-driven email dispatcher using two Vault secrets; the daily Vercel cron stays as a fallback. | O-6, B-07, O-11, D67, P3-04 |
+| 9 | Move the owner's account `rhecy@civpms.test` to a **real mailbox** before Phase 3 emails; the clean-up script keeps it either way. | O-10 |
+
+Questions 10–40 are still open; until answered, packages follow the roadmap's recommendation and say so in their report.
 
 ## Deferred (not in Phase 0–1)
 

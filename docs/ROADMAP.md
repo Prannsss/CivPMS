@@ -50,8 +50,8 @@ These foundations come first because the live database now holds the owner's rea
 | # | Step | Who | Effort | When |
 |---|---|---|---|---|
 | B-01 | Phase 0–1 Final QA — **done 28 Oct** (Playwright suite, golden path on fresh accounts, media-service spec, review of every action and route; HANDOFF §1) | Agent | done | — |
-| B-02 | Record the plan lock as **D24** in DECISIONS.md (Scheduling & WBS group): migration `20261023090000_plan_lock.sql` is applied and SQL test 11 is green and committed (`910219c`) | Agent | 0.25 d | First |
-| O-1 | Answer the 9 "Decide first" questions (section 7) | Owner | 30 min | Before P2-04a / P2-06 |
+| B-02 | **Done 21 Nov** (`docs/owner-decisions`). Record the plan lock as **D24** in DECISIONS.md (Scheduling & WBS group): migration `20261023090000_plan_lock.sql` is applied and SQL test 11 is green and committed (`910219c`) | Agent | 0.25 d | First |
+| O-1 | **Done 21 Nov**: all 9 "Decide first" questions accepted as recommended (DECISIONS.md → Owner answers) | Owner | 30 min | Before P2-04a / P2-06 |
 | O-2 | Rotate the Brevo API key that was pasted in chat; put the new one only in `.env.local` and Vercel | Owner | 10 min | Now |
 | O-3 | Create the free Supabase project **civpms-staging** (Singapore) and give the agent access (check the organisation still has a free-project slot) | Owner | 15 min | Before B-03 |
 | B-03 | Staging setup: apply every migration, seed demo data, point Vercel **Preview** at staging (Preview never holds the production secret key), document it in SETUP.md | Agent (+ owner for env vars) | 0.5 d | Before P2-20 |
@@ -861,7 +861,7 @@ The four phase plans were reviewed (17 gaps, 24 conflicts, 19 oversized packages
 ```text
 You are continuing the build of CivPMS, a project-management system for engineering and construction companies (Primavera + ProjectLibre + Procore, with a modern UI). Repository: github.com/Prannsss/CivPMS.
 
-START FROM branch `claude/civpms-roadmap`. It is the verified main work branch `claude/exciting-sagan-7valgn` plus docs/ROADMAP.md. Develop on the branch this session assigns you; never push to any other branch and never open a pull request unless I ask.
+START FROM branch `claude/civpms-roadmap`. It is the verified main work branch `claude/exciting-sagan-7valgn` plus docs/ROADMAP.md. Push each work package to its own branch named by type (`feat/…`, `fix/…`, `chore/…`, `docs/…`); only I open pull requests (CLAUDE.md, D8).
 
 READ FIRST, in this order: CLAUDE.md (especially "Known pitfalls"), docs/HANDOFF.md, docs/ROADMAP.md, docs/DECISIONS.md, then docs/DATABASE.md, docs/DOMAIN.md, docs/DESIGN.md and backend/README.md when you touch those areas. The product spec SPEC.md is attached to this message (it is not in the repo because the repo is public). If it is missing, ask me for it before planning anything.
 
