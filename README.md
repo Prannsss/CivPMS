@@ -5,9 +5,11 @@ Primavera and ProjectLibre, the field focus of Procore, with a modern, plain-lan
 Built for Philippine contractors (₱, Asia/Manila, PH holidays) but not tied to them.
 
 > Status: **Phases 0–1 (foundations + planning core) are built and verified** — type check, lint,
-> 766 unit tests, production build, the full Playwright suite and a golden-path run on brand-new
-> accounts. Gantt, dependencies/CPM, progress updates, inspections, S-curve, sharing, offline and
-> import/export come next (see [docs/HANDOFF.md](docs/HANDOFF.md)).
+> unit tests, production build, the full Playwright suite and a golden-path run on brand-new
+> accounts. In progress: a read-only **Gantt** and the **S-curve** (planned line). Next: links
+> between work packages, critical path and Gantt editing; then progress updates, inspections,
+> sharing and import/export. Offline mode is out of scope (D7). Plan: [docs/ROADMAP.md](docs/ROADMAP.md),
+> current state: [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ![Projects home](docs/screenshots/final-home-light.png)
 
@@ -40,7 +42,9 @@ Built for Philippine contractors (₱, Asia/Manila, PH holidays) but not tied to
   security boundary, never the UI. Append-only audit log written by triggers.
 - **Design** — Poppins, primary blue `#0866FF`, light **and** dark mode, WCAG 2.1 AA colours,
   keyboard friendly (⌘/Ctrl+K command palette, visible focus), skeleton loading, plain-language
-  errors, confirm dialogs for destructive actions and Undo snackbars.
+  errors, confirm dialogs for destructive actions and Undo snackbars. Popovers and menus grow
+  from what opened them and stay clear of the screen edges; long pickers (projects, people) are
+  searchable comboboxes; all motion respects "reduce motion".
 
 ## Screenshots
 
@@ -71,7 +75,7 @@ notifications. Regenerate the gallery with
 Next.js 16 (App Router, React 19, TypeScript strict, Turbopack) on **Vercel** · Tailwind CSS v4 ·
 radix-ui · sonner · cmdk · lucide · next-themes · react-hook-form + zod v4 · **Supabase**
 (Postgres + RLS, Auth, Storage, Realtime, pg_cron) · **Brevo** transactional email · date-fns
-(Asia/Manila) · Vitest · Playwright · optional Rust media service on **Render**.
+(Asia/Manila) · Oxlint · Vitest · Playwright · optional Rust media service on **Render**.
 
 ## Quick start
 
@@ -92,7 +96,7 @@ Demo accounts and projects: [supabase/seed/README.md](supabase/seed/README.md).
 |---|---|
 | `npm run dev` | Development server on http://localhost:3000 |
 | `npm run build` / `npm start` | Production build / serve it |
-| `npm run lint` | ESLint |
+| `npm run lint` | Oxlint (< 1 s); `npm run lint:eslint` runs the few ESLint-only rules ([docs/LINTING.md](docs/LINTING.md)) |
 | `npm run typecheck` | `next typegen` + `tsc --noEmit` |
 | `npm test` | Vitest (domain logic, helpers) |
 | `npm run test:e2e` | Playwright end-to-end tests against the live Supabase project |
@@ -119,6 +123,18 @@ straight to Supabase Storage. It runs on Render as `civpms-media`
 (<https://civpms-media.onrender.com>); set `NEXT_PUBLIC_MEDIA_API_URL` to that URL to use it.
 Build, configure and deploy it (Render Blueprint `render.yaml`):
 **[backend/README.md](backend/README.md)**.
+
+## Contributing
+
+- `main` is the integration branch. Each change goes on its own branch named by type —
+  `feat/…`, `fix/…`, `chore/…`, `docs/…`, `refactor/…`, `test/…` — and reaches `main` through a
+  pull request opened and merged by the owner (decision D8).
+- Before pushing, run the checks chained so one failure stops the push:
+  `set -o pipefail && npm run typecheck && npm run lint && npm test && npm run build`
+  (`next build` without `NODE_USE_ENV_PROXY`; see [CLAUDE.md](CLAUDE.md) → Known pitfalls).
+- Commit messages are imperative and scoped: `feat(wbs): …`, `fix(db): …`, `docs(readme): …`.
+- Never commit secrets: the repository is public. `.env.local` is git-ignored; the product
+  spec (`SPEC.md`) is kept outside the repository for the same reason.
 
 ## Project structure
 
@@ -147,8 +163,12 @@ docs/               DECISIONS, DATABASE, DOMAIN, DESIGN, SETUP, HANDOFF, screens
 ## Documentation
 
 - [docs/HANDOFF.md](docs/HANDOFF.md) — build status, verification, known issues, owner actions, next steps
+- [docs/ROADMAP.md](docs/ROADMAP.md) — plan for Phases 2–5, work packages and open owner questions
 - [docs/DECISIONS.md](docs/DECISIONS.md) — product and technical decisions that extend the spec
 - [docs/DATABASE.md](docs/DATABASE.md) — tables, RLS model, RPCs and error codes
 - [docs/DOMAIN.md](docs/DOMAIN.md) — business rules in `src/lib/domain`
-- [docs/DESIGN.md](docs/DESIGN.md) — design tokens, components, contrast results
+- [docs/DESIGN.md](docs/DESIGN.md) — design tokens, components, motion, contrast results
+- [docs/LINTING.md](docs/LINTING.md) — Oxlint setup and rule coverage
+- [docs/SETUP.md](docs/SETUP.md) — local setup, Supabase, Vercel, Brevo, Google sign-in
+- [backend/README.md](backend/README.md) — the Rust media + cache service
 - [CLAUDE.md](CLAUDE.md) — engineering guide and known pitfalls for contributors
