@@ -113,6 +113,16 @@ node --env-file=.env.local scripts/verify-demo-accounts.mjs
 Behind an HTTP proxy, as in agent containers, prefix it with `NODE_USE_ENV_PROXY=1`. It exits with
 code 1 if any check fails, and never prints the password.
 
+## Stage A schedule tenant (`p2-e2e.sql`)
+
+For the read-only Gantt and the S-curve (`e2e/p2-gantt.spec.ts`, docs/ROADMAP.md §4.0). Creates
+`p2-pm@civpms.test` (password = `civpms.demo_password`, like `demo.sql`), its company
+"[P2] Schedule Lab Builders" and two Active projects with Baseline v1, all through the app's RPCs:
+"[P2] Gantt Lab" (work past its dates, a milestone, one work package moved a week after the baseline,
+work running past the end date) and "[P2] Gantt Late" (ended 5 days ago, for the overrun shading).
+Dates are relative to the day the seed first runs; projects that already have activities are left as
+they are. `demo-cleanup.sql` removes it with every other `@civpms.test` account.
+
 ## E2E accounts (`found-e2e.sql`)
 
 The app-foundation specs (`e2e/found-*.spec.ts`) never change the demo company. They use their own

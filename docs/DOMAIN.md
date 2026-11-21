@@ -169,6 +169,25 @@ These only hide or disable controls. RLS and RPCs remain the security boundary.
 
 Missing or invalid inputs render as `—`.
 
+## `gantt.ts` — Gantt view model (spec §9.1, §5.4; Stage A)
+
+- **Zoom:** presets in px per day (`day` 36, `week` 16, `month` 5, `quarter` 2); `fitDayWidth` fits the
+  range into the visible width (1–48 px/day); `scaleForDayWidth` picks the header scale for any width.
+- **Range (`timelineRange`):** from the earliest of project start / bar starts (and baseline bars when
+  shown) to the latest of project end / bar ends / overdue extensions, plus **today while the project is
+  open**; padded to whole Monday–Sunday weeks and one spare week each side.
+- **Header (`timelineHeader`):** months over days (today and non-working days flagged), months over
+  Monday-labelled weeks, years over months, years over quarters; segments clipped to the range.
+- **Shading (`nonWorkingRuns`):** consecutive non-working days merged; label = holiday names / override
+  notes, else "Weekend" or "Non-working day".
+- **Rows (`buildGanttRows`):** WBS pre-order, collapsed branches skipped; parents use `rollupTree` values
+  (D23). Leaves carry Delayed per §10.5 with a plain reason ("Its end date passed 3 days ago"; end-passed
+  wins over start-passed; else reported/marked), an **overdue extension** from the day after the end to
+  today for unfinished leaves, milestones (0 h), optional baseline dates and `finishVariance` in
+  **working days** (+ behind, − ahead).
+- `projectOverrun` (open project past its end: end + 1 → today), `varianceLabel`, `ganttSummary` (the
+  sentence screen readers get instead of the drawing).
+
 ## `invite-code.ts` — invite codes (D11)
 
 - `INVITE_CODE_ALPHABET` is Crockford base32: `0123456789ABCDEFGHJKMNPQRSTVWXYZ`.

@@ -25,7 +25,10 @@ const baseURL = (process.env.BASE_URL ?? process.env.E2E_BASE_URL ?? "http://loc
 const port = Number(new URL(baseURL).port || 80);
 const isLocal = /^(localhost|127\.0\.0\.1)$/.test(new URL(baseURL).hostname);
 
-const CHROMIUM_PATH = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+// Cloud containers ship Chromium under /opt/pw-browsers; the build number changes between images, so
+// prefer the stable symlink and fall back to the build this project was first set up with.
+const CHROMIUM_PATH =
+  ["/opt/pw-browsers/chromium", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find((path) => existsSync(path)) ?? "";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -49,7 +52,7 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        launchOptions: existsSync(CHROMIUM_PATH) ? { executablePath: CHROMIUM_PATH } : {},
+        launchOptions: CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {},
       },
     },
   ],

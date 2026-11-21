@@ -49,7 +49,7 @@ export function getProjectNavItems(projectId: string, basePath = "/projects"): P
   return [
     { id: "dashboard", label: "Dashboard", href: base, icon: LayoutDashboard },
     { id: "wbs", label: "Work Breakdown", href: `${base}/wbs`, icon: ListTree },
-    { id: "gantt", label: "Gantt Chart", href: `${base}/gantt`, icon: ChartGantt, soon: true },
+    { id: "gantt", label: "Gantt Chart", href: `${base}/gantt`, icon: ChartGantt },
     { id: "s-curve", label: "S-Curve", href: `${base}/s-curve`, icon: ChartSpline, soon: true },
     { id: "calendar", label: "Calendar", href: `${base}/calendar`, icon: CalendarDays },
     { id: "collaborators", label: "Collaborators", href: `${base}/collaborators`, icon: Users },
