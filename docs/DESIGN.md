@@ -132,9 +132,26 @@ Use `tabular-nums` for money, dates and percentages. Format money as `₱1,234,5
 - **Shadows:** `shadow-xs` and `shadow-sm` for resting controls and cards. `shadow-md` for raised cards and the
   sidebar. `shadow-lg` for dialogs and sheets. `shadow-popover` for menus, popovers and toasts. Dark-mode shadows
   add a 1 px white hairline so elevation stays visible on black.
-- **Motion:** 150–200 ms ease-out (`--ease-out`). Animations: `animate-fade-in/out`, `animate-pop-in/out`,
-  `animate-sheet-in/out-{top,right,bottom,left}`, `animate-shimmer`, `animate-indeterminate`. All motion is
-  cut to ~0 under `prefers-reduced-motion`.
+- **Motion:** things arrive with `--ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`, 160–240 ms), leave faster
+  with `--ease-in` (`cubic-bezier(0.55, 0, 1, 0.45)`, 120–160 ms), and move between two states with
+  `--ease-in-out` (`cubic-bezier(0.65, 0, 0.35, 1)`); Tailwind's `ease-out` / `ease-in` / `ease-in-out`
+  utilities use these. Animations: `animate-fade-in/out`, `animate-pop-in/out`, `animate-page-in`,
+  `animate-sheet-in/out-{top,right,bottom,left}`, `animate-shimmer`, `animate-indeterminate`.
+  - **From the origin:** popovers, menus (and sub-menus), selects and tooltips grow out of their trigger
+    (`origin-(--radix-…-content-transform-origin)`) and slide in 4 px from the trigger's side (`--pop-x` /
+    `--pop-y`, set from `data-side` in `globals.css`); they shrink back toward it on close. Centered dialogs
+    and the command palette only scale from the center; sheets slide from their edge.
+  - **Pages:** `template.tsx` in the `(home)` and project shells fades each page in on navigation
+    (opacity only, so `position: fixed` children are never offset). Search-param changes do not re-animate.
+  - Hover lifts (project cards) and press feedback (buttons) use 150–200 ms transitions.
+  - **Edge-safe:** popovers, menus, sub-menus, selects and tooltips keep ≥ 8 px from the viewport
+    (`collisionPadding`; popovers 12 px), flip/shift via Radix, and are capped to
+    `--radix-…-content-available-width/height` (scrolling inside when taller). Pop animations only shrink
+    (scale 0.96) and slide toward the trigger, so no frame is larger than the settled box. Modals cap at
+    `92dvh` on phones and `min(85dvh, 52rem)` above, scrolling inside. Horizontal scrollers keep 4 px of
+    vertical room so focus rings are not clipped. Checked with Playwright at 390 and 1440 px: every popup
+    inside the viewport mid-animation and settled, no page-level horizontal overflow.
+  - All motion is cut to ~0 under `prefers-reduced-motion` (Playwright runs with `reducedMotion: "reduce"`).
 - **Focus:** `focus-ring` (2 px `ring` outline, 2 px offset) and `focus-ring-inset` for clipped containers.
   Every interactive element has a visible focus style. Form controls use a 3 px soft ring plus a blue border.
 - **Spacing:** 4 px grid. Page gutters are 16 px on phones and 24–32 px on desktop. Card padding is 20–24 px.

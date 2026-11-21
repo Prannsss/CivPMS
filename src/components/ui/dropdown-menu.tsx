@@ -13,7 +13,8 @@ export const DropdownMenuRadioGroup = MenuPrimitive.RadioGroup;
 
 const contentClasses = cn(
   "z-50 min-w-48 overflow-x-hidden overflow-y-auto rounded-md border border-border bg-surface p-1 text-foreground shadow-popover",
-  "max-h-(--radix-dropdown-menu-content-available-height) origin-(--radix-dropdown-menu-content-transform-origin)",
+  // Edge-safe: Radix flips/shifts it inside the viewport (collisionPadding) and these caps keep it there.
+  "max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) origin-(--radix-dropdown-menu-content-transform-origin)",
   "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
 );
 
@@ -21,11 +22,18 @@ export function DropdownMenuContent({
   className,
   sideOffset = 6,
   align = "end",
+  collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof MenuPrimitive.Content>) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.Content sideOffset={sideOffset} align={align} className={cn(contentClasses, className)} {...props} />
+      <MenuPrimitive.Content
+        sideOffset={sideOffset}
+        align={align}
+        collisionPadding={collisionPadding}
+        className={cn(contentClasses, className)}
+        {...props}
+      />
     </MenuPrimitive.Portal>
   );
 }
@@ -131,10 +139,18 @@ export function DropdownMenuSubTrigger({
   );
 }
 
-export function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<typeof MenuPrimitive.SubContent>) {
+export function DropdownMenuSubContent({
+  className,
+  collisionPadding = 8,
+  ...props
+}: React.ComponentProps<typeof MenuPrimitive.SubContent>) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.SubContent className={cn(contentClasses, "min-w-40", className)} {...props} />
+      <MenuPrimitive.SubContent
+        collisionPadding={collisionPadding}
+        className={cn(contentClasses, "min-w-40", className)}
+        {...props}
+      />
     </MenuPrimitive.Portal>
   );
 }

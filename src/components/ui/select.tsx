@@ -42,6 +42,7 @@ export function SelectContent({
   children,
   position = "popper",
   sideOffset = 6,
+  collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
@@ -49,10 +50,11 @@ export function SelectContent({
       <SelectPrimitive.Content
         position={position}
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
         className={cn(
           "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 overflow-hidden rounded-md border border-border bg-surface text-foreground shadow-popover",
-          "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
-          position === "popper" && "w-full min-w-(--radix-select-trigger-width)",
+          "origin-(--radix-select-content-transform-origin) data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
+          position === "popper" && "w-full min-w-(--radix-select-trigger-width) max-w-(--radix-select-content-available-width)",
           className,
         )}
         {...props}

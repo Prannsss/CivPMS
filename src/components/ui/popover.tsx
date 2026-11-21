@@ -22,7 +22,7 @@ export function PopoverContent({
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-border bg-surface p-4 text-foreground shadow-popover outline-none",
+          "z-50 w-72 max-w-[min(calc(100vw-1.5rem),var(--radix-popover-content-available-width))] max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-border bg-surface p-4 text-foreground shadow-popover outline-none",
           "origin-(--radix-popover-content-transform-origin) data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
           className,
         )}
