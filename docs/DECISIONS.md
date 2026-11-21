@@ -14,6 +14,7 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | D6 | `cacheComponents` disabled. | Almost every screen is per-user and dynamic; Suspense streaming + skeletons still apply. |
 | D7 | **Offline mode is out of scope**: no service worker caching, offline queue or background sync. Field forms instead keep what was typed (including picked photos) when a save fails, autosave a local draft, and every save is retry-safe (`client_id`). An installable "Add to Home screen" icon is kept (web manifest + icons only, roadmap P3-25). | Owner decision 2026-10-28. Removes about 14.5 agent-days and the riskiest technology from Phase 4; spec §13 offline items and the §17.2 "offline queue" line are dropped (confirm with the client). See `docs/ROADMAP.md`. |
 | D8 | **Git workflow**: `main` is the integration branch; each work package is pushed to its own branch named by type (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`); **only the owner opens and merges pull requests**. | Owner decision 2026-11-21. Replaces the single long-lived `claude/…` work branch. |
+| D9 | **Oxlint** is the main linter (`npm run lint` = `oxlint --deny-warnings`, 0.4 s vs 14 s for ESLint); ESLint stays only for 7 rules Oxlint lacks (`npm run lint:eslint`, overlapping rules off via `eslint-plugin-oxlint`). Vitest stays the test runner with isolation on. | Owner request 2026-10-28 (roadmap B-11). Rule-coverage comparison in `docs/LINTING.md`: nothing important is lost. |
 
 ## Onboarding & membership
 

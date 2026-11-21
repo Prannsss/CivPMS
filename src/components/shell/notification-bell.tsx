@@ -131,6 +131,7 @@ export function NotificationBell({
     () => (filter === "all" ? notifications : notifications.filter((n) => n.projectId === filter)),
     [filter, notifications],
   );
+  // eslint-disable-next-line react-hooks/purity -- relative times ("5m") are meant to refresh on every render; tests pass `now`
   const reference = now ?? new Date();
 
   return (
