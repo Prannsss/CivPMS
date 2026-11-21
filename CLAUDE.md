@@ -12,7 +12,7 @@ CivPMS is a Project Management System for engineering/construction companies (Pr
 |---|---|
 | Runtime | Next.js 16 (App Router, React 19, TypeScript strict, Turbopack). Deployed on **Vercel** (Node runtime). |
 | Styling | Tailwind CSS v4 (CSS-first `@theme` in `src/app/globals.css`), `class-variance-authority`, `tailwind-merge` via `cn()` |
-| UI primitives | `radix-ui` (unified package), `sonner` (snackbars), `cmdk` (command palette), `lucide-react` (icons), `next-themes` (light/dark/system) |
+| UI primitives | `radix-ui` (unified package), `sonner` (snackbars), `cmdk` (command palette), `lucide-react` (icons), `next-themes` (light/dark toggle, no System option) |
 | Forms | `react-hook-form` + `zod` v4 (`@hookform/resolvers/zod`) |
 | Data | Supabase (Postgres + RLS, Auth, Storage, Realtime). `@supabase/ssr` for cookies-based sessions |
 | Email | Brevo transactional REST API (plain `fetch`, no SDK) |
@@ -71,7 +71,7 @@ Ownership rule: a feature's pages, components, queries and actions live in that 
 
 ## Design system
 
-Brand: **Poppins** (400/500/600/700, `next/font/google`, CSS var `--font-poppins`). Primary blue **`#0866FF`**. Backgrounds: white (light) / black (dark). Red = danger (logout, delete, remove, cancel, errors). Yellow/orange/red = badges & warnings. Light **and** dark mode (class strategy via `next-themes`, default `system`).
+Brand: **Poppins** (400/500/600/700, `next/font/google`, CSS var `--font-poppins`). Primary blue **`#0866FF`**. Backgrounds: white (light) / black (dark). Red = danger (logout, delete, remove, cancel, errors). Yellow/orange/red = badges & warnings. Light **and** dark mode (class strategy via `next-themes`): one click on the theme button flips light ↔ dark with a spin; there is no "System" option (the very first visit starts from the device setting).
 
 All colors are CSS variables in `globals.css`, exposed as Tailwind colors via `@theme inline`; `docs/DESIGN.md` is the source of truth for exact values and contrast results. **Never hard-code hex values in components** — use the tokens (`bg-primary`, `text-muted-foreground`, `bg-danger-soft`, …). Key tokens:
 
@@ -176,5 +176,9 @@ Code
 - `#0866FF` fails AA as small text on `primary-soft` and on black → use the `primary-text` token for blue text/links; `#0866FF` only for fills.
 - Realtime: a row created between server render and subscription is lost → subscribe with `wait` and catch up once on every (re)subscribe, de-duplicating by id (see the notification bell).
 - In development Next logs Server Action arguments (passwords included) unless `logging.serverFunctions: false` in `next.config.ts` — keep it off. Still, never paste dev logs anywhere public.
+- Tailwind v4 moves elements with the CSS `translate` / `scale` properties, not `transform`: a hover lift needs `transition-[translate,…]` (or `transition-transform`, which lists all of them), otherwise it jumps. Hovers use `ease-in-out` 200–300 ms; `globals.css` gives interactive elements a default colour fade.
+- Use `TruncatedText` / `SimpleTooltip` (edge-safe), never the native `title` attribute, for hover hints. Don't make a Radix item (radio, menu item) the tooltip trigger itself: the trigger's `data-state` overwrites the item's (`checked`); wrap it in a span.
+- The repo has no Prettier config: never run `prettier --write` (it rewrites hundreds of unrelated lines).
+- A heredoc ends the shell command line: `git commit -F - <<EOF … EOF` followed by `git push` on the next line is **not** part of the `&&` chain. Write the message to a file and keep `… && git commit -F msg.txt && git push` on one line.
 - Never hard-code demo data assumptions in e2e specs without tagging test records (`[F3] …`); the database is shared by all agents.
 - Shared e2e account pools (`f1-pool-*`) are used by every container, but the "used" list (`test-results/.f1-pool.json`) is per container → a pool account can be half-onboarded by another run. `claimFreshAccount()` skips accounts with a saved role; do the same for any new pool.

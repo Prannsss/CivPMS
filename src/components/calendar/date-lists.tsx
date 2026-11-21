@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { formatDate, isoWeekday, isValidISODate } from "@/lib/domain";
 import { removeHoliday, removeOverride, upsertHoliday, WEEKDAYS, type CalendarDraft, type DraftHoliday } from "./model";
+import { TruncatedText } from "@/components/ui/tooltip";
 
 type HolidayDialogState = { mode: "add" } | { mode: "edit"; holiday: DraftHoliday } | null;
 
@@ -111,9 +112,9 @@ export function DateLists({
                           <span className="font-semibold text-foreground">{formatDate(h.date).slice(0, -5)}</span>
                           <span className="text-muted-foreground">{weekdayShort(h.date)}</span>
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-foreground" title={h.name}>
+                        <TruncatedText className="min-w-0 flex-1 truncate text-[13px] leading-5 text-foreground">
                           {h.name}
-                        </span>
+                        </TruncatedText>
                         {canEdit ? (
                           <span className="flex shrink-0 items-center">
                             <IconButton
@@ -174,9 +175,9 @@ export function DateLists({
                       {o.kind === "working" ? "Working" : "Non-working"}
                     </Badge>
                     {o.note ? (
-                      <span className="truncate text-xs leading-4 text-muted-foreground" title={o.note}>
+                      <TruncatedText className="truncate text-xs leading-4 text-muted-foreground">
                         {o.note}
-                      </span>
+                      </TruncatedText>
                     ) : null}
                   </span>
                   {canEdit ? (

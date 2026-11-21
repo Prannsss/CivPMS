@@ -6,7 +6,7 @@ import { Spinner } from "./spinner";
 export const buttonVariants = cva(
   [
     "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap select-none",
-    "transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out",
+    "transition-[background-color,border-color,color,box-shadow,transform,translate,scale] duration-200 ease-in-out",
     "focus-ring active:translate-y-px",
     "disabled:pointer-events-none aria-disabled:pointer-events-none",
     "[&:disabled:not([aria-busy])]:opacity-50 [&[aria-disabled=true]:not([aria-busy])]:opacity-50",

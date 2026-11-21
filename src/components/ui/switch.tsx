@@ -33,7 +33,7 @@ export function Switch({ className, label, description, size = "md", id, ...prop
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          "pointer-events-none block rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
+          "pointer-events-none block rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out",
           size === "md"
             ? "size-5 data-[state=checked]:translate-x-5"
             : "size-4 data-[state=checked]:translate-x-4",

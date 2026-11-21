@@ -290,12 +290,16 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* transition-* utilities without their own ease/duration (hovers, state changes) glide. */
+  --default-transition-timing-function: var(--ease-in-out);
+  --default-transition-duration: 200ms;
 
   --animate-fade-in: fade-in 160ms var(--ease-out);
   --animate-fade-out: fade-out 120ms var(--ease-in);
   --animate-pop-in: pop-in 180ms var(--ease-out);
   --animate-pop-out: pop-out 120ms var(--ease-in);
   --animate-page-in: fade-in 200ms var(--ease-out);
+  --animate-theme-spin: theme-spin 500ms var(--ease-in-out);
   --animate-sheet-in-bottom: sheet-in-bottom 240ms var(--ease-out);
   --animate-sheet-out-bottom: sheet-out-bottom 160ms var(--ease-in);
   --animate-sheet-in-left: sheet-in-left 240ms var(--ease-out);
@@ -356,6 +360,11 @@
   @keyframes sheet-out-top {
     from { transform: translateY(0); }
     to { transform: translateY(-100%); }
+  }
+  /* Theme toggle icon: a half turn in while it grows back to full size. */
+  @keyframes theme-spin {
+    from { opacity: 0; transform: rotate(-180deg) scale(0.5); }
+    to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
   @keyframes shimmer {
     0%, 100% { opacity: 1; }
@@ -498,6 +507,18 @@
   input[type="date"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.7;
+  }
+
+  /* Smooth hovers everywhere: interactive elements fade colour, border and shadow changes instead
+   * of snapping, even when a component sets no transition of its own. Zero specificity (:where)
+   * and the base layer, so any transition-* / duration-* utility still wins. Theme switches skip it
+   * (next-themes disables transitions for that frame). */
+  :where(a, button, summary, label, input, select, textarea,
+    [role="button"], [role="link"], [role="tab"], [role="option"], [role="radio"], [role="checkbox"],
+    [role="switch"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], tr) {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, box-shadow, opacity;
+    transition-duration: 200ms;
+    transition-timing-function: var(--ease-in-out);
   }
 
   /* Popper content (popover, menu, select, tooltip) slides in from its trigger: content placed

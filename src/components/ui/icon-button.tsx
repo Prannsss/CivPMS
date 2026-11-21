@@ -7,7 +7,7 @@ import { SimpleTooltip } from "./tooltip";
 export const iconButtonVariants = cva(
   [
     "relative inline-flex shrink-0 items-center justify-center rounded-full select-none",
-    "transition-[background-color,border-color,color,transform] duration-150 ease-out focus-ring active:scale-95",
+    "transition-[background-color,border-color,color,transform,scale] duration-200 ease-in-out focus-ring active:scale-95",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   ],
