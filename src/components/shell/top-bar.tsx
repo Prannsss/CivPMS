@@ -71,7 +71,9 @@ export function TopBar({
     >
       <div
         className={cn(
-          "flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:grid lg:h-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(max-content,1fr)] lg:gap-6 lg:px-8",
+          // Equal side columns keep the search pill in the middle of the bar; when space is tight the
+          // right cluster keeps its size (1fr's minimum is its content) and the pill shifts slightly.
+          "flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:grid lg:h-20 lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8",
           innerClassName,
         )}
       >
@@ -91,7 +93,7 @@ export function TopBar({
             aria-label="Search"
             aria-keyshortcuts="Control+K Meta+K"
             className={cn(
-              "group hidden h-12 w-full max-w-xl items-center gap-3 justify-self-center rounded-full border border-transparent bg-surface-sunken pr-2.5 pl-5 text-left text-sm text-muted-foreground lg:flex",
+              "group hidden h-12 w-[clamp(18rem,36vw,36rem)] items-center gap-3 justify-self-center rounded-full border border-transparent bg-surface-sunken pr-2.5 pl-5 text-left text-sm text-muted-foreground lg:flex",
               "transition-[border-color,background-color,box-shadow] duration-150 hover:border-border-strong hover:bg-surface focus-ring",
             )}
           >
