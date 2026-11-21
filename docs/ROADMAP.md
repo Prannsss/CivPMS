@@ -160,6 +160,19 @@ Legend: **Built** · **Partial** (what is missing and where it lands) · **P2–
 
 ---
 
+### 4.0 Stage A – read-only Gantt and planned S-curve (owner, 21 Nov 2026)
+
+Pulled ahead of Phase 2 so both "coming next" tabs work now. No migration, no new RPC: reads go through RLS (`activities`, `calendars`, `calendar_dates`, `baselines`, `baseline_activities`).
+
+| ID | Package | Reuses later | Status |
+|---|---|---|---|
+| A-01 | Chart tokens (light/dark, ≥ 3:1) — the token half of P2-11 | P2-11, P3-18 | in progress |
+| A-02 | `domain/gantt.ts`: range, zoom scales, ticks, rows, bar geometry, overrun, non-working runs, baseline variance (the read-only half of P2-05b) | P2-05b, P2-13a | in progress |
+| A-03 | `/projects/[id]/gantt` read-only: WBS tree grid + timeline, zoom, Today, planned-end marker, overrun shading, non-working shading, baseline overlay, status colours + icons, details panel, states, phone layout, screen-reader summary | P2-13a/b | in progress |
+| A-04 | `domain/scurve.ts` planned cumulative (D68 rules on the **current** calendar, flagged approximate until P2-08's snapshot) + `/projects/[id]/s-curve`: KPIs, Cost \| Hours, baseline select, chart, table view, states; actual line empty until Phase 3 | P3-08, P3-18, P3-19 | planned |
+
+Not in Stage A: links, CPM, critical path, drag editing, Set new baseline, shared filters (Phase 2 proper); actual progress (Phase 3).
+
 ### 4.1 Phase 2 – Scheduling
 
 **Goal (what the owner gets).** A PM opens **Gantt** and sees every deliverable, sub-deliverable and work package on a timeline built from the WBS and the working calendar. PMs link work packages (finish-to-start and the other three types, with a wait or overlap in working days) by dragging between bars or from a picker. When a date changes, linked work moves automatically and a "Moved 5 activities · Undo" message appears. A toggle highlights the critical path; each activity shows its float in plain words ("3 days of float"). PMs set a **new baseline** with a reason and compare the plan against any baseline. Delayed projects show the timeline past the end date, a labelled original-end marker and a shaded overrun; overdue bars get a hatched extension to today. The dashboard warns "Projected to finish 6 days late". WBS, graph and Gantt share filters; the WBS list can be sorted by column. Inspectors see the same chart read-only. Every link, baseline and propagated move is in the audit trail.

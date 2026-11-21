@@ -107,6 +107,17 @@
   --elev-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
   --elev-lg: 0 16px 40px -12px rgb(15 23 42 / 0.18), 0 4px 10px -4px rgb(15 23 42 / 0.06);
   --elev-popover: 0 12px 32px -8px rgb(15 23 42 / 0.2), 0 2px 6px -2px rgb(15 23 42 / 0.08);
+
+  /* Charts (Gantt, S-curve). Marks keep ≥ 3:1 against the surface (D59); bars use the status tokens. */
+  --chart-gridline: #e2e8f0;
+  --chart-nonworking: rgba(100, 116, 139, 0.09);
+  --chart-today: #0866ff;
+  --chart-end-marker: #92400e;
+  --chart-overrun: rgba(220, 38, 38, 0.07);
+  --chart-baseline: #6b7280;
+  --chart-summary: #334155;
+  --chart-planned: #475569;
+  --chart-actual: #0866ff;
 }
 
 .dark {
@@ -192,6 +203,16 @@
   --elev-md: 0 6px 16px -4px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.04);
   --elev-lg: 0 20px 48px -12px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.05);
   --elev-popover: 0 16px 40px -8px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.06);
+
+  --chart-gridline: #27272a;
+  --chart-nonworking: rgba(161, 161, 170, 0.1);
+  --chart-today: #4c8dff;
+  --chart-end-marker: #fcd34d;
+  --chart-overrun: rgba(239, 68, 68, 0.12);
+  --chart-baseline: #a1a1aa;
+  --chart-summary: #d4d4d8;
+  --chart-planned: #a1a1aa;
+  --chart-actual: #4c8dff;
 }
 
 @theme inline {
@@ -245,6 +266,15 @@
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-text: var(--neutral-text);
 
+  --color-chart-gridline: var(--chart-gridline);
+  --color-chart-nonworking: var(--chart-nonworking);
+  --color-chart-today: var(--chart-today);
+  --color-chart-end-marker: var(--chart-end-marker);
+  --color-chart-overrun: var(--chart-overrun);
+  --color-chart-baseline: var(--chart-baseline);
+  --color-chart-summary: var(--chart-summary);
+  --color-chart-planned: var(--chart-planned);
+  --color-chart-actual: var(--chart-actual);
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-muted: var(--sidebar-muted);
