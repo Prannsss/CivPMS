@@ -156,9 +156,10 @@ export function ProjectsHome({
   const headerActions = (
     <>
       {isOwner && trashCount > 0 ? (
-        <Button variant="ghost" onClick={() => setTrashOpen(true)} data-testid="open-trash">
+        <Button variant="ghost" onClick={() => setTrashOpen(true)} data-testid="open-trash" aria-label={`Recently deleted (${trashCount})`}>
           <History aria-hidden />
-          Recently deleted
+          {/* Icon + count on phones, so the actions fit beside the title. */}
+          <span className="hidden sm:inline">Recently deleted</span>
           <span className="grid h-5 min-w-5 place-items-center rounded-full bg-surface-sunken px-1.5 text-[11px] leading-4 font-semibold tabular-nums text-muted-foreground">
             {trashCount}
           </span>
@@ -186,6 +187,7 @@ export function ProjectsHome({
               : "Projects you're added to show up here."
         }
         actions={headerActions}
+        actionsInline
       />
 
       <div className="flex flex-col gap-8">
