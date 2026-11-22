@@ -95,7 +95,7 @@ export function OverdueBanner({
       </div>
       {canManage ? (
         <Button variant="outline" asChild className="w-full sm:w-auto">
-          <Link href={`/projects/${project.id}/settings#details`}>
+          <Link href={`/projects/${project.id}/settings?section=details`}>
             <CalendarClock aria-hidden />
             Review end date
           </Link>

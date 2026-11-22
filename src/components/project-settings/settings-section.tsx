@@ -1,41 +1,42 @@
 import { cn } from "@/lib/utils";
 
-/** A settings block: title + explanation on the left (top on phones), the controls in a card. */
-export function SettingsSection({
+/**
+ * One Project Settings panel (the content beside the section rows): a titled card with optional
+ * header actions (e.g. the Details edit button). It is a labelled region, so tests and screen
+ * readers find it by its title.
+ */
+export function SettingsPanel({
   id,
   title,
-  description,
+  actions,
   children,
   tone = "default",
   className,
 }: {
   id: string;
   title: string;
-  description: React.ReactNode;
+  actions?: React.ReactNode;
   children: React.ReactNode;
   tone?: "default" | "danger";
   className?: string;
 }) {
   return (
     <section
-      id={id}
+      id={`${id}-panel`}
       aria-labelledby={`${id}-title`}
-      className={cn("grid scroll-mt-24 gap-4 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-10", className)}
+      className={cn(
+        "min-w-0 rounded-lg border bg-surface shadow-xs",
+        tone === "danger" ? "border-danger/40" : "border-border",
+        className,
+      )}
     >
-      <div className="flex flex-col gap-1.5 lg:pt-1">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border px-5 py-3 sm:px-6">
         <h2 id={`${id}-title`} className={cn("text-h3", tone === "danger" ? "text-danger-text" : "text-foreground")}>
           {title}
         </h2>
-        <p className="text-sm leading-[1.375rem] text-pretty text-muted-foreground">{description}</p>
-      </div>
-      <div
-        className={cn(
-          "min-w-0 rounded-lg border bg-surface p-5 shadow-xs sm:p-6",
-          tone === "danger" ? "border-danger/40" : "border-border",
-        )}
-      >
-        {children}
-      </div>
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      </header>
+      <div className="p-5 sm:p-6">{children}</div>
     </section>
   );
 }

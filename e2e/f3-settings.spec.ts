@@ -21,8 +21,10 @@ async function bumpVersion(projectId: string, patch: Record<string, string | num
   if (error) throw new Error(`update_project failed: ${error.message}`);
 }
 
+const saveButton = (page: Page) => page.getByRole("button", { name: "Save", exact: true });
+
 async function saveAndExpectConflict(page: Page) {
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await saveButton(page).click();
   await expect(page.getByRole("alert").filter({ hasText: "Changed by someone else just now" })).toBeVisible();
 }
 
@@ -35,11 +37,23 @@ test("details save, and a concurrent edit offers Reload or Keep mine", async ({ 
     await page.goto(`/projects/${id}/settings`);
     await expect(page.getByRole("heading", { level: 1, name: "Project Settings" })).toBeVisible();
 
+    // Read-only first; the pencil opens the form and turns into Cancel + Save.
+    const details = page.getByRole("region", { name: "Details" });
+    await expect(details.getByRole("textbox")).toHaveCount(0);
+    await details.getByRole("button", { name: "Edit details" }).click();
     const site = page.getByLabel("Site name or location");
     await site.fill("[F3] Lapu-Lapu pier");
-    await page.getByRole("button", { name: "Save changes" }).click();
+    await saveButton(page).click();
     await expect(toastWith(page, "Project details saved")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    await expect(details.getByRole("button", { name: "Edit details" })).toBeFocused();
+    await expect(details.getByText("[F3] Lapu-Lapu pier")).toBeVisible();
+
+    // Cancel (and Esc) leave without saving.
+    await details.getByRole("button", { name: "Edit details" }).click();
+    await site.fill("[F3] Not saved");
+    await page.keyboard.press("Escape");
+    await expect(details.getByText("[F3] Not saved")).toHaveCount(0);
+    await details.getByRole("button", { name: "Edit details" }).click();
 
     // Validation: inline, on blur, with how to fix it.
     const threshold = page.getByLabel("Near Budget Limit warning");
@@ -58,7 +72,7 @@ test("details save, and a concurrent edit offers Reload or Keep mine", async ({ 
     await saveAndExpectConflict(page);
     await page.getByRole("button", { name: "Keep mine" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "Changed by someone else just now" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    await expect(details.getByRole("button", { name: "Edit details" })).toBeVisible();
     const { client } = await supabaseAs(F3.owner);
     await expect
       .poll(async () => {
@@ -69,10 +83,11 @@ test("details save, and a concurrent edit offers Reload or Keep mine", async ({ 
 
     // … and → Reload shows their version.
     await bumpVersion(id, { site_name: "[F3] Changed by a colleague" });
+    await details.getByRole("button", { name: "Edit details" }).click();
     await site.fill("[F3] My unsaved site");
     await saveAndExpectConflict(page);
     await page.getByRole("button", { name: "Reload" }).click();
-    await expect(page.getByLabel("Site name or location")).toHaveValue("[F3] Changed by a colleague");
+    await expect(details.getByText("[F3] Changed by a colleague")).toBeVisible();
     console.expectClean();
   } finally {
     await deleteF3Project(id);
@@ -85,7 +100,7 @@ test("status changes follow the project lifecycle", async ({ page, context }) =>
   const id = await createF3Project({ name, workPackages: [["[F3] Survey", 120_000]] });
   try {
     await loginAs(context, F3.owner);
-    await page.goto(`/projects/${id}/settings#status`);
+    await page.goto(`/projects/${id}/settings?section=status`);
     const status = page.getByRole("region", { name: "Status" });
 
     await status.getByRole("button", { name: "Start the project" }).click();
@@ -139,6 +154,7 @@ test("the Owner PM deletes a project with type-the-name and can undo it", async 
   try {
     await loginAs(context, F3.owner);
     await page.goto(`/projects/${id}/settings`);
+    await page.getByRole("tab", { name: /Danger zone/ }).click();
     await page.getByRole("button", { name: "Delete project" }).click();
     const confirm = page.getByRole("alertdialog", { name: `Delete "${name}"?` });
     await expect(confirm.getByRole("button", { name: "Delete project" })).toBeDisabled();
@@ -165,8 +181,9 @@ test("project PMs edit but can't delete or cancel; inspectors get a friendly 403
   await loginAs(context, F3.pm);
   await page.goto(`/projects/${baseProjectId}/settings`);
   await expect(page.getByRole("heading", { level: 1, name: "Project Settings" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Danger zone" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit details" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Danger zone/ })).toHaveCount(0);
+  await page.getByRole("tab", { name: /Status/ }).click();
   await expect(page.getByRole("button", { name: "Cancel project" })).toHaveCount(0);
 
   await loginAs(context, F3.inspector);

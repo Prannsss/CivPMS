@@ -85,7 +85,7 @@ const SHOTS: Shot[] = [
     name: "settings-status",
     who: "owner",
     project: CEBU,
-    path: "/settings#status",
+    path: "/settings?section=status",
     heading: "Project Settings",
     variants: ["light", "dark"],
     prepare: async (page) => {

@@ -24,7 +24,7 @@ test("a delayed, over-budget project shows the overrun and what needs attention"
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
   const banner = page.getByRole("region", { name: /days past the planned end date/ });
   await expect(banner).toBeVisible();
-  await expect(banner.getByRole("link", { name: "Review end date" })).toHaveAttribute("href", `/projects/${davao}/settings#details`);
+  await expect(banner.getByRole("link", { name: "Review end date" })).toHaveAttribute("href", `/projects/${davao}/settings?section=details`);
 
   await expect(page.getByText("Overall progress")).toBeVisible();
   await expect(page.getByText("Delayed activities")).toBeVisible();
