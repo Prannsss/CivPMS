@@ -334,6 +334,12 @@ test.describe("WBS — access", () => {
     await openWbs(page, tenant.cancelledId);
     await expect(page.getByTestId("wbs-lock")).toContainText("cancelled");
     await expect(page.getByRole("button", { name: /Add (first )?deliverable/ })).toHaveCount(0);
+
+    // The database refuses it too (migration 20261023090000), not only the UI and Server Actions.
+    const { client } = await supabaseAs(F4_OWNER);
+    const { error } = await client.rpc("create_activity", { p_project_id: tenant.cancelledId, p_parent_id: null as unknown as string, p_name: "[F4] Must not be created" });
+    expect(error?.message).toBe("FORBIDDEN");
+    expect(error?.details).toContain("cancelled");
   });
 
   test("someone who hasn't finished onboarding is sent to onboarding", async ({ page, context }) => {

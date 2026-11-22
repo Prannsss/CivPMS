@@ -66,6 +66,24 @@ export const publicEnv: PublicEnv = parsePublicEnv({
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 });
 
+/**
+ * Optional base URL of the CivPMS media service (avatar uploads). `null` when unset or invalid,
+ * in which case the browser resizes and uploads avatars to Supabase Storage itself.
+ */
+export function parseMediaApiUrl(value: string | undefined): string | null {
+  const v = blankToUndefined(value);
+  if (typeof v !== "string") return null;
+  try {
+    const url = new URL(v);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.href.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+export const publicMediaApiUrl: string | null = parseMediaApiUrl(process.env.NEXT_PUBLIC_MEDIA_API_URL);
+
 // ---------------------------------------------------------------------------
 // Server-only values
 // ---------------------------------------------------------------------------

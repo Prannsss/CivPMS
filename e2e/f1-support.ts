@@ -73,8 +73,10 @@ async function claim(email: string): Promise<boolean> {
 export type FreshAccount = { email: string; userId: string };
 
 /**
- * The next pool account that is signed-up, confirmed and not onboarded. Skips the test (with
- * instructions) when the pool is used up.
+ * The next pool account that is signed-up, confirmed and has not started onboarding (no saved
+ * name + role: onboarding would otherwise resume at step 3). Skips the test (with instructions)
+ * when the pool is used up. The used list is per container, so accounts that a run in another
+ * container left half-onboarded are skipped here too.
  */
 export async function claimFreshAccount(): Promise<FreshAccount> {
   const used = await readUsed();
@@ -95,9 +97,9 @@ export async function claimFreshAccount(): Promise<FreshAccount> {
       throw error;
     }
     const { client } = await supabaseAs({ email });
-    const { data } = await client.from("profiles").select("onboarded_at").eq("id", session.userId).maybeSingle();
+    const { data } = await client.from("profiles").select("onboarded_at, role_pref").eq("id", session.userId).maybeSingle();
     await markUsed(email); // used from now on, whatever the test does with it
-    if (!data?.onboarded_at) return { email, userId: session.userId };
+    if (data && !data.onboarded_at && !data.role_pref) return { email, userId: session.userId };
   }
   test.skip(
     true,

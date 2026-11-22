@@ -1,8 +1,16 @@
 //! Supabase Auth signing keys (JWKS), cached in memory and in Redis.
 //!
-//! * Loaded at startup and refreshed when older than [`JWKS_TTL`] (10 minutes).
-//! * A token with an unknown `kid` (key rotation) triggers one refresh, at most once per
-//!   [`UNKNOWN_KID_REFRESH_INTERVAL`], shared by all concurrent requests (single-flight).
+//! * Loaded at startup. Keys older than [`JWKS_TTL`] (10 minutes) stay in use while **one
+//!   background task** refreshes them; requests never wait for that fetch, and a failed
+//!   refresh is retried at most once per [`STALE_REFRESH_INTERVAL`]. This matters exactly
+//!   when Supabase Auth is slow: without it every request would queue behind a fetch.
+//! * A token with an unknown `kid` (key rotation) triggers one blocking refresh, at most once
+//!   per [`UNKNOWN_KID_REFRESH_INTERVAL`]; concurrent requests wait for that one fetch.
+//!   (The kid is read before the signature is checked, so this path must stay cheap.)
+//! * Only when no usable keys exist does a request wait for a fetch; concurrent requests
+//!   share it, and after a failure the next attempt waits [`MISSING_KEYS_RETRY_INTERVAL`].
+//! * Every decision to fetch is taken while holding the refresh lock, so callers queued
+//!   behind an attempt see its outcome instead of starting another one.
 //! * If Supabase is unreachable, the copy in Redis (written by any instance) is used, then
 //!   the in-memory copy for up to [`JWKS_MAX_STALE`]; after that verification fails closed.
 //! * Only asymmetric signing keys are accepted: EC P-256 (`ES256`) and RSA (`RS256`).
@@ -10,7 +18,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use jsonwebtoken::jwk::{AlgorithmParameters, EllipticCurve, JwkSet, KeyAlgorithm, PublicKeyUse};
@@ -22,7 +30,12 @@ use crate::redis_client::RedisHandle;
 
 pub const JWKS_TTL: Duration = Duration::from_mins(10);
 pub const JWKS_MAX_STALE: Duration = Duration::from_hours(6);
+/// Minimum time between two refreshes triggered by an unknown `kid`.
 pub const UNKNOWN_KID_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+/// Minimum time between two background refreshes of keys older than [`JWKS_TTL`].
+pub const STALE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+/// Minimum time between two blocking attempts while no usable keys exist.
+pub const MISSING_KEYS_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const REDIS_KEY: &str = "jwks:v1";
 const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -101,9 +114,14 @@ pub struct JwksCache {
     http: reqwest::Client,
     redis: Arc<RedisHandle>,
     clock: SharedClock,
+    fetch_timeout: Duration,
     current: RwLock<Arc<KeySet>>,
+    /// Held for the whole of one fetch attempt (and while deciding whether one is due).
     refresh_lock: tokio::sync::Mutex<()>,
+    /// Start of the latest fetch attempt (unix ms, `0` = never); written under `refresh_lock`.
     last_attempt_ms: AtomicU64,
+    /// A background refresh task is scheduled or running.
+    background: AtomicBool,
 }
 
 impl std::fmt::Debug for JwksCache {
@@ -112,6 +130,15 @@ impl std::fmt::Debug for JwksCache {
             .field("url", &self.url)
             .field("keys", &self.key_count())
             .finish_non_exhaustive()
+    }
+}
+
+/// Clears [`JwksCache::background`] when the background task ends, however it ends.
+struct BackgroundSlot(Arc<JwksCache>);
+
+impl Drop for BackgroundSlot {
+    fn drop(&mut self) {
+        self.0.background.store(false, Ordering::Release);
     }
 }
 
@@ -127,14 +154,30 @@ impl JwksCache {
             http,
             redis,
             clock,
+            fetch_timeout: FETCH_TIMEOUT,
             current: RwLock::new(Arc::new(KeySet::default())),
             refresh_lock: tokio::sync::Mutex::new(()),
             last_attempt_ms: AtomicU64::new(0),
+            background: AtomicBool::new(false),
         }
+    }
+
+    /// Overrides the per-fetch timeout (tests).
+    #[must_use]
+    pub fn with_fetch_timeout(mut self, timeout: Duration) -> Self {
+        self.fetch_timeout = timeout;
+        self
     }
 
     pub fn key_count(&self) -> usize {
         self.current.read().keys.len()
+    }
+
+    /// Time since the installed keys were fetched (from Supabase, or by whoever wrote the
+    /// Redis copy).
+    pub fn age(&self) -> Duration {
+        let fetched_at = self.current.read().fetched_at_ms;
+        Duration::from_millis(self.clock.now_ms().saturating_sub(fetched_at))
     }
 
     /// True when keys are loaded and not older than [`JWKS_MAX_STALE`].
@@ -145,26 +188,28 @@ impl JwksCache {
                 < JWKS_MAX_STALE.as_millis() as u64
     }
 
-    /// Finds the key for `kid`, refreshing the set when it is old or the kid is unknown.
-    pub async fn key_for(&self, kid: &str) -> Result<VerifyingKey, KeyLookupError> {
-        let now = self.clock.now_ms();
-        let set = Arc::clone(&self.current.read());
-        let age = now.saturating_sub(set.fetched_at_ms);
-        if set.keys.is_empty() || age >= JWKS_TTL.as_millis() as u64 {
-            // Best effort: on failure the current keys stay in use until JWKS_MAX_STALE.
-            let _ = self.refresh(false).await;
+    /// Finds the key for `kid`. Never waits for a fetch while usable keys exist, unless the
+    /// kid is unknown (rotation).
+    pub async fn key_for(self: &Arc<Self>, kid: &str) -> Result<VerifyingKey, KeyLookupError> {
+        if self.is_loaded() {
+            if self.age() >= JWKS_TTL {
+                self.refresh_in_background();
+            }
+        } else {
+            // Nothing usable: this request has to wait (or share an attempt in flight).
+            let _ = self
+                .refresh_if_due(MISSING_KEYS_RETRY_INTERVAL, false)
+                .await;
         }
-
         if let Some(found) = self.lookup(kid) {
             return Ok(found);
         }
-        let recently = now.saturating_sub(self.last_attempt_ms.load(Ordering::Relaxed))
-            < UNKNOWN_KID_REFRESH_INTERVAL.as_millis() as u64;
-        let refreshed = if recently {
-            self.is_loaded()
-        } else {
-            self.refresh(true).await.is_ok()
-        };
+
+        // Unknown kid: the signing keys may have been rotated.
+        let refreshed = self
+            .refresh_if_due(UNKNOWN_KID_REFRESH_INTERVAL, true)
+            .await
+            .is_ok();
         match self.lookup(kid) {
             Some(found) => Ok(found),
             None if refreshed || self.is_loaded() => Err(KeyLookupError::UnknownKid),
@@ -183,22 +228,55 @@ impl JwksCache {
         }
     }
 
-    /// Fetches the JWKS (Supabase first, then the Redis copy). Concurrent callers share one
-    /// fetch; `force` skips the "someone just refreshed" shortcut.
+    fn attempted_within(&self, interval: Duration, now: u64) -> bool {
+        let last = self.last_attempt_ms.load(Ordering::Acquire);
+        last != 0 && now.saturating_sub(last) < interval.as_millis() as u64
+    }
+
+    /// Schedules one background refresh of stale (but still usable) keys, unless one is
+    /// already scheduled or an attempt ran within [`STALE_REFRESH_INTERVAL`].
+    fn refresh_in_background(self: &Arc<Self>) {
+        if self.attempted_within(STALE_REFRESH_INTERVAL, self.clock.now_ms())
+            || self.background.swap(true, Ordering::AcqRel)
+        {
+            return;
+        }
+        let slot = BackgroundSlot(Arc::clone(self));
+        tokio::spawn(async move {
+            // Best effort: on failure the current keys stay in use until JWKS_MAX_STALE.
+            let _ = slot.0.refresh_if_due(STALE_REFRESH_INTERVAL, false).await;
+            drop(slot);
+        });
+    }
+
+    /// Fetches the JWKS now (Supabase first, then the Redis copy), unless the keys are fresh
+    /// and `force` is false. Used at startup.
     pub async fn refresh(&self, force: bool) -> Result<usize, String> {
-        let requested_at = self.clock.now_ms();
+        self.refresh_if_due(Duration::ZERO, force).await
+    }
+
+    /// Runs one fetch attempt unless the keys are fresh (and `force` is false) or an attempt
+    /// started less than `min_interval` ago; in those cases the current state is reported.
+    async fn refresh_if_due(&self, min_interval: Duration, force: bool) -> Result<usize, String> {
         let _guard = self.refresh_lock.lock().await;
+        let now = self.clock.now_ms();
         {
             let set = self.current.read();
-            let refreshed_meanwhile = set.fetched_at_ms >= requested_at && !set.keys.is_empty();
-            let fresh =
-                self.clock.now_ms().saturating_sub(set.fetched_at_ms) < JWKS_TTL.as_millis() as u64;
-            if refreshed_meanwhile || (!force && fresh && !set.keys.is_empty()) {
+            let fresh = !set.keys.is_empty()
+                && now.saturating_sub(set.fetched_at_ms) < JWKS_TTL.as_millis() as u64;
+            if fresh && !force {
                 return Ok(set.keys.len());
             }
         }
-        self.last_attempt_ms
-            .store(self.clock.now_ms(), Ordering::Relaxed);
+        if !min_interval.is_zero() && self.attempted_within(min_interval, now) {
+            // An attempt ran moments ago (possibly the one this caller queued behind).
+            return if self.is_loaded() {
+                Ok(self.key_count())
+            } else {
+                Err("JWKS unavailable; retrying shortly".into())
+            };
+        }
+        self.last_attempt_ms.store(now.max(1), Ordering::Release);
 
         match self.fetch_upstream().await {
             Ok(body) => match parse_jwks(&body) {
@@ -238,7 +316,7 @@ impl JwksCache {
         let response = self
             .http
             .get(&self.url)
-            .timeout(FETCH_TIMEOUT)
+            .timeout(self.fetch_timeout)
             .send()
             .await
             .map_err(|e| format!("request failed: {e}"))?;
@@ -320,5 +398,170 @@ mod tests {
                 .contains("no usable")
         );
         assert!(parse_jwks(b"not json").is_err());
+    }
+
+    const KID: &str = "c80f7771-f021-47ae-b0ad-a9c9cb2da656";
+    const FAST_TIMEOUT: Duration = Duration::from_millis(300);
+
+    /// A cache whose JWKS endpoint is `server` (wiremock), with a manual clock.
+    fn cache_against(
+        server: &wiremock::MockServer,
+    ) -> (Arc<JwksCache>, Arc<crate::clock::ManualClock>) {
+        let clock = crate::clock::ManualClock::new(1_000_000_000);
+        let redis = Arc::new(RedisHandle::disabled(clock.clone()));
+        let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let cache = JwksCache::new(
+            format!("{}/auth/v1/.well-known/jwks.json", server.uri()),
+            http,
+            redis,
+            clock.clone(),
+        )
+        .with_fetch_timeout(FAST_TIMEOUT);
+        (Arc::new(cache), clock)
+    }
+
+    async fn mount(server: &wiremock::MockServer, template: wiremock::ResponseTemplate) {
+        server.reset().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(template)
+            .mount(server)
+            .await;
+    }
+
+    async fn upstream_calls(server: &wiremock::MockServer) -> usize {
+        server.received_requests().await.unwrap_or_default().len()
+    }
+
+    fn hanging() -> wiremock::ResponseTemplate {
+        wiremock::ResponseTemplate::new(200)
+            .set_body_string(SUPABASE_JWKS)
+            .set_delay(Duration::from_mins(1))
+    }
+
+    /// Regression (review finding): once the keys were older than `JWKS_TTL`, every request
+    /// ran its own 5 s fetch, one after another, while Supabase Auth hung.
+    #[tokio::test]
+    async fn stale_keys_are_served_at_once_while_one_background_refresh_runs() {
+        let server = wiremock::MockServer::start().await;
+        let (cache, clock) = cache_against(&server);
+        cache.install_static(SUPABASE_JWKS.as_bytes()).unwrap();
+        mount(&server, hanging()).await;
+        clock.advance(JWKS_TTL + Duration::from_mins(1));
+
+        let started = std::time::Instant::now();
+        let mut tasks = Vec::new();
+        for _ in 0..4 {
+            let cache = Arc::clone(&cache);
+            tasks.push(tokio::spawn(async move { cache.key_for(KID).await }));
+        }
+        for task in tasks {
+            let key = tokio::time::timeout(Duration::from_secs(1), task)
+                .await
+                .expect("served without waiting for the upstream")
+                .unwrap();
+            assert!(key.is_ok());
+        }
+        for _ in 0..4 {
+            assert!(cache.key_for(KID).await.is_ok());
+        }
+        assert!(
+            started.elapsed() < FAST_TIMEOUT,
+            "nobody waited for the fetch"
+        );
+
+        // Let the background attempt time out.
+        tokio::time::sleep(FAST_TIMEOUT + Duration::from_millis(200)).await;
+        assert_eq!(upstream_calls(&server).await, 1, "one refresh attempt");
+
+        // The failed attempt is not retried by every request, only after the interval.
+        clock.advance(STALE_REFRESH_INTERVAL.saturating_sub(Duration::from_secs(1)));
+        for _ in 0..5 {
+            assert!(cache.key_for(KID).await.is_ok());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(upstream_calls(&server).await, 1);
+
+        // Supabase recovers: the next attempt (in the background) installs fresh keys.
+        mount(
+            &server,
+            wiremock::ResponseTemplate::new(200).set_body_string(SUPABASE_JWKS),
+        )
+        .await;
+        clock.advance(Duration::from_secs(2));
+        assert!(cache.key_for(KID).await.is_ok());
+        for _ in 0..50 {
+            if cache.age() < JWKS_TTL {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(cache.age() < JWKS_TTL, "refreshed in the background");
+    }
+
+    /// Without usable keys a request has to wait, but concurrent callers share one attempt
+    /// and a failed attempt is not repeated for every following request.
+    #[tokio::test]
+    async fn missing_keys_share_one_attempt_and_failures_are_throttled() {
+        let server = wiremock::MockServer::start().await;
+        let (cache, clock) = cache_against(&server);
+        mount(&server, wiremock::ResponseTemplate::new(503)).await;
+
+        let mut tasks = Vec::new();
+        for _ in 0..3 {
+            let cache = Arc::clone(&cache);
+            tasks.push(tokio::spawn(async move { cache.key_for(KID).await }));
+        }
+        for task in tasks {
+            assert_eq!(
+                task.await.unwrap().unwrap_err(),
+                KeyLookupError::Unavailable
+            );
+        }
+        assert_eq!(upstream_calls(&server).await, 1, "shared attempt");
+        assert_eq!(
+            cache.key_for(KID).await.unwrap_err(),
+            KeyLookupError::Unavailable
+        );
+        assert_eq!(upstream_calls(&server).await, 1, "failure is throttled");
+
+        mount(
+            &server,
+            wiremock::ResponseTemplate::new(200).set_body_string(SUPABASE_JWKS),
+        )
+        .await;
+        clock.advance(MISSING_KEYS_RETRY_INTERVAL);
+        assert!(cache.key_for(KID).await.is_ok());
+        assert_eq!(upstream_calls(&server).await, 1);
+    }
+
+    /// A forged token with an unknown kid costs at most one upstream call per interval, and
+    /// concurrent ones share it.
+    #[tokio::test]
+    async fn unknown_kids_trigger_at_most_one_refresh_per_interval() {
+        let server = wiremock::MockServer::start().await;
+        let (cache, clock) = cache_against(&server);
+        cache.install_static(SUPABASE_JWKS.as_bytes()).unwrap();
+        mount(
+            &server,
+            wiremock::ResponseTemplate::new(200).set_body_string(SUPABASE_JWKS),
+        )
+        .await;
+        let mut tasks = Vec::new();
+        for i in 0..5 {
+            let cache = Arc::clone(&cache);
+            tasks.push(tokio::spawn(async move {
+                cache.key_for(&format!("forged-{i}")).await
+            }));
+        }
+        for task in tasks {
+            assert_eq!(task.await.unwrap().unwrap_err(), KeyLookupError::UnknownKid);
+        }
+        assert_eq!(upstream_calls(&server).await, 1);
+        clock.advance(UNKNOWN_KID_REFRESH_INTERVAL);
+        assert_eq!(
+            cache.key_for("forged-again").await.unwrap_err(),
+            KeyLookupError::UnknownKid
+        );
+        assert_eq!(upstream_calls(&server).await, 2);
     }
 }

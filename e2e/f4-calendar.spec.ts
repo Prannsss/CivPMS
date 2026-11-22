@@ -228,6 +228,19 @@ test.describe("Calendar — access", () => {
     await openCalendar(page, tenant.cancelledId);
     await expect(page.getByTestId("calendar-lock")).toContainText("cancelled");
     await expect(page.getByRole("checkbox", { name: "Monday" })).toBeDisabled();
+
+    // The database refuses it too (migration 20261023090000), not only the UI and Server Actions.
+    const { client } = await supabaseAs(F4_OWNER);
+    const { error } = await client.rpc("save_calendar", {
+      p_project_id: tenant.cancelledId,
+      p_work_days: [1, 2, 3, 4, 5, 6],
+      p_holidays_nonworking: true,
+      p_hours_per_day: 8,
+      p_dates: [],
+      p_schedule: [],
+    });
+    expect(error?.message).toBe("FORBIDDEN");
+    expect(error?.details).toContain("cancelled");
   });
 
   test("another company gets a 404", async ({ page, context }) => {

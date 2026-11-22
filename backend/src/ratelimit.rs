@@ -76,6 +76,13 @@ local previous = tonumber(redis.call('GET', KEYS[2]) or '0')
 return {current, previous}
 ";
 
+/// Adds `ARGV[1]` units to the current window (same expiry as a counted request).
+const CHARGE_SCRIPT: &str = r"
+local current = redis.call('INCRBY', KEYS[1], ARGV[1])
+if redis.call('PTTL', KEYS[1]) < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) end
+return current
+";
+
 #[derive(Debug)]
 pub struct RateLimiter {
     redis: Arc<RedisHandle>,
@@ -83,6 +90,7 @@ pub struct RateLimiter {
     limits: RateLimitConfig,
     clock: SharedClock,
     script: Script,
+    charge_script: Script,
 }
 
 impl RateLimiter {
@@ -93,6 +101,7 @@ impl RateLimiter {
             limits,
             clock,
             script: Script::new(SCRIPT),
+            charge_script: Script::new(CHARGE_SCRIPT),
         }
     }
 
@@ -110,7 +119,7 @@ impl RateLimiter {
         let counts = self.count_in_redis(class, user, window).await;
         let (current, previous) = match counts {
             Some(counts) => counts,
-            None => self.count_in_memory(class, user, window),
+            None => self.count_in_memory(class, user, window, 1),
         };
         let decision = decide(self.limit(class), now, current, previous);
         if decision.allowed {
@@ -124,18 +133,43 @@ impl RateLimiter {
         }
     }
 
+    /// Draws `units` more from the user's current window without a decision (the next
+    /// [`RateLimiter::check`] sees them). Used to charge uploads for processing time.
+    pub async fn charge(&self, class: RateClass, user: Uuid, units: u32) {
+        if units == 0 {
+            return;
+        }
+        let window = self.clock.now_ms() / WINDOW_MS;
+        let key = Self::redis_key(class, user, window);
+        let script = &self.charge_script;
+        let charged = self
+            .redis
+            .run("rate_limit_charge", |mut conn| async move {
+                script
+                    .key(&key)
+                    .arg(units)
+                    .arg(WINDOW_MS * 2)
+                    .invoke_async::<u64>(&mut conn)
+                    .await
+            })
+            .await;
+        if charged.is_err() {
+            self.count_in_memory(class, user, window, u64::from(units));
+        }
+    }
+
+    fn redis_key(class: RateClass, user: Uuid, window: u64) -> String {
+        format!("rl:v1:{}:{user}:{window}", class.as_str())
+    }
+
     async fn count_in_redis(
         &self,
         class: RateClass,
         user: Uuid,
         window: u64,
     ) -> Option<(u64, u64)> {
-        let current_key = format!("rl:v1:{}:{user}:{window}", class.as_str());
-        let previous_key = format!(
-            "rl:v1:{}:{user}:{}",
-            class.as_str(),
-            window.saturating_sub(1)
-        );
+        let current_key = Self::redis_key(class, user, window);
+        let previous_key = Self::redis_key(class, user, window.saturating_sub(1));
         let script = &self.script;
         self.redis
             .run("rate_limit", |mut conn| async move {
@@ -150,24 +184,24 @@ impl RateLimiter {
             .ok()
     }
 
-    fn count_in_memory(&self, class: RateClass, user: Uuid, window: u64) -> (u64, u64) {
+    fn count_in_memory(&self, class: RateClass, user: Uuid, window: u64, units: u64) -> (u64, u64) {
         let mut map = self.memory.lock();
         if map.len() >= MEMORY_MAX_KEYS {
             map.retain(|_, c| c.window + 1 >= window);
         }
         let counter = map.entry((class, user)).or_default();
         if counter.window == window {
-            counter.current += 1;
+            counter.current += units;
         } else if counter.window + 1 == window {
             *counter = Counter {
                 window,
-                current: 1,
+                current: units,
                 previous: counter.current,
             };
         } else {
             *counter = Counter {
                 window,
-                current: 1,
+                current: units,
                 previous: 0,
             };
         }
@@ -227,5 +261,33 @@ mod tests {
         // Two windows later the budget is back.
         clock.advance(Duration::from_millis(2 * WINDOW_MS));
         limiter.check(RateClass::Upload, user).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn charges_count_against_the_budget() {
+        let clock = ManualClock::new(10 * WINDOW_MS);
+        let redis = Arc::new(RedisHandle::disabled(clock.clone()));
+        let limiter = RateLimiter::new(
+            redis,
+            RateLimitConfig {
+                uploads_per_minute: 10,
+                reads_per_minute: 100,
+            },
+            clock.clone(),
+        );
+        let user = Uuid::new_v4();
+        let first = limiter.check(RateClass::Upload, user).await.unwrap();
+        assert_eq!(first.remaining, 9);
+        limiter.charge(RateClass::Upload, user, 0).await;
+        limiter.charge(RateClass::Upload, user, 8).await; // 1 + 8 = 9
+        let second = limiter.check(RateClass::Upload, user).await.unwrap(); // 10
+        assert_eq!(second.remaining, 0);
+        assert!(limiter.check(RateClass::Upload, user).await.is_err());
+        // Charges are per user and per class.
+        limiter.check(RateClass::Read, user).await.unwrap();
+        limiter
+            .check(RateClass::Upload, Uuid::new_v4())
+            .await
+            .unwrap();
     }
 }

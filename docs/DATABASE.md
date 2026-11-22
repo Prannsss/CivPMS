@@ -38,7 +38,9 @@ Supabase project **CivPMS** (ref `bxfohhwvzbvmyokcsmwq`, ap-southeast-1, Postgre
 | `20261012001400_storage_avatars.sql` | `avatars` bucket + policies |
 | `20261012001500_hardening.sql` | Stricter log immutability, Owner PM invite guard, https-only avatars, anon default privileges |
 | `20261012001600_advisor_fixes.sql` | Explicit deny-all policy on `invite_code_attempts` |
+| `20261014090000_notification_email_digest.sql` | Daily email digest: `notification_prefs.email_digest` (`off`\|`daily`), outbox states `digest`/`digested`, `private.send_email_digests()`, pg_cron job `civpms-email-digest` at 22:55 UTC (06:55 Manila) |
 | `20261015100000_project_media_bucket.sql` | Private `project-media` bucket (WebP, 3 MB) + Storage policies for the media service (`backend/`) |
+| `20261023090000_plan_lock.sql` | Plan lock: `private.assert_plan_open()`; `private.lock_wbs()` and `private.get_managed_activity()` call it, so every WBS RPC and `save_calendar` refuse Completed/Cancelled projects with `FORBIDDEN` (after the permission check) |
 
 All of these are applied to the live project. `supabase_migrations.schema_migrations` holds the same versions and byte-identical statements as these files. Add changes as **new** migrations with a later timestamp; never edit an applied file.
 
@@ -81,7 +83,7 @@ Every table has `created_at` and `updated_at` (`timestamptz`, the latter maintai
 | `invite_codes` | `company_id`, `project_id` (NULL = company-wide), `code` (`XXXX-XXXX`, Crockford base32, unique), `role` (always `inspector`), `expires_at`, `max_uses`, `use_count`, `revoked_at`, `created_by` | D11. |
 | `invite_code_attempts` | `user_id`, `attempted_at`, `success` | Rate limiting. Clients have no access. |
 | `activity_logs` | `company_id`, `project_id`, `entity_type`, `entity_id`, `activity_id`, `action`, `field`, `old_value`, `new_value`, `summary`, `note`, `via`, `actor_id`, `actor_name`, `wbs_code`, `activity_name`, `is_escalation`, `recorded_at`, `observed_at`, `client_id` (unique) | Append-only (see [Activity log](#activity-log)). Foreign keys are `ON DELETE SET NULL`, so purges keep the snapshots. |
-| `notifications` | `user_id`, `project_id`, `company_id`, `type`, `title`, `body`, `link` (app path), `payload`, `in_app`, `read_at`, `email_status` (`pending`\|`sending`\|`sent`\|`skipped`\|`failed`), `email_attempts`, `emailed_at`, `email_error` | Inserted only by `private.notify`. Included in the `supabase_realtime` publication. |
+| `notifications` | `user_id`, `project_id`, `company_id`, `type`, `title`, `body`, `link` (app path), `payload`, `in_app`, `read_at`, `email_status` (`pending`\|`sending`\|`sent`\|`skipped`\|`failed`\|`digest`\|`digested`), `email_attempts`, `emailed_at`, `email_error` | Inserted only by `private.notify`. Included in the `supabase_realtime` publication. |
 
 ### View `project_overview` (security_invoker)
 
@@ -199,6 +201,8 @@ Input normalisation: upper-case, spaces and dashes stripped, `O→0`, `I/L→1`,
 
 The schedule math (end date from start + duration + calendar, D20) and the rollups (D21, D23) are done by the TS module. The database validates basic constraints and stores leaf values.
 
+**Plan lock:** every WBS RPC above that changes data (and `save_calendar`) raises `FORBIDDEN` with "This project is completed, so its plan is locked. Reopen it from Project settings to make changes." or "This project is cancelled, so its plan can't be changed." while the project is Completed or Cancelled. Reads (`activity_trash`) still work; reopening (Completed → Active) unlocks the plan.
+
 ### Calendar (spec §7)
 
 | RPC | Who | Returns | Errors |
@@ -211,7 +215,7 @@ The schedule math (end date from start + duration + calendar, D20) and the rollu
 |---|---|---|---|
 | `notification_catalog()` | signed in | `setof (type, label, description, in_app_default, email_default)` | — |
 | `mark_notifications_read(p_ids uuid[] default null)` (NULL = all mine) | self | `integer` (rows marked) | — |
-| `update_notification_prefs(p_prefs jsonb)` (`{"<type>": {"in_app": bool, "email": bool}}`, merged per key) | self | `jsonb`, the full stored preferences | `VALIDATION`, `NOT_FOUND` |
+| `update_notification_prefs(p_prefs jsonb)` (`{"<type>": {"in_app": bool, "email": bool}}`, merged per key; optional top-level `"email_digest": "off" \| "daily"`) | self | `jsonb`, the full stored preferences | `VALIDATION`, `NOT_FOUND` |
 | `claim_email_batch(p_limit int default 20)` | **service_role** | `setof (id, type, title, body, link, payload, recipient_email, recipient_name, attempts)`. Claims `pending` rows (and `sending` rows stuck > 15 min) with `FOR UPDATE SKIP LOCKED` and marks them `sending`. | — |
 | `complete_email(p_id uuid, p_status text, p_error text default null)` (`sent`\|`failed`\|`skipped`) | **service_role** | `void`. `failed` goes back to `pending` until 5 attempts. | `VALIDATION` |
 
@@ -288,6 +292,8 @@ Other Postgres errors the app can see: `42501` (permission denied, e.g. a direct
 3. Purge: activities and projects soft-deleted more than 30 days ago are hard-deleted (children cascade). Log rows survive with NULL FKs and their text snapshots. A company-scoped `purge` entry is written for each project.
 4. Trim `invite_code_attempts` older than 2 days.
 
+**Daily email digest** `private.send_email_digests()` runs via pg_cron job `civpms-email-digest` (`55 22 * * *` UTC = 06:55 Asia/Manila). While a person has `email_digest = 'daily'`, `private.notify()` stores their email-eligible notifications with `email_status = 'digest'` (in-app delivery is unchanged); the job turns each person's held rows into one `email_digest` outbox row (up to 20 titles + "and N more", link `/notifications`, `in_app = false`) and marks the held rows `digested`.
+
 Fallback if pg_cron is ever unavailable: a protected Vercel cron route (`Authorization: Bearer $CRON_SECRET`) calls `rpc('run_daily_checks')` with the secret-key client. Inspect runs with `select * from cron.job_run_details order by start_time desc limit 20;`.
 
 ---
@@ -323,7 +329,7 @@ Invitation emails to people **without** an account are sent by the app right aft
 
 Bucket `avatars`: public read through the public URL, 2 MB limit, `image/png`, `image/jpeg`, `image/webp`. Signed-in users can select, insert, update and delete only objects under `<their uid>/…` (e.g. `<uid>/avatar.webp`). After uploading, save the public URL with `update_profile({"avatar_url": "https://…"})`.
 
-Bucket `project-media` (migration `20261015100000`): **private**, 3 MB limit, `image/webp` only. Objects are written by the media service (`backend/`) with the caller's own JWT under `<project_id>/<yyyy>/<mm>/<uuid>.webp` (+ `<uuid>_thumb.webp`); the INSERT policy accepts only names of exactly that shape. SELECT and INSERT: anyone in `private.visible_project_ids()` (Owner PM, project PMs, inspectors); DELETE: `private.manageable_project_ids()` (Owner PM, project PMs); no UPDATE policy (objects are immutable). The first path segment is compared as text, so malformed names cannot make a policy raise. Read objects through short-lived signed URLs.
+Bucket `project-media` (migration `20261015100000`): **private**, 3 MB limit, `image/webp` only. Objects are written by the media service (`backend/`) with the caller's own JWT under `<project_id>/<yyyy>/<mm>/<uuid>.webp` (+ `<uuid>_thumb.webp`); the INSERT policy accepts only names of exactly that shape. SELECT and INSERT: anyone in `private.visible_project_ids()` (Owner PM, project PMs, inspectors); DELETE: `private.manageable_project_ids()` (Owner PM, project PMs); no UPDATE policy (objects are immutable). The first path segment is compared as text, so malformed names cannot make a policy raise. Read objects through short-lived signed URLs. Because INSERT is granted to project members (the service uploads with the caller's token), members can also write objects directly, so treat every object as untrusted input (D48).
 
 ## Philippine holidays
 
@@ -372,7 +378,9 @@ supabase db push                                 # applies new files in supabase
 | `06_projects_status.sql` | Create validation, holiday copy, `STALE_VERSION`, per-field logs with ₱ formatting, every status transition, Baseline v1 rollups, completion blocked with the capped list, cancel by owner only, archive/reopen, delete/restore/name conflict/30-day expiry |
 | `07_wbs_calendar.sql` | Codes and levels, insert at index, renumbering without version bumps or log noise, move (self/descendant/depth/cross-project), one move entry, delete/restore batches and positions, `PARENT_DELETED`, restore depth guard, `apply_schedule` atomicity, `save_calendar` diffing, logging and override flip |
 | `08_overview_jobs.sql` | `project_overview` numbers (allocated, parents ignored, cost/hours weights with fallbacks, `budget_state` at 90 % and exactly 100 %), budget-crossing alerts once and again after reset, delayed detection and reset, purge keeping log snapshots, email outbox claim/complete, preferences |
+| `09_notification_digest.sql` | `email_digest` validation and merge, digest hold in `notify()` only for email-eligible rows, one summary row per person with the capped list, held rows marked `digested`, job revoked from clients |
 | `10_project_media_storage.sql` | `project-media` bucket config and policies: owner/project PM/inspector read + upload under their project, generated-name pattern enforced, non-member PM and other company see and write nothing, inspectors cannot delete, PMs and the Owner PM can, avatars bucket unaffected |
+| `11_plan_lock.sql` | Completed project: create/update/move/delete/restore, `apply_schedule` and `save_calendar` all `FORBIDDEN` with the reason and nothing changes; trash still readable, archive still works; outsiders still get `NOT_FOUND` first; reopening unlocks; Cancelled stays locked |
 
 Run them with psql (PowerShell). Use the **Session pooler** connection string from Dashboard → Connect, and never commit it:
 
@@ -385,7 +393,7 @@ Get-ChildItem supabase/tests/*.sql | Sort-Object Name | ForEach-Object {
 }
 ```
 
-You can also paste a file into the Dashboard SQL editor, or run it through the Supabase MCP `execute_sql` tool. All eight passed against the live project on 2026-10-12.
+You can also paste a file into the Dashboard SQL editor, or run it through the Supabase MCP `execute_sql` tool. All eight passed against the live project on 2026-10-12; 10 on 2026-10-15; 11 on 2026-10-28 (through MCP `execute_sql`, ending in a raised sentinel instead of `ROLLBACK`, see `CLAUDE.md`).
 
 ## Advisors
 
