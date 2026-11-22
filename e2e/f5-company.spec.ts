@@ -32,8 +32,9 @@ test.beforeAll(async () => {
   tenant = await ensureF5Tenant();
 });
 
-async function openSettings(page: Page) {
-  await page.goto("/settings");
+/** Company settings show one section at a time; `section` opens one directly (#members, …). */
+async function openSettings(page: Page, section?: "general" | "calendar" | "members" | "invite-codes" | "invitations") {
+  await page.goto(section ? `/settings#${section}` : "/settings");
   await expect(page.getByRole("heading", { level: 1, name: "Company settings" })).toBeVisible();
 }
 
@@ -67,7 +68,7 @@ test("owner renames the company; a taken name is explained inline", async ({ pag
 test("owner changes the default working calendar", async ({ page, context }) => {
   const console = watchConsole(page);
   await loginAs(context, F5.owner);
-  await openSettings(page);
+  await openSettings(page, "calendar");
   const form = page.getByRole("form", { name: "Working calendar defaults" });
   const hours = form.getByRole("textbox", { name: /^Hours per day/ });
   try {
@@ -96,7 +97,7 @@ test("owner promotes, demotes and removes a member", async ({ page, context, bro
   const console = watchConsole(page);
   await ensureF5Member();
   await loginAs(context, F5.owner);
-  await openSettings(page);
+  await openSettings(page, "members");
   const row = page.getByTestId(`member-${F5.member.email}`);
   await expect(row).toContainText(F5_NAMES.member);
   await expect(row).toContainText("Inspector / QA / QC");
@@ -151,7 +152,7 @@ test("owner creates, copies and turns off a company invite code", async ({ page,
   const console = watchConsole(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await loginAs(context, F5.owner);
-  await openSettings(page);
+  await openSettings(page, "invite-codes");
   await page.getByRole("button", { name: "New code" }).click();
   const dialog = page.getByRole("dialog", { name: "Create a company invite code" });
   await dialog.getByRole("combobox").click();
@@ -192,6 +193,7 @@ test("a company PM sees the company read-only, plus codes and invitations", asyn
   await expect(page.getByRole("form", { name: "Rename company" })).toHaveCount(0);
   await expect(page.getByRole("form", { name: "Working calendar defaults" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Manage / })).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Company settings sections" }).getByRole("link", { name: "Invite codes" }).click();
   await expect(page.getByRole("heading", { name: "Company invite codes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New code" })).toBeVisible();
   const invitations = page.locator("#invitations");
