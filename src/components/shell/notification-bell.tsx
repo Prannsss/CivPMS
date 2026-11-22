@@ -16,9 +16,9 @@ import {
 } from "lucide-react";
 import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { IconButton } from "@/components/ui/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BUSINESS_TIMEZONE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -174,25 +174,21 @@ export function NotificationBell({
 
         {projects && projects.length > 0 ? (
           <div className="shrink-0 px-4 pb-3">
-            <Select
+            <Combobox
+              aria-label="Filter by project"
               value={filter}
               onValueChange={(value) => {
                 setInternalFilter(value);
                 onProjectFilterChange?.(value);
               }}
-            >
-              <SelectTrigger aria-label="Filter by project" className="h-9 rounded-full bg-surface-muted text-[13px] sm:h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "all", label: "All projects" },
+                ...projects.map((project) => ({ value: project.id, label: project.name })),
+              ]}
+              placeholder="All projects"
+              emptyMessage="No project matches."
+              className="h-9 rounded-full bg-surface-muted text-[13px] sm:h-9"
+            />
           </div>
         ) : null}
 

@@ -9,6 +9,7 @@ import { PASSWORD_MIN_LENGTH, type ProjectColorKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColorSwatchPicker } from "@/components/ui/color-swatch-picker";
+import { Combobox } from "@/components/ui/combobox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DateInput } from "@/components/ui/date-input";
 import { Field } from "@/components/ui/field";
@@ -23,6 +24,40 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Demo, Section } from "./section";
+
+const DEMO_PROJECTS = [
+  "Panay Bridge Retrofit",
+  "Iloilo Flood Control Phase 2",
+  "Cebu Coastal Road",
+  "Davao Warehouse Expansion",
+  "Bacolod Mall Fit-out",
+  "Quezon Avenue Drainage",
+  "Mandaue Pumping Station",
+  "Taguig Office Tower Fit-out",
+  "Pasig River Esplanade",
+  "Baguio Slope Protection",
+  "Zamboanga Port Pavement",
+  "Tacloban School Buildings",
+];
+
+/** Long, data-driven list → Combobox (type to search). Short fixed lists stay Select. */
+function ComboboxDemo() {
+  const [project, setProject] = useState<string | null>("all");
+  return (
+    <Field label="Project" hint="Type to search. ↑/↓ to move, Enter to pick, Esc to close.">
+      <Combobox
+        value={project}
+        onValueChange={setProject}
+        options={[
+          { value: "all", label: "All projects" },
+          ...DEMO_PROJECTS.map((name, index) => ({ value: `p${index}`, label: name })),
+        ]}
+        placeholder="All projects"
+        emptyMessage="No project matches. Check the spelling or pick All projects."
+      />
+    </Field>
+  );
+}
 
 const projectSchema = z
   .object({
@@ -188,6 +223,7 @@ export function FormsSection() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Demo title="Pickers">
           <div className="grid gap-5">
+            <ComboboxDemo />
             <Field label="Weighting" hint="How activities contribute to overall progress.">
               <Select value={weight} onValueChange={setWeight}>
                 <SelectTrigger>

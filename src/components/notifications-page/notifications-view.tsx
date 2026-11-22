@@ -21,11 +21,11 @@ import { presentNotification } from "@/components/app-shell/notification-items";
 import type { NotificationType } from "@/components/shell/notification-bell";
 import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { formatDateTime, formatRelativeTime, pluralize } from "@/lib/domain/format";
 import type { NotificationRecord } from "@/lib/notifications";
@@ -195,19 +195,20 @@ export function NotificationsView({
             ]}
           />
           {overview.projects.length > 0 ? (
-            <Select value={filter.projectId ?? "all"} onValueChange={(value) => navigate({ ...filter, projectId: value === "all" ? null : value })}>
-              <SelectTrigger aria-label="Filter by project" className="w-full rounded-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {overview.projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-full sm:w-72">
+              <Combobox
+                aria-label="Filter by project"
+                value={filter.projectId ?? "all"}
+                onValueChange={(value) => navigate({ ...filter, projectId: value === "all" ? null : value })}
+                options={[
+                  { value: "all", label: "All projects" },
+                  ...overview.projects.map((project) => ({ value: project.id, label: project.name })),
+                ]}
+                placeholder="All projects"
+                emptyMessage="No project matches. Check the spelling or pick All projects."
+                className="rounded-full"
+              />
+            </div>
           ) : null}
         </div>
       ) : null}

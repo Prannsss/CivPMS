@@ -56,9 +56,22 @@ calendar edits on Completed/Cancelled projects are refused by the actions (`plan
 the database (`private.lock_wbs` / `private.get_managed_activity` → `assert_plan_open`), covered by
 SQL test 11 and by `e2e/f4-wbs` / `f4-calendar` calling the RPCs with the Owner PM's own token.
 
-## 2. Partially built — NOT on the branch
+## 2. Pushed, waiting for the owner's pull requests (2026-11-21)
 
-Nothing. All feature and backend branches are merged; no work lives only in a container.
+`main` is still at the Phase 0–1 merge (PR #1). These branches are pushed, verified (typecheck,
+`npm run lint`, Vitest, `next build`) and **stacked**; open PRs into `main` in this order (each later
+branch contains the earlier ones, so its PR shows only its own commits once the earlier one is merged):
+
+1. `fix/next-security`: Next.js 16.4.2 → 16.4.6 (7 moderate advisories; `next build` refused 16.4.2).
+2. `docs/owner-decisions`: the roadmap (from `claude/civpms-roadmap`) + owner answers Q1–9, D8 (branch/PR
+   workflow), D24 (plan lock).
+3. `chore/oxlint`: B-11, Oxlint as main linter (D9, `docs/LINTING.md`).
+4. `feat/ui-motion`: origin-aware motion, ease tokens, page fade, edge-safe overlays (DESIGN §2.4).
+5. `feat/combobox`: searchable `Combobox`; project and person filters use it (DESIGN components table).
+
+Not run in this session: the Playwright e2e suite (the cloud environment has no `DEMO_PASSWORD` or
+secret keys). UI changes were checked in a real browser on `/dev/styleguide` at 390 and 1440 px instead.
+Run the full suite once the environment has the variables.
 
 ## 3. Not built yet (by design)
 
