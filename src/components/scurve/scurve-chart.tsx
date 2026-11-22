@@ -94,6 +94,12 @@ export function SCurveChart({ points, today, projectEnd, overrun, formatValue, f
     }
   }
 
+  const markerLabels = layoutMarkerLabels(
+    inRange(today) ? x(today) : null,
+    inRange(projectEnd) ? x(projectEnd) : null,
+    innerW,
+  );
+
   const readout = activePoint
     ? `${formatDate(activePoint.date)}: planned ${formatPercent(activePoint.percent, { decimals: 1 })}${formatValue && total > 0 ? ` (${formatValue(activePoint.value)})` : ""}; actual not recorded yet.`
     : "";
@@ -185,13 +191,7 @@ export function SCurveChart({ points, today, projectEnd, overrun, formatValue, f
               {inRange(projectEnd) ? (
                 <g>
                   <line x1={x(projectEnd)} x2={x(projectEnd)} y1={0} y2={innerH} stroke="var(--chart-end-marker)" strokeWidth={1.5} strokeDasharray="4 3" />
-                  <text
-                    x={x(projectEnd) - 4}
-                    // Second line when the Today label would collide with it.
-                    y={inRange(today) && Math.abs(x(today) - x(projectEnd)) < 90 ? 24 : 10}
-                    textAnchor="end"
-                    className="fill-chart-end-marker text-[10px] font-semibold"
-                  >
+                  <text x={markerLabels.endX ?? 0} y={markerLabels.endY} className="fill-chart-end-marker text-[10px] font-semibold">
                     Planned end
                   </text>
                 </g>
@@ -199,7 +199,7 @@ export function SCurveChart({ points, today, projectEnd, overrun, formatValue, f
               {inRange(today) ? (
                 <g>
                   <line x1={x(today)} x2={x(today)} y1={0} y2={innerH} stroke="var(--chart-today)" strokeWidth={2} />
-                  <text x={x(today) + 4} y={10} className="fill-primary-text text-[10px] font-semibold">
+                  <text x={markerLabels.todayX ?? 0} y={10} className="fill-primary-text text-[10px] font-semibold">
                     Today
                   </text>
                 </g>
@@ -243,6 +243,29 @@ export function SCurveChart({ points, today, projectEnd, overrun, formatValue, f
       </div>
     </div>
   );
+}
+
+const TODAY_LABEL_W = 30; // "Today", 10 px semibold
+const END_LABEL_W = 60; // "Planned end"
+
+/**
+ * Where the "Today" and "Planned end" labels go (left x of each). Both stay inside the plot, so
+ * neither runs into the value axis on the right: Today sits right of its line unless that would
+ * cross the right edge, Planned end sits left of its line unless that would cross the left edge.
+ * When the two would touch, Planned end drops to a second line.
+ */
+export function layoutMarkerLabels(
+  todayLine: number | null,
+  endLine: number | null,
+  innerW: number,
+): { todayX: number | null; endX: number | null; endY: number } {
+  const todayX =
+    todayLine === null ? null : todayLine + 4 + TODAY_LABEL_W <= innerW ? todayLine + 4 : Math.max(0, todayLine - 4 - TODAY_LABEL_W);
+  const endX =
+    endLine === null ? null : endLine - 4 - END_LABEL_W >= 0 ? endLine - 4 - END_LABEL_W : Math.min(endLine + 4, innerW - END_LABEL_W);
+  const touch =
+    todayX !== null && endX !== null && todayX < endX + END_LABEL_W + 4 && endX < todayX + TODAY_LABEL_W + 4;
+  return { todayX, endX, endY: touch ? 26 : 10 };
 }
 
 /** Month ticks (or Mondays for short ranges), thinned so labels are ≥ 56 px apart. */

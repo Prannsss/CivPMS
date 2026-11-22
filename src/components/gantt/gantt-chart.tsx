@@ -156,7 +156,10 @@ export function GanttChart({
                   className="absolute top-0 flex h-7 items-center overflow-hidden border-l border-chart-gridline px-2 text-xs leading-4 font-semibold whitespace-nowrap text-foreground"
                   style={{ left: s.x, width: s.width }}
                 >
-                  <span className="sticky left-[calc(var(--gantt-left)+0.5rem)]">{s.label}</span>
+                  {/* A partial month/year at the edge too narrow for its name stays blank (no clipped text). */}
+                  {labelFits(s.label, s.width, 7.2, 16) ? (
+                    <span className="sticky left-[calc(var(--gantt-left)+0.5rem)]">{s.label}</span>
+                  ) : null}
                 </div>
               ))}
               {header.bottom.map((s) => (
@@ -169,7 +172,7 @@ export function GanttChart({
                   )}
                   style={{ left: s.x, width: s.width }}
                 >
-                  {s.width >= 18 ? s.label : null}
+                  {labelFits(s.label, s.width, 6.4, 4) ? s.label : null}
                 </div>
               ))}
               {todayX !== null ? (
@@ -439,4 +442,9 @@ function Bars({
       ) : null}
     </>
   );
+}
+
+/** Rough fit check for a header label (Poppins at the header sizes; average glyph widths). */
+function labelFits(label: string, width: number, charWidth: number, padding: number): boolean {
+  return label.length * charWidth + padding <= width;
 }
