@@ -17,6 +17,7 @@ CivPMS is a Project Management System for engineering/construction companies (Pr
 | Data | Supabase (Postgres + RLS, Auth, Storage, Realtime). `@supabase/ssr` for cookies-based sessions |
 | Email | Brevo transactional REST API (plain `fetch`, no SDK) |
 | Dates | ISO date strings `YYYY-MM-DD` for calendar dates; `date-fns` + `@date-fns/tz`; business timezone **Asia/Manila** |
+| Lint | **Oxlint** (`npm run lint`, `.oxlintrc.json`, D9); ESLint only for the rules Oxlint lacks (`npm run lint:eslint`) — see `docs/LINTING.md` |
 | Tests | Vitest (pure logic), SQL test scripts (RLS/RPC), Playwright 1.56.1 (e2e, Chromium at `/opt/pw-browsers`) |
 
 Next 16 specifics: route protection lives in **`src/proxy.ts`** (the `middleware` convention is deprecated). `cacheComponents` is **off**. Bundled Next docs: `node_modules/next/dist/docs/` — check them instead of guessing APIs. `params`/`searchParams`/`cookies()`/`headers()` are async.
@@ -122,7 +123,8 @@ Global UI services (from `components/ui`): `toast` helpers (sonner, themed, supp
 ```
 npm run dev          # http://localhost:3000
 npm run build        # must pass before every push
-npm run lint
+npm run lint         # oxlint, < 1 s
+npm run lint:eslint  # optional: the 7 rules Oxlint lacks
 npm run typecheck
 npm test             # vitest
 npm run test:e2e     # playwright

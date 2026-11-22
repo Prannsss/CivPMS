@@ -173,7 +173,7 @@ describe("nextWorkingDay", () => {
   it("gives up after the search horizon even if work days exist far away", () => {
     // Every Monday is a work day, but 11 years of Mondays are overridden as non-working.
     const overrides = [];
-    for (let d = new Date(Date.UTC(2026, 9, 12)); d.getUTCFullYear() < 2037; d.setUTCDate(d.getUTCDate() + 7)) {
+    for (const d = new Date(Date.UTC(2026, 9, 12)); d.getUTCFullYear() < 2037; d.setUTCDate(d.getUTCDate() + 7)) {
       overrides.push({ date: d.toISOString().slice(0, 10), kind: "nonworking" as const });
     }
     const blocked = createCalendarIndex(cal({ workDays: [1], overrides }));
