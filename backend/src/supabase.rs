@@ -310,7 +310,7 @@ fn map_rest_error(status: StatusCode, body: &[u8]) -> AppError {
     let detail = String::from_utf8_lossy(&body[..body.len().min(300)]).into_owned();
     match status {
         StatusCode::UNAUTHORIZED => {
-            AppError::unauthenticated("Your session has expired. Sign in again.")
+            AppError::unauthenticated("Your session has expired. Log in again.")
         }
         StatusCode::FORBIDDEN => AppError::forbidden("You don't have access to this."),
         StatusCode::NOT_FOUND | StatusCode::NOT_ACCEPTABLE => AppError::not_found("Not found."),
@@ -355,7 +355,7 @@ fn map_storage_error(status: StatusCode, body: &[u8]) -> AppError {
         .unwrap_or_default();
     match effective {
         StatusCode::UNAUTHORIZED => {
-            AppError::unauthenticated("Your session has expired. Sign in again.")
+            AppError::unauthenticated("Your session has expired. Log in again.")
         }
         StatusCode::FORBIDDEN => {
             AppError::forbidden("You don't have permission to store files here.")

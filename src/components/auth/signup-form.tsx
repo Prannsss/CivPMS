@@ -56,7 +56,7 @@ export function SignUpForm({ next, initialEmail = "", googleEnabled }: SignUpFor
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5" aria-label="Sign up">
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5" aria-label="Sign up">
         <FormError>{rootError?.message}</FormError>
         <Field
           label="Email"

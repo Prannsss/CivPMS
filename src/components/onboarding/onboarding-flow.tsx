@@ -201,7 +201,7 @@ export function OnboardingFlow({
       <StepProgress current={step} labels={stepLabels} />
 
       {step === 1 ? (
-        <form onSubmit={continueFromName} noValidate className="flex flex-col gap-8" aria-label="Your name">
+        <form method="post" onSubmit={continueFromName} noValidate className="flex flex-col gap-8" aria-label="Your name">
           {heading(
             initialName ? "Is this your name?" : "What's your name?",
             "Your team sees it on projects, progress updates and inspections.",
@@ -235,7 +235,7 @@ export function OnboardingFlow({
       ) : null}
 
       {step === 2 ? (
-        <form onSubmit={continueFromRole} noValidate className="flex flex-col gap-8" aria-label="Your role">
+        <form method="post" onSubmit={continueFromRole} noValidate className="flex flex-col gap-8" aria-label="Your role">
           {heading(
             "What's your role?",
             `Nice to meet you, ${greetingName(name)}. Your role decides what you set up next.`,
@@ -289,7 +289,7 @@ export function OnboardingFlow({
               <AuthDivider label="or create your own company" />
             </>
           ) : null}
-          <form onSubmit={submitCompany} noValidate className="flex flex-col gap-6" aria-label="Create your company">
+          <form method="post" onSubmit={submitCompany} noValidate className="flex flex-col gap-6" aria-label="Create your company">
             <CompanyNameField
               value={companyName}
               onChange={(value) => {

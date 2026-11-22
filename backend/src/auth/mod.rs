@@ -88,11 +88,11 @@ impl From<AuthError> for AppError {
     fn from(error: AuthError) -> Self {
         tracing::debug!(reason = %error, "authentication failed");
         match error {
-            AuthError::Missing => AppError::unauthenticated("Sign in to continue."),
+            AuthError::Missing => AppError::unauthenticated("Log in to continue."),
             AuthError::KeysUnavailable => AppError::upstream_unavailable(),
             AuthError::Anonymous => AppError::forbidden("Create an account to upload files."),
             _ => {
-                AppError::unauthenticated("Your session is invalid or has expired. Sign in again.")
+                AppError::unauthenticated("Your session is invalid or has expired. Log in again.")
             }
         }
     }

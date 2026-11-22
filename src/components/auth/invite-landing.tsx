@@ -512,7 +512,7 @@ function AcceptActions({ token, invitation, viewer, onDeclined }: ActionProps) {
   }
 
   return (
-    <form onSubmit={accept} noValidate className="flex flex-col gap-5" aria-label="Accept the invitation">
+    <form method="post" onSubmit={accept} noValidate className="flex flex-col gap-5" aria-label="Accept the invitation">
       <p className="flex items-start gap-2 text-sm text-muted-foreground">
         <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success-text" />
         <span>

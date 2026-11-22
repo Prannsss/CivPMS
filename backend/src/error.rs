@@ -87,7 +87,7 @@ impl ErrorCode {
     /// Default plain-language message for framework-generated errors.
     const fn default_message(self) -> &'static str {
         match self {
-            Self::Unauthenticated => "Sign in again: your session is missing or has expired.",
+            Self::Unauthenticated => "Log in again: your session is missing or has expired.",
             Self::Forbidden => "You don't have permission to do this.",
             Self::NotFound => "There is nothing at this address.",
             Self::MethodNotAllowed => "This endpoint does not support that HTTP method.",
