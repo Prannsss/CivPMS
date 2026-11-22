@@ -77,6 +77,8 @@ Decisions that refine, extend or override `SPEC.md` (Draft v0.2). Newest first w
 | 8 | **Vercel Pro** with functions in Singapore (`sin1`), plus the 5-minute database-driven email dispatcher using two Vault secrets; the daily Vercel cron stays as a fallback. | O-6, B-07, O-11, D67, P3-04 |
 | 9 | Move the owner's account `rhecy@civpms.test` to a **real mailbox** before Phase 3 emails; the clean-up script keeps it either way. | O-10 |
 
+**Stage A (owner, 2026-11-21).** SPEC.md is no longer available to the build; the roadmap (which cites it) and this log are the working spec. Before the full Phase 2, ship a **read-only Gantt** and a **planned-only S-curve** built from data already in the database (activities, calendar, baselines), with **no migration**. The S-curve's actual line stays empty, with a clear "No progress recorded yet" state, until progress updates exist (Phase 3); then it fills in by itself. Links, CPM, Gantt editing and the baselines UI follow in Phase 2 proper.
+
 Questions 10–40 are still open; until answered, packages follow the roadmap's recommendation and say so in their report.
 
 ## Deferred (not in Phase 0–1)

@@ -12,5 +12,6 @@ export * from "./rollup";
 export * from "./project";
 export * from "./permissions";
 export * from "./format";
+export * from "./gantt";
 export * from "./invite-code";
 export * from "./schemas";
