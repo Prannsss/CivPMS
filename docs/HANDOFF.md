@@ -104,9 +104,6 @@ updated `shell` / `found-shell` assertions are untested until the suite runs wit
   `register()` instead; add a register-based variant to `src/components/ui`.
 - `supabase/templates/confirm-signup.html` hard-codes `next=/onboarding`; people who sign up from
   an invitation land in onboarding (the invitation still appears there). Use `{{ .RedirectTo }}`.
-- `profiles.avatar_url` accepts any `https://` URL (by RPC or direct update). An outside image link
-  would load in teammates' browsers (IP leak). Restrict it to the Storage bucket and Google photo
-  hosts.
 - WBS "add first child" (D21): if clearing the parent's own values fails (e.g. someone edited the
   parent in between), the error is ignored. The values are hidden while the parent has children,
   but would resurface if all children were deleted. Rare; surface it as a warning.
