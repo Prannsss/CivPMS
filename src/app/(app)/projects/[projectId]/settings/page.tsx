@@ -4,7 +4,9 @@ import { Lock } from "lucide-react";
 import { StatusPanel as StatusPage } from "@/components/app-shell/status-page";
 import { DangerZone } from "@/components/project-settings/danger-zone";
 import { ProjectDetailsForm } from "@/components/project-settings/project-details-form";
-import { SettingsSection } from "@/components/project-settings/settings-section";
+import { ProjectSettingsView } from "@/components/project-settings/project-settings-view";
+import { isProjectSettingsSection } from "@/components/project-settings/section-ids";
+import { SettingsPanel } from "@/components/project-settings/settings-section";
 import { StatusPanel } from "@/components/project-settings/status-panel";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,9 +16,13 @@ import { getWorkSummary } from "@/server/queries/project-dashboard";
 
 export const metadata: Metadata = { title: "Project Settings" };
 
-/** Project Settings (spec §5): details, status, archive and delete. Managers only. */
-export default async function ProjectSettingsPage({ params }: PageProps<"/projects/[projectId]/settings">) {
-  const { projectId } = await params;
+/**
+ * Project Settings (spec §5): details, status, archive and delete, one section at a time —
+ * the rows on the left switch the panel (`?section=details|status|danger`). Managers only.
+ */
+export default async function ProjectSettingsPage({ params, searchParams }: PageProps<"/projects/[projectId]/settings">) {
+  const [{ projectId }, query] = await Promise.all([params, searchParams]);
+  const requested = Array.isArray(query.section) ? query.section[0] : query.section;
   const { project, permissions, companyRole, projectRole } = await getProjectAccess(projectId);
 
   if (!permissions.canEditProject) {
@@ -43,71 +49,64 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   ]);
 
   return (
-    <div className="flex flex-col gap-8 lg:gap-10">
+    <div className="flex flex-col gap-6 lg:gap-8">
       <PageHeader
         className="pb-0 sm:pb-0"
         title="Project Settings"
         description="Every change is recorded in the audit trail."
       />
 
-      <SettingsSection
-        id="details"
-        title="Details"
-        description="Dates and budget drive the Delayed and budget badges."
-      >
-        <ProjectDetailsForm
-          projectId={project.id}
-          initialVersion={project.version}
-          initial={{
-            name: project.name,
-            startDate: project.start_date,
-            endDate: project.end_date,
-            budget: Number(project.budget),
-            siteName: project.site_name ?? "",
-            siteAddress: project.site_address ?? "",
-            description: project.description ?? "",
-            color: project.color,
-            weighting: project.weighting,
-            nearBudgetThreshold: Number(project.near_budget_threshold),
-          }}
-        />
-      </SettingsSection>
-
-      <SettingsSection
-        id="status"
-        title="Status"
-        description="Planning → Active → On-Hold → Completed, or Cancelled. Everyone on the project is notified."
-      >
-        <StatusPanel
-          projectId={project.id}
-          projectName={project.name}
-          status={project.status}
-          statusReason={project.status_reason}
-          isArchived={project.is_archived}
-          companyRole={companyRole}
-          projectRole={projectRole}
-          activityCount={work.activityCount}
-          incompleteCount={work.incompleteCount}
-          incomplete={work.incomplete}
-          canArchive={permissions.canArchive}
-        />
-      </SettingsSection>
-
-      {permissions.canDelete ? (
-        <SettingsSection
-          id="danger"
-          title="Danger zone"
-          tone="danger"
-          description="Only the Owner PM can delete a project."
-        >
-          <DangerZone
-            projectId={project.id}
-            projectName={project.name}
-            activityCount={work.activityCount}
-            memberCount={collaborators.filter((member) => !member.isOwner).length}
-          />
-        </SettingsSection>
-      ) : null}
+      <ProjectSettingsView
+        initialSection={isProjectSettingsSection(requested) ? requested : null}
+        showDanger={permissions.canDelete}
+        panels={{
+          details: (
+            <ProjectDetailsForm
+              projectId={project.id}
+              initialVersion={project.version}
+              initial={{
+                name: project.name,
+                startDate: project.start_date,
+                endDate: project.end_date,
+                budget: Number(project.budget),
+                siteName: project.site_name ?? "",
+                siteAddress: project.site_address ?? "",
+                description: project.description ?? "",
+                color: project.color,
+                weighting: project.weighting,
+                nearBudgetThreshold: Number(project.near_budget_threshold),
+              }}
+            />
+          ),
+          status: (
+            <SettingsPanel id="status" title="Status">
+              <StatusPanel
+                projectId={project.id}
+                projectName={project.name}
+                status={project.status}
+                statusReason={project.status_reason}
+                isArchived={project.is_archived}
+                companyRole={companyRole}
+                projectRole={projectRole}
+                activityCount={work.activityCount}
+                incompleteCount={work.incompleteCount}
+                incomplete={work.incomplete}
+                canArchive={permissions.canArchive}
+              />
+            </SettingsPanel>
+          ),
+          danger: permissions.canDelete ? (
+            <SettingsPanel id="danger" title="Danger zone" tone="danger">
+              <DangerZone
+                projectId={project.id}
+                projectName={project.name}
+                activityCount={work.activityCount}
+                memberCount={collaborators.filter((member) => !member.isOwner).length}
+              />
+            </SettingsPanel>
+          ) : null,
+        }}
+      />
     </div>
   );
 }
