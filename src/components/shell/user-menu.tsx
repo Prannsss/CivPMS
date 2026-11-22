@@ -2,23 +2,19 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { LogOut, Monitor, Settings, SunMoon, UserRound } from "lucide-react";
+import { LogOut, Moon, Settings, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { THEME_OPTIONS, useThemeChoice, type ThemeChoice } from "./theme-toggle";
+import { useThemeChoice } from "./theme-toggle";
 
 /** Sign-out target: a POST form action (URL such as "/auth/signout" or a server action) or a callback. */
 export type SignOutHandler =
@@ -60,7 +56,7 @@ export function UserMenu({
   className,
 }: UserMenuProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [theme, setTheme] = useThemeChoice();
+  const { theme, toggle } = useThemeChoice();
 
   return (
     <>
@@ -118,23 +114,15 @@ export function UserMenu({
             ) : null}
             {children}
             {showTheme ? (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <SunMoon aria-hidden />
-                  Theme
-                  <span className="ml-auto text-xs text-muted-foreground capitalize">{theme}</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as ThemeChoice)}>
-                    {THEME_OPTIONS.map((option) => (
-                      <DropdownMenuRadioItem key={option.value} value={option.value}>
-                        {option.value === "system" ? <Monitor aria-hidden /> : option.icon}
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              <DropdownMenuCheckboxItem
+                checked={theme === "dark"}
+                onCheckedChange={toggle}
+                // Stay open so the switch is visible.
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Moon aria-hidden />
+                Dark mode
+              </DropdownMenuCheckboxItem>
             ) : null}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

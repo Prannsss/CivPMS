@@ -38,6 +38,7 @@ import { nodeLabel } from "./model";
 import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
+import { SimpleTooltip, TruncatedText } from "@/components/ui/tooltip";
 
 const NODE_W = GRAPH_NODE.width;
 const NODE_H = GRAPH_NODE.height;
@@ -273,9 +274,11 @@ function TopFit({
   }, [fit]);
   return (
     <Controls showInteractive={false} showFitView={false} position="bottom-left" aria-label="Zoom controls">
-      <ControlButton onClick={() => fit("all", 200)} aria-label="Fit the whole tree" title="Fit the whole tree">
-        <Fullscreen />
-      </ControlButton>
+      <SimpleTooltip content="Fit the whole tree" side="right">
+        <ControlButton onClick={() => fit("all", 200)} aria-label="Fit the whole tree">
+          <Fullscreen />
+        </ControlButton>
+      </SimpleTooltip>
     </Controls>
   );
 }
@@ -295,9 +298,7 @@ function ProjectCard({ data }: NodeProps<Node<ProjectNodeData, "project">>) {
         </span>
         <div className="flex min-w-0 flex-col">
           <span className="text-[11px] leading-4 font-medium text-white/85">Project</span>
-          <span className="truncate text-[13px] leading-5 font-semibold" title={data.name}>
-            {data.name}
-          </span>
+          <TruncatedText className="truncate text-[13px] leading-5 font-semibold">{data.name}</TruncatedText>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -356,12 +357,11 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
               {formatDuration(rollup?.hours ?? node.durationHours ?? 0, wbs.unit, wbs.hoursPerDay)}
             </span>
           </span>
-          <span
+          <TruncatedText
             className={cn("line-clamp-2 text-[13px] leading-[1.1rem]", node.level === 1 ? "font-semibold" : "font-medium")}
-            title={node.name}
           >
             {node.name}
-          </span>
+          </TruncatedText>
         </div>
         <RowActions node={node} className="-mt-1 size-8 shrink-0" />
       </div>
@@ -375,10 +375,12 @@ function ActivityCard({ data }: NodeProps<Node<ActivityNodeData, "activity">>) {
         <div className="flex min-w-0 items-center gap-1">
           <StatusBadge status={delayedLeaf ? "delayed" : status} size="sm" />
           {!isLeaf && rollup?.hasDelayed ? (
-            <span className="inline-flex text-danger-text" title="Contains delayed work packages">
-              <TriangleAlert aria-hidden className="size-3.5" />
-              <span className="sr-only">Contains delayed work packages</span>
-            </span>
+            <SimpleTooltip content="Contains delayed work packages">
+              <span className="inline-flex text-danger-text">
+                <TriangleAlert aria-hidden className="size-3.5" />
+                <span className="sr-only">Contains delayed work packages</span>
+              </span>
+            </SimpleTooltip>
           ) : null}
         </div>
         <span className="shrink-0 text-xs leading-4 font-semibold text-foreground tabular-nums">

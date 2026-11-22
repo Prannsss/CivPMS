@@ -6,6 +6,7 @@ import { PROJECT_COLOR_KEYS, type ProjectColorKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useFieldContext } from "./field";
 import { PROJECT_COLORS } from "./project-color";
+import { SimpleTooltip } from "./tooltip";
 
 export type ColorSwatchPickerProps = {
   value: ProjectColorKey;
@@ -33,26 +34,29 @@ export function ColorSwatchPicker({ value, onValueChange, disabled, className, s
       {PROJECT_COLOR_KEYS.map((key) => {
         const color = PROJECT_COLORS[key];
         return (
-          <RadioGroupPrimitive.Item
-            key={key}
-            value={key}
-            aria-label={color.label}
-            title={color.label}
-            className={cn(
-              "group relative grid place-items-center rounded-full text-white transition-transform duration-150 ease-out",
-              "ring-offset-2 ring-offset-background hover:scale-105 focus-ring data-[state=checked]:ring-2",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              size === "md" ? "size-11 sm:size-9" : "size-12",
-              color.gradient,
-              color.ring,
-            )}
-          >
-            <Check
-              aria-hidden
-              strokeWidth={3}
-              className="size-4 scale-50 opacity-0 transition-[opacity,transform] duration-150 group-data-[state=checked]:scale-100 group-data-[state=checked]:opacity-100"
-            />
-          </RadioGroupPrimitive.Item>
+          // Tooltip on a wrapper: as the trigger itself it would overwrite the item's data-state="checked".
+          <SimpleTooltip key={key} content={color.label}>
+            <span className="inline-flex">
+              <RadioGroupPrimitive.Item
+                value={key}
+                aria-label={color.label}
+                className={cn(
+                  "group relative grid place-items-center rounded-full text-white transition-transform duration-200 ease-in-out",
+                  "ring-offset-2 ring-offset-background hover:scale-105 focus-ring data-[state=checked]:ring-2",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                  size === "md" ? "size-11 sm:size-9" : "size-12",
+                  color.gradient,
+                  color.ring,
+                )}
+              >
+                <Check
+                  aria-hidden
+                  strokeWidth={3}
+                  className="size-4 scale-50 opacity-0 transition-[opacity,transform,scale] duration-200 group-data-[state=checked]:scale-100 group-data-[state=checked]:opacity-100"
+                />
+              </RadioGroupPrimitive.Item>
+            </span>
+          </SimpleTooltip>
         );
       })}
     </RadioGroupPrimitive.Root>

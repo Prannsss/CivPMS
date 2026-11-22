@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { formatDate, formatRelativeTime, levelLabel, pluralize } from "@/lib/domain";
 import type { TrashItem } from "./types";
+import { TruncatedText } from "@/components/ui/tooltip";
 
 function contents(item: TrashItem): string {
   const parts: string[] = [];
@@ -68,9 +69,7 @@ export function TrashSheet({
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <p className="flex min-w-0 items-baseline gap-2 text-sm leading-5 font-medium text-foreground">
                       <span className="shrink-0 font-mono text-xs text-muted-foreground">{item.wbsCode}</span>
-                      <span className="truncate" title={item.name}>
-                        {item.name}
-                      </span>
+                      <TruncatedText className="truncate">{item.name}</TruncatedText>
                     </p>
                     <p className="text-xs leading-4 text-muted-foreground">
                       {contents(item)} · deleted {formatRelativeTime(item.deletedAt, now)}

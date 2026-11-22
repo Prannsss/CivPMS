@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,38 @@ export function SimpleTooltip({ content, children, side = "top", align, disabled
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side={side} align={align}>
         {content}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+type TruncatedTextProps = Omit<React.ComponentProps<"span">, "children"> & {
+  children: string;
+  side?: React.ComponentProps<typeof TooltipPrimitive.Content>["side"];
+};
+
+/**
+ * Text that is cut off with an ellipsis (`truncate` / `line-clamp-*` in `className`). The full text
+ * shows in an edge-safe tooltip on hover, but only while it is actually cut off.
+ */
+export function TruncatedText({ children, className, side = "top", ...props }: TruncatedTextProps) {
+  const ref = React.useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Tooltip
+      open={open}
+      onOpenChange={(next) => {
+        const el = ref.current;
+        setOpen(next && !!el && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1));
+      }}
+    >
+      <TooltipTrigger asChild>
+        <span ref={ref} className={cn("min-w-0", className)} {...props}>
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side={side} className="break-words">
+        {children}
       </TooltipContent>
     </Tooltip>
   );

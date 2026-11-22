@@ -45,6 +45,7 @@ import { getProjection, nodeLabel, type Projection } from "./model";
 import { RowActions } from "./row-actions";
 import type { RollupMap, WbsNode } from "./types";
 import { useWbs } from "./wbs-context";
+import { SimpleTooltip, TruncatedText } from "@/components/ui/tooltip";
 
 const INDENT = 18;
 /** Above this many visible rows the list renders only what is on screen (500+ rows stay smooth). */
@@ -496,17 +497,16 @@ const RowCells = memo(
               disabled={!wbs.canEdit}
               onCommit={(name) => wbs.update(node, { name })}
             >
-              <span
+              <TruncatedText
                 className={cn(
                   "line-clamp-2 min-w-0 leading-5 break-words",
                   node.level === 1 && "font-semibold text-foreground",
                   node.level === 2 && "font-medium text-foreground",
                   node.level >= 3 && "text-foreground",
                 )}
-                title={node.name}
               >
                 {node.name}
-              </span>
+              </TruncatedText>
               <span className="sr-only">, {levelText}</span>
             </TextCell>
             {!isLeaf && r ? (
@@ -621,15 +621,19 @@ const RowCells = memo(
       <td className="border-b border-border px-2.5">
         <div className="flex min-w-0 items-center gap-1">
           {derivedDelayed ? (
-            <StatusBadge status="delayed" size="sm" title="Its start or end date has passed" />
+            <SimpleTooltip content="Its start or end date has passed">
+              <StatusBadge status="delayed" size="sm" />
+            </SimpleTooltip>
           ) : (
             <StatusBadge status={r?.status ?? node.status} size="sm" />
           )}
           {!isLeaf && r?.hasDelayed ? (
-            <span className="inline-flex text-danger-text" title="Contains delayed work packages">
-              <TriangleAlert aria-hidden className="size-3.5" />
-              <span className="sr-only">Contains delayed work packages</span>
-            </span>
+            <SimpleTooltip content="Contains delayed work packages">
+              <span className="inline-flex text-danger-text">
+                <TriangleAlert aria-hidden className="size-3.5" />
+                <span className="sr-only">Contains delayed work packages</span>
+              </span>
+            </SimpleTooltip>
           ) : null}
         </div>
       </td>

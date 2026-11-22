@@ -117,7 +117,8 @@ test("display preferences: duration unit and theme", async ({ page, context }) =
   await expect(page.locator("html")).toHaveClass(/dark/);
   await theme.getByRole("radio", { name: "Light" }).click();
   await expect(page.locator("html")).not.toHaveClass(/dark/);
-  await theme.getByRole("radio", { name: "System" }).click();
+  // Two themes only (no "System" choice since 2026-11-21).
+  await expect(theme.getByRole("radio")).toHaveCount(2);
   console.expectClean();
 });
 

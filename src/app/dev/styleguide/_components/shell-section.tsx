@@ -33,7 +33,7 @@ function SampleProjectCard({ project }: { project: MockProject }) {
       href="#shell"
       className={cn(
         "group relative isolate flex min-h-56 flex-col overflow-hidden rounded-2xl p-5 text-white shadow-sm",
-        "transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-ring",
+        "transition-[transform,translate,scale,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-ring",
         color.gradient,
       )}
     >

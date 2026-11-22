@@ -6,6 +6,7 @@ import { formatDateTime, formatRelativeTime, formatTime } from "@/lib/domain/for
 import { cn } from "@/lib/utils";
 import type { AuditEntry } from "@/server/queries/audit";
 import { entityLabel, observedDiffers, viaLabel } from "./audit-format";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 
 /**
  * One activity-log entry: actor, summary (old → new), WBS code and name, via, and the recorded
@@ -91,13 +92,17 @@ export function LogEntry({
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4 text-muted-foreground">
           {compact ? (
-            <time dateTime={entry.recordedAt} title={formatDateTime(entry.recordedAt)} className="tabular-nums">
-              {formatRelativeTime(entry.recordedAt, now)}
-            </time>
+            <SimpleTooltip content={formatDateTime(entry.recordedAt)}>
+              <time dateTime={entry.recordedAt} className="tabular-nums">
+                {formatRelativeTime(entry.recordedAt, now)}
+              </time>
+            </SimpleTooltip>
           ) : (
-            <time dateTime={entry.recordedAt} title={formatDateTime(entry.recordedAt)} className="tabular-nums">
-              {formatTime(entry.recordedAt)}
-            </time>
+            <SimpleTooltip content={formatDateTime(entry.recordedAt)}>
+              <time dateTime={entry.recordedAt} className="tabular-nums">
+                {formatTime(entry.recordedAt)}
+              </time>
+            </SimpleTooltip>
           )}
           {showObserved && entry.observedAt ? (
             <span className="inline-flex items-center gap-1 tabular-nums">

@@ -57,7 +57,7 @@ export function DisplaySection({ initialUnit }: { initialUnit: Unit }) {
           />
         </SettingsRow>
         <Separator />
-        <SettingsRow label="Theme" hint="Saved on this device. System follows your phone or computer setting.">
+        <SettingsRow label="Theme" hint="Saved on this device.">
           <ThemeToggle variant="segmented" />
         </SettingsRow>
       </div>

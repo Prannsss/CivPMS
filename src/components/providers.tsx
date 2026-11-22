@@ -13,7 +13,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
  */
 const themeScriptProps = { type: typeof window === "undefined" ? "text/javascript" : "application/json" };
 
-/** App-wide client providers: theme (light/dark/system), tooltips, confirm dialogs and snackbars. */
+/**
+ * App-wide client providers: theme, tooltips, confirm dialogs and snackbars. People choose light or
+ * dark (no "System" option); until they do, the first visit starts from the device setting.
+ */
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider

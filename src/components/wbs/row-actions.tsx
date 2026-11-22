@@ -91,7 +91,6 @@ function MoveItems({ node }: { node: WbsNode }) {
             key={item.command}
             disabled={!state.ok}
             onSelect={() => wbs.moveBy(node, item.command)}
-            title={state.ok ? undefined : state.reason}
           >
             {item.icon}
             <span className="flex min-w-0 flex-col">

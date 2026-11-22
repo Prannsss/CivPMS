@@ -90,7 +90,7 @@ export function ChoiceCard({ className, title, description, icon, footer, ...pro
       aria-describedby={description ? descriptionId : undefined}
       className={cn(
         "group relative flex w-full items-start gap-4 rounded-lg border-[1.5px] border-border-strong bg-surface p-4 text-left sm:p-5",
-        "transition-[border-color,background-color,box-shadow] duration-150 ease-out focus-ring",
+        "transition-[border-color,background-color,box-shadow] duration-200 ease-in-out focus-ring",
         "hover:border-input hover:bg-surface-muted",
         "data-[state=checked]:border-primary data-[state=checked]:bg-primary-soft data-[state=checked]:shadow-sm",
         "disabled:cursor-not-allowed disabled:opacity-50",

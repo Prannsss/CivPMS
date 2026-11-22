@@ -38,7 +38,7 @@ export function ProjectShell({ sidebar, topBar, palette, children, contentClassN
       <aside
         aria-label="Project navigation"
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 transition-[width] duration-200 ease-out lg:block",
+          "sticky top-0 hidden h-dvh shrink-0 transition-[width] duration-300 ease-in-out lg:block",
           collapsed ? "w-[5rem]" : "w-[17.75rem]",
         )}
       >

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /** Shared look of text-like form controls (input, textarea, select trigger). */
 export const controlClasses = cn(
   "w-full min-w-0 rounded-md border border-input bg-surface text-sm text-foreground",
-  "transition-[border-color,box-shadow,background-color] duration-150 ease-out",
+  "transition-[border-color,box-shadow,background-color] duration-200 ease-in-out",
   "placeholder:text-muted-foreground",
   "enabled:hover:border-muted-foreground",
   "outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20",

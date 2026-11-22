@@ -143,7 +143,9 @@ Use `tabular-nums` for money, dates and percentages. Format money as `₱1,234,5
     and the command palette only scale from the center; sheets slide from their edge.
   - **Pages:** `template.tsx` in the `(home)` and project shells fades each page in on navigation
     (opacity only, so `position: fixed` children are never offset). Search-param changes do not re-animate.
-  - Hover lifts (project cards) and press feedback (buttons) use 150–200 ms transitions.
+  - **Hovers glide:** colour/border/shadow changes fade over 200 ms with `--ease-in-out` (also the default for every `transition-*` utility and, via a zero-specificity base rule, for links, buttons, inputs, menu items and table rows that set no transition). Lifts (project cards 300 ms, `Card` 300 ms) list `translate` in their transition, because Tailwind v4 moves elements with the `translate` property.
+  - **Theme toggle:** one click flips light ↔ dark; the icon plays `animate-theme-spin` (a keyframe, since next-themes disables transitions for the switching frame). No "System" option.
+  - **Tooltips:** hover hints use `SimpleTooltip` or `TruncatedText` (shows the full text only when it is cut off), never the native `title`, so they are styled, edge-safe and work on focus.
   - **Edge-safe:** popovers, menus, sub-menus, selects and tooltips keep ≥ 8 px from the viewport
     (`collisionPadding`; popovers 12 px), flip/shift via Radix, and are capped to
     `--radix-…-content-available-width/height` (scrolling inside when taller). Pop animations only shrink
@@ -365,7 +367,7 @@ import { HomeShell, ProjectShell, TopBarGreeting } from "@/components/shell";
 | `Switch` | `label`, `description` | |
 | `RadioGroup` / `RadioGroupItem` | `label`, `description` | |
 | `ChoiceCard` | `value`, `title`, `description`, `icon`, `footer` | Big selectable card inside `<RadioGroup>` (onboarding role picker). |
-| `SegmentedControl` | `options` `{value,label,icon?,iconOnly?}`, `value`, `onValueChange`, **`aria-label`**, `size`, `fullWidth` | Hours\|Days, Graph\|List, Light\|Dark\|System. Always one value. |
+| `SegmentedControl` | `options` `{value,label,icon?,iconOnly?}`, `value`, `onValueChange`, **`aria-label`**, `size`, `fullWidth` | Hours\|Days, Graph\|List, Light\|Dark. Always one value. |
 | `CurrencyInput` | `value: number \| null`, `onValueChange(number \| null)`, `symbol` | `₱` prefix. Formats `1,250,000.00` on blur. Emits a number rounded to centavos. |
 | `DateInput` | `value: "YYYY-MM-DD"`, `onValueChange`, `min`, `max` | Styled native date input. |
 | `ColorSwatchPicker` | `value: ProjectColorKey`, `onValueChange`, `size` | Radio semantics over `PROJECT_COLOR_KEYS`. |

@@ -63,7 +63,7 @@ export function SegmentedControl<T extends string>({
           aria-label={option.iconOnly && typeof option.label === "string" ? option.label : undefined}
           className={cn(
             "inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap text-muted-foreground",
-            "transition-[background-color,color,box-shadow] duration-150 ease-out focus-ring",
+            "transition-[background-color,color,box-shadow] duration-200 ease-in-out focus-ring",
             "hover:text-foreground",
             "data-[state=on]:bg-surface data-[state=on]:text-foreground data-[state=on]:shadow-sm dark:data-[state=on]:bg-border-strong",
             "disabled:pointer-events-none disabled:opacity-50",

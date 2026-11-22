@@ -13,7 +13,7 @@ export function Card({ className, variant = "default", ...props }: CardProps) {
         "flex min-w-0 flex-col rounded-lg border border-border text-foreground",
         variant === "muted" ? "bg-surface-muted" : "bg-surface shadow-xs",
         variant === "interactive" &&
-          "transition-[box-shadow,border-color,transform] duration-150 ease-out hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md",
+          "transition-[box-shadow,border-color,transform,translate] duration-300 ease-in-out hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md",
         className,
       )}
       {...props}

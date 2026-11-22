@@ -34,6 +34,7 @@ import { loadOlderNotifications } from "@/app/(app)/(home)/notifications/actions
 import { markNotificationsRead } from "@/server/actions/notifications";
 import type { NotificationsFilter, NotificationsOverview, NotificationsPage } from "@/server/queries/notifications-page";
 import { groupByDay, mergePages, notificationsHref } from "./notification-groups";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 
 const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   invitation: MailOpen,
@@ -303,9 +304,11 @@ function NotificationRow({ item, now, onRead }: { item: NotificationRecord; now:
               <span className="truncate">{item.projectName}</span>
             </span>
           ) : null}
-          <time dateTime={item.createdAt} title={formatDateTime(item.createdAt)} className="tabular-nums">
-            {formatRelativeTime(item.createdAt, now)}
-          </time>
+          <SimpleTooltip content={formatDateTime(item.createdAt)}>
+            <time dateTime={item.createdAt} className="tabular-nums">
+              {formatRelativeTime(item.createdAt, now)}
+            </time>
+          </SimpleTooltip>
         </span>
       </span>
     </>
