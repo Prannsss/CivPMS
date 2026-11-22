@@ -188,12 +188,12 @@ function ProjectWorkspacePreview() {
   };
   return (
     <div className="flex overflow-hidden rounded-2xl border border-border bg-background shadow-sm lg:h-[46rem]">
-      <div className={cn("hidden shrink-0 p-3 pr-0 transition-[width] duration-200 lg:block", collapsed ? "w-[5.75rem]" : "w-[18.5rem]")}>
+      <div className={cn("hidden shrink-0 transition-[width] duration-200 lg:block", collapsed ? "w-[5rem]" : "w-[17.75rem]")}>
         <ProjectSidebar
           {...sidebarProps}
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
-          className="rounded-2xl shadow-md dark:border dark:border-sidebar-border"
+          className="rounded-r-md shadow-md dark:border-r dark:border-sidebar-border"
         />
       </div>
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
