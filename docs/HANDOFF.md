@@ -159,6 +159,8 @@ refuses WBS/calendar edits on Completed/Cancelled projects (`20261023090000_plan
 
 ## 6. Next steps
 
+The short checklist of everything still open (owner setup, packages, known issues) is `docs/TODO.md`.
+
 1. **Phase 2** (Gantt, dependencies, CPM, baselines UI) — plan in `docs/ROADMAP.md`.
 2. Pick up the open items in §4 as small fixes along the way.
 
