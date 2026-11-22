@@ -275,7 +275,7 @@ select tests.expect_sqlstate(format('update public.profiles set onboarded_at = n
 select tests.expect_sqlstate(format('update public.profiles set avatar_url = ''javascript:alert(1)'' where id = %L', tests.uid('pm')), '23514');
 select tests.expect_error('select public.update_profile(''{"avatar_url": "http://x.test/a.png"}'')', 'VALIDATION');
 select tests.expect_error('select public.update_profile(''{"email": "x@y.z"}'')', 'VALIDATION');
-select tests.eq((public.update_profile('{"duration_unit": "days", "avatar_url": "https://cdn.test/a.png"}')).duration_unit::text,
+select tests.eq((public.update_profile('{"duration_unit": "days", "avatar_url": "https://lh3.googleusercontent.com/a/test=s96-c"}')).duration_unit::text,
                 'days', 'update_profile');
 select tests.logout();
 

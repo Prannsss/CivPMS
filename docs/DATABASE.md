@@ -41,6 +41,7 @@ Supabase project **CivPMS** (ref `bxfohhwvzbvmyokcsmwq`, ap-southeast-1, Postgre
 | `20261014090000_notification_email_digest.sql` | Daily email digest: `notification_prefs.email_digest` (`off`\|`daily`), outbox states `digest`/`digested`, `private.send_email_digests()`, pg_cron job `civpms-email-digest` at 22:55 UTC (06:55 Manila) |
 | `20261015100000_project_media_bucket.sql` | Private `project-media` bucket (WebP, 3 MB) + Storage policies for the media service (`backend/`) |
 | `20261023090000_plan_lock.sql` | Plan lock: `private.assert_plan_open()`; `private.lock_wbs()` and `private.get_managed_activity()` call it, so every WBS RPC and `save_calendar` refuse Completed/Cancelled projects with `FORBIDDEN` (after the permission check) |
+| `20261122100000_avatar_url_allowlist.sql` | B-10: `profiles.avatar_url` limited to the own `avatars` folder (host from the JWT issuer) or Google photo hosts — in `update_profile`, a `profiles` trigger for direct updates, and the auth-metadata trigger; "Log out / log in" wording in five RPC messages |
 
 All of these are applied to the live project. `supabase_migrations.schema_migrations` holds the same versions and byte-identical statements as these files. Add changes as **new** migrations with a later timestamp; never edit an applied file.
 
@@ -68,7 +69,7 @@ Every table has `created_at` and `updated_at` (`timestamptz`, the latter maintai
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `profiles` | `id` (= `auth.users.id`, cascade), `full_name`, `email` (lower-case copy), `avatar_url` (https only), `role_pref` (`pm`\|`inspector`), `duration_unit`, `onboarded_at`, `notification_prefs` jsonb | Created and updated by a trigger on `auth.users` (name from `full_name`\|`name`, avatar from `avatar_url`\|`picture`; app-chosen values are never overwritten). |
+| `profiles` | `id` (= `auth.users.id`, cascade), `full_name`, `email` (lower-case copy), `avatar_url` (own `avatars` folder or a Google photo host, B-10), `role_pref` (`pm`\|`inspector`), `duration_unit`, `onboarded_at`, `notification_prefs` jsonb | Created and updated by a trigger on `auth.users` (name from `full_name`\|`name`, avatar from `avatar_url`\|`picture`, Google photo hosts only; app-chosen values are never overwritten). |
 | `companies` | `id`, `name`, `name_key` (generated, **unique**), `owner_id`, `default_work_days` smallint[] (ISO 1=Mon…7=Sun), `default_hours_per_day` | Calendar template that new projects copy. |
 | `company_members` | `company_id`, `user_id` (**unique**: one company per user, D13), `role` | At most one `owner_pm` per company (partial unique index). |
 | `projects` | `company_id`, `name` (3–120), `name_key`, `site_name`, `site_address`, `description`, `start_date`, `end_date` (≥ start), `budget` (> 0), `status`, `status_reason`, `is_archived` (completed/cancelled only), `weighting`, `near_budget_threshold` (default 0.9), `color`, `version`, `created_by`, `closed_at`, `budget_exceeded_notified_at`, `delayed_notified_at`, `deleted_at`, `deleted_by` | `UNIQUE (company_id, name_key) WHERE deleted_at IS NULL`. `closed_at` is set on completed/cancelled and cleared on reopen (retention clock, spec §19). |
@@ -137,7 +138,7 @@ Every RPC raises `UNAUTHENTICATED` without a signed-in user (except `get_invitat
 |---|---|---|---|
 | `company_name_available(p_name text)` | signed in | `boolean` (case/whitespace-insensitive) | — |
 | `complete_profile(p_full_name text, p_role_pref text)` (`'pm'`\|`'inspector'`) | self | `profiles` row. Sets the name and `role_pref`; does **not** set `onboarded_at`. | `VALIDATION`, `NOT_FOUND` |
-| `update_profile(p_patch jsonb)` (keys `full_name`, `avatar_url` (https), `duration_unit`) | self | `profiles` row | `VALIDATION`, `NOT_FOUND` |
+| `update_profile(p_patch jsonb)` (keys `full_name`, `avatar_url` (own `avatars` folder or Google photo), `duration_unit`) | self | `profiles` row | `VALIDATION`, `NOT_FOUND` |
 | `create_company(p_name text)` | signed in, no company | `companies` row. The caller becomes `owner_pm`; `onboarded_at` set. | `ALREADY_IN_COMPANY`, `COMPANY_NAME_TAKEN`, `VALIDATION` |
 | `finish_onboarding_without_company()` | self | `profiles` row (`onboarded_at` set: the "No company yet" state, D12) | `NOT_FOUND` |
 | `rename_company(p_name text)` | Owner PM | `companies` row | `FORBIDDEN`, `VALIDATION`, `COMPANY_NAME_TAKEN` |
@@ -327,7 +328,7 @@ Invitation emails to people **without** an account are sent by the app right aft
 
 ## Storage
 
-Bucket `avatars`: public read through the public URL, 2 MB limit, `image/png`, `image/jpeg`, `image/webp`. Signed-in users can select, insert, update and delete only objects under `<their uid>/…` (e.g. `<uid>/avatar.webp`). After uploading, save the public URL with `update_profile({"avatar_url": "https://…"})`.
+Bucket `avatars`: public read through the public URL, 2 MB limit, `image/png`, `image/jpeg`, `image/webp`. Signed-in users can select, insert, update and delete only objects under `<their uid>/…` (e.g. `<uid>/avatar.webp`). After uploading, save the public URL with `update_profile({"avatar_url": "https://…"})`. Since B-10 (`20261122100000_avatar_url_allowlist.sql`) `profiles.avatar_url` only accepts `<your Supabase URL>/storage/v1/object/public/avatars/<your uid>/<file>` (host taken from the JWT issuer) or `https://lh3–lh6.googleusercontent.com/…`; a trigger enforces it on direct updates too, and the auth trigger drops any other link from user metadata. Outside links would leak teammates' IP addresses.
 
 Bucket `project-media` (migration `20261015100000`): **private**, 3 MB limit, `image/webp` only. Objects are written by the media service (`backend/`) with the caller's own JWT under `<project_id>/<yyyy>/<mm>/<uuid>.webp` (+ `<uuid>_thumb.webp`); the INSERT policy accepts only names of exactly that shape. SELECT and INSERT: anyone in `private.visible_project_ids()` (Owner PM, project PMs, inspectors); DELETE: `private.manageable_project_ids()` (Owner PM, project PMs); no UPDATE policy (objects are immutable). The first path segment is compared as text, so malformed names cannot make a policy raise. Read objects through short-lived signed URLs. Because INSERT is granted to project members (the service uploads with the caller's token), members can also write objects directly, so treat every object as untrusted input (D48).
 
@@ -381,6 +382,7 @@ supabase db push                                 # applies new files in supabase
 | `09_notification_digest.sql` | `email_digest` validation and merge, digest hold in `notify()` only for email-eligible rows, one summary row per person with the capped list, held rows marked `digested`, job revoked from clients |
 | `10_project_media_storage.sql` | `project-media` bucket config and policies: owner/project PM/inspector read + upload under their project, generated-name pattern enforced, non-member PM and other company see and write nothing, inspectors cannot delete, PMs and the Owner PM can, avatars bucket unaffected |
 | `11_plan_lock.sql` | Completed project: create/update/move/delete/restore, `apply_schedule` and `save_calendar` all `FORBIDDEN` with the reason and nothing changes; trash still readable, archive still works; outsiders still get `NOT_FOUND` first; reopening unlocks; Cancelled stays locked |
+| `19_avatar_url.sql` | B-10: own bucket folder and Google photos accepted; outside links, another user's folder, another project's host, `..`, other buckets and look-alike Google hosts refused (RPC `VALIDATION`, direct update `23514`); metadata links dropped; fails closed without an issuer; trusted (no-claims) writes skip; "Please log in to continue." wording |
 
 Run them with psql (PowerShell). Use the **Session pooler** connection string from Dashboard → Connect, and never commit it:
 
