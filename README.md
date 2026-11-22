@@ -163,6 +163,7 @@ docs/               DECISIONS, DATABASE, DOMAIN, DESIGN, SETUP, HANDOFF, screens
 ## Documentation
 
 - [docs/HANDOFF.md](docs/HANDOFF.md) — build status, verification, known issues, owner actions, next steps
+- [docs/TODO.md](docs/TODO.md) — what is left to do: owner setup, open packages, known issues (short checklist)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — plan for Phases 2–5, work packages and open owner questions
 - [docs/DECISIONS.md](docs/DECISIONS.md) — product and technical decisions that extend the spec
 - [docs/DATABASE.md](docs/DATABASE.md) — tables, RLS model, RPCs and error codes
