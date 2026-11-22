@@ -52,6 +52,7 @@ test("details save, and a concurrent edit offers Reload or Keep mine", async ({ 
     await details.getByRole("button", { name: "Edit details" }).click();
     await site.fill("[F3] Not saved");
     await page.keyboard.press("Escape");
+    await page.getByRole("alertdialog", { name: "Discard your changes?" }).getByRole("button", { name: "Discard changes" }).click();
     await expect(details.getByText("[F3] Not saved")).toHaveCount(0);
     await details.getByRole("button", { name: "Edit details" }).click();
 

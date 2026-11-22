@@ -75,7 +75,7 @@ export function ProjectCard({ project, onArchive, onDelete }: { project: HomePro
       data-project-id={project.id}
       aria-labelledby={`project-${project.id}-name`}
       className={cn(
-        "group relative isolate flex min-h-56 flex-col overflow-hidden rounded-2xl p-5 text-white shadow-sm",
+        "group relative isolate flex min-h-56 flex-col overflow-hidden rounded-md p-5 text-white shadow-sm",
         // `translate`, not `transform`: Tailwind v4 moves with the translate property, so it must be listed to animate.
         "transform-gpu transition-[translate,box-shadow] duration-300 ease-in-out motion-safe:hover:-translate-y-1 hover:shadow-lg",
         "has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-offset-2 has-[[data-card-link]:focus-visible]:outline-ring",

@@ -220,6 +220,21 @@ export function FeedbackSection() {
                   ))}
                 </DialogBody>
                 <DialogFooter>
+                  {/* Stacked modal demo: a confirmation over an open dialog. */}
+                  <Button
+                    variant="ghost"
+                    className="sm:mr-auto"
+                    onClick={() =>
+                      void confirm({
+                        title: "Discard this import?",
+                        description: "The preview is thrown away. Nothing has been imported yet.",
+                        confirmLabel: "Discard",
+                        tone: "danger",
+                      })
+                    }
+                  >
+                    Discard…
+                  </Button>
                   <DialogClose asChild>
                     <Button variant="outline">Back</Button>
                   </DialogClose>

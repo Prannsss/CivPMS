@@ -108,11 +108,11 @@ export function CommandPalette({
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
+        <DialogPrimitive.Overlay data-slot="overlay" className="fixed inset-0 z-50 bg-overlay backdrop-blur-xs data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
-            "fixed inset-x-3 top-3 z-50 flex max-h-[min(36rem,calc(100dvh-1.5rem))] flex-col overflow-hidden rounded-xl border border-border bg-surface text-foreground shadow-lg outline-none",
+            "fixed inset-x-3 top-3 z-50 flex max-h-[min(36rem,calc(100dvh-1.5rem))] flex-col overflow-hidden rounded-md border border-border bg-surface text-foreground shadow-lg outline-none",
             "sm:inset-x-auto sm:top-[12vh] sm:left-1/2 sm:w-full sm:max-w-xl sm:-translate-x-1/2",
             "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
           )}

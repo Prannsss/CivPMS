@@ -86,6 +86,8 @@
 
   --ring: #0866ff;
   --overlay: rgba(2, 6, 23, 0.52);
+  /* A modal opened over another modal: the page is already dimmed, only the lower modal recedes. */
+  --overlay-stacked: rgba(2, 6, 23, 0.2);
 
   /* Project card palette (no red/orange/yellow — D30). White text passes AA on both stops. */
   --project-blue: #0866ff;
@@ -184,6 +186,7 @@
 
   --ring: #4c8dff;
   --overlay: rgba(0, 0, 0, 0.72);
+  --overlay-stacked: rgba(0, 0, 0, 0.35);
 
   --project-blue: #0866ff;
   --project-blue-to: #0447b8;
@@ -569,4 +572,11 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* Stacked modals (a confirmation over a dialog): every backdrop blurs what is under it, so the lower
+   modal recedes too; the upper backdrop dims less so the page does not go nearly black. Overlays are
+   portalled as direct children of <body>, in opening order. Unlayered so it beats `bg-overlay`. */
+[data-slot="overlay"] ~ [data-slot="overlay"] {
+  background-color: var(--overlay-stacked);
 }

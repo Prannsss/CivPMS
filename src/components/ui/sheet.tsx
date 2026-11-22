@@ -16,8 +16,8 @@ const sheetVariants = cva("fixed z-50 flex flex-col bg-surface text-foreground s
         "inset-y-0 right-0 h-dvh w-[min(26rem,calc(100%-2.5rem))] overflow-hidden rounded-l-md border-l border-border data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
       left: "inset-y-0 left-0 h-dvh w-[min(20rem,calc(100%-3.5rem))] overflow-hidden rounded-r-md border-r border-border data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
       bottom:
-        "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
-      top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-2xl border-b border-border data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top",
+        "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-md border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
+      top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-md border-b border-border data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top",
     },
   },
   defaultVariants: { side: "right" },
@@ -41,7 +41,7 @@ export function SheetContent({
 }: SheetContentProps) {
   return (
     <SheetPrimitive.Portal>
-      <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
+      <SheetPrimitive.Overlay data-slot="overlay" className="fixed inset-0 z-50 bg-overlay backdrop-blur-xs data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
       <SheetPrimitive.Content data-slot="sheet-content" className={cn(sheetVariants({ side }), className)} {...props}>
         {children}
         {showClose ? (
