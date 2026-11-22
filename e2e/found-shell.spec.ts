@@ -61,14 +61,17 @@ test("project managers get a New project action that opens the create flow", asy
   await expect(palette).toBeHidden();
 });
 
-test("Gantt and S-curve are reachable from the sidebar and explain what's coming", async ({ page, context }) => {
+test("Gantt and S-curve are reachable from the sidebar", async ({ page, context }) => {
   await loginAs(context, "owner");
   await page.goto("/");
   await page.getByRole("link", { name: /Iloilo Riverside Mixed-Use Tower/ }).click();
   const nav = page.getByRole("navigation", { name: "Project" });
   await nav.getByRole("link", { name: /Gantt Chart/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Gantt Chart" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Get this project ready" })).toBeVisible();
+  // Read-only Gantt (Stage A): the WBS on the timeline, or the empty state when nothing is scheduled.
+  await expect(
+    page.getByTestId("gantt-row").first().or(page.getByText(/^(No work packages yet|Nothing is scheduled yet)$/)),
+  ).toBeVisible();
   await nav.getByRole("link", { name: /S-Curve/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "S-Curve" })).toBeVisible();
   // Iloilo is still in Planning: no baseline yet.

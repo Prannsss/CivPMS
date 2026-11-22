@@ -6,7 +6,7 @@ Built for Philippine contractors (₱, Asia/Manila, PH holidays) but not tied to
 
 > Status: **Phases 0–1 (foundations + planning core) are built and verified** — type check, lint,
 > unit tests, production build, the full Playwright suite and a golden-path run on brand-new
-> accounts. In progress: a read-only **Gantt** and the **S-curve** (planned line). Next: links
+> accounts. Built on branches waiting for review: a read-only **Gantt** and the **S-curve** (planned line). Next: links
 > between work packages, critical path and Gantt editing; then progress updates, inspections,
 > sharing and import/export. Offline mode is out of scope (D7). Plan: [docs/ROADMAP.md](docs/ROADMAP.md),
 > current state: [docs/HANDOFF.md](docs/HANDOFF.md).

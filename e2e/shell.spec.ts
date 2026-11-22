@@ -50,14 +50,14 @@ test("owner sees the home shell, opens a project and moves around the sidebar", 
     await expect(nav.getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
   }
 
-  // Gantt and S-Curve are "Soon" in the sidebar; their pages explain what is coming.
+  // Gantt (read-only) and S-Curve (planned line) are live since Stage A.
   await expect(nav.getByText("Gantt Chart")).toBeVisible();
   await page.goto(`/projects/${cebuId}/gantt`);
   await expect(page.getByRole("heading", { level: 1, name: "Gantt Chart" })).toBeVisible();
-  await expect(page.getByText("Coming next", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("gantt-row").first()).toBeVisible();
   await page.goto(`/projects/${cebuId}/s-curve`);
   await expect(page.getByRole("heading", { level: 1, name: "S-Curve" })).toBeVisible();
-  await expect(page.getByText("Baseline v1 is in place")).toBeVisible();
+  await expect(page.getByTestId("scurve-chart")).toBeVisible();
 });
 
 test("another company's project is not found", async ({ page, context }) => {

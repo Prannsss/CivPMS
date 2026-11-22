@@ -166,10 +166,10 @@ Pulled ahead of Phase 2 so both "coming next" tabs work now. No migration, no ne
 
 | ID | Package | Reuses later | Status |
 |---|---|---|---|
-| A-01 | Chart tokens (light/dark, ≥ 3:1) — the token half of P2-11 | P2-11, P3-18 | in progress |
-| A-02 | `domain/gantt.ts`: range, zoom scales, ticks, rows, bar geometry, overrun, non-working runs, baseline variance (the read-only half of P2-05b) | P2-05b, P2-13a | in progress |
-| A-03 | `/projects/[id]/gantt` read-only: WBS tree grid + timeline, zoom, Today, planned-end marker, overrun shading, non-working shading, baseline overlay, status colours + icons, details panel, states, phone layout, screen-reader summary | P2-13a/b | in progress |
-| A-04 | `domain/scurve.ts` planned cumulative (D68 rules on the **current** calendar, flagged approximate until P2-08's snapshot) + `/projects/[id]/s-curve`: KPIs, Cost \| Hours, baseline select, chart, table view, states; actual line empty until Phase 3 | P3-08, P3-18, P3-19 | planned |
+| A-01 | Chart tokens (light/dark, ≥ 3:1) — the token half of P2-11 | P2-11, P3-18 | **done** (`feat/gantt-readonly`) |
+| A-02 | `domain/gantt.ts`: range, zoom scales, ticks, rows, bar geometry, overrun, non-working runs, baseline variance (the read-only half of P2-05b) | P2-05b, P2-13a | **done** (`feat/gantt-readonly`) |
+| A-03 | `/projects/[id]/gantt` read-only: WBS tree grid + timeline, zoom, Today, planned-end marker, overrun shading, non-working shading, baseline overlay, status colours + icons, details panel, states, phone layout, screen-reader summary | P2-13a/b | **done** (`feat/gantt-readonly`, `e2e/p2-gantt.spec.ts`) |
+| A-04 | `domain/scurve.ts` planned cumulative (D68 rules on the **current** calendar, flagged approximate until P2-08's snapshot) + `/projects/[id]/s-curve`: KPIs, Cost \| Hours, baseline select, chart, table view, states; actual line empty until Phase 3 | P3-08, P3-18, P3-19 | **done** (`feat/scurve-planned`, `e2e/p2-scurve.spec.ts`) |
 
 Not in Stage A: links, CPM, critical path, drag editing, Set new baseline, shared filters (Phase 2 proper); actual progress (Phase 3).
 

@@ -188,6 +188,18 @@ Missing or invalid inputs render as `—`.
 - `projectOverrun` (open project past its end: end + 1 → today), `varianceLabel`, `ganttSummary` (the
   sentence screen readers get instead of the drawing).
 
+## `scurve.ts` — S-curve model (spec §9.2, D68; Stage A)
+
+- **Planned (`plannedCumulative`):** baseline work packages only; weight = cost or hours with the §6.5
+  fallbacks (`leafWeight`), spread **evenly over each one's working days** (a milestone, or a span with no
+  working day, lands on its end date); cumulative share at the end of each day, flat at 100 % after the
+  last. Value axis = % × Σ cost (or Σ hours). O(work packages + days) with difference arrays: 5,000 work
+  packages < 150 ms. Stage A uses the **current** calendar (baselines get a calendar snapshot in P2-08).
+- Fixture (roadmap): A ₱30,000 5–9 Oct, B ₱10,000 12–16 Oct 2026 → 45 % on Wed 7 Oct, 75 % on Fri 9,
+  100 % on Fri 16.
+- `scurveRange` (project/baseline dates, plus today while open), `plannedPercentAt`, `sampleSCurve` (≤ 400
+  drawn points, keeps first/last/marker days), `weeklyRows` (table view). No actual line until Phase 3.
+
 ## `invite-code.ts` — invite codes (D11)
 
 - `INVITE_CODE_ALPHABET` is Crockford base32: `0123456789ABCDEFGHJKMNPQRSTVWXYZ`.

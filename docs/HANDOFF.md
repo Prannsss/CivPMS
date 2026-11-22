@@ -68,14 +68,25 @@ branch contains the earlier ones, so its PR shows only its own commits once the 
 3. `chore/oxlint`: B-11, Oxlint as main linter (D9, `docs/LINTING.md`).
 4. `feat/ui-motion`: origin-aware motion, ease tokens, page fade, edge-safe overlays (DESIGN §2.4).
 5. `feat/combobox`: searchable `Combobox`; project and person filters use it (DESIGN components table).
+6. `docs/readme`: README brought up to date (status, Oxlint, contributing workflow, doc links).
+7. `feat/sidebar-flush`: project sidebar flush with the left edge, full height, 12 px right corners.
+8. `feat/ui-polish`: smooth hovers (Tailwind v4 `translate` transitions, ease-in-out defaults), edge-safe
+   tooltips instead of native `title`, `TruncatedText`, light/dark toggle without "System" + spin (D5).
+9. `feat/gantt-readonly`: Stage A read-only Gantt (`/projects/[id]/gantt`), `domain/gantt.ts`, chart
+   tokens, `[P2]` seed + `e2e/p2-gantt.spec.ts`, Playwright finds the container's Chromium.
+10. `feat/scurve-planned`: Stage A S-curve (`/projects/[id]/s-curve`), planned line from the baseline,
+    `domain/scurve.ts`, `e2e/p2-scurve.spec.ts`; `shell` / `found-shell` specs expect the live pages.
 
-Not run in this session: the Playwright e2e suite (the cloud environment has no `DEMO_PASSWORD` or
-secret keys). UI changes were checked in a real browser on `/dev/styleguide` at 390 and 1440 px instead.
-Run the full suite once the environment has the variables.
+Not run in this session: the **full** Playwright suite (the cloud environment has no `DEMO_PASSWORD` or
+secret keys, so the demo accounts can't sign in). Run against the live project instead: `e2e/styleguide`
+(6/6) and the new `e2e/p2-gantt` + `e2e/p2-scurve` (4/4) on the `[P2]` tenant (`supabase/seed/p2-e2e.sql`,
+seeded with a throwaway password; re-run the seed with `DEMO_PASSWORD` so the suite can use it). The
+updated `shell` / `found-shell` assertions are untested until the suite runs with `DEMO_PASSWORD`.
 
 ## 3. Not built yet (by design)
 
-- Gantt and S-curve show a deliberate "coming next" state; every other Phase 0–1 page is built.
+- Gantt is read-only and the S-curve has no actual line yet (Stage A, branches above): links, CPM,
+  editing and Set new baseline are Phase 2; progress updates (the actual line) are Phase 3.
 - Later phases (spec §21): Gantt + dependencies + CPM + baselines UI (Phase 2); progress updates,
   inspections, images, S-curve (Phase 3); sharing/viewers, PWA/offline (Phase 4); search,
   import/export, reports (Phase 5).
