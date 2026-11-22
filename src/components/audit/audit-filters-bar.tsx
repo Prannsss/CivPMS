@@ -6,7 +6,7 @@ import { Download, Search, SlidersHorizontal, TriangleAlert, X } from "lucide-re
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { DateInput } from "@/components/ui/date-input";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Field } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
@@ -161,11 +161,12 @@ export function AuditFiltersBar({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="From">
-          <DateInput value={filters.from ?? ""} max={filters.to ?? undefined} onValueChange={(value) => apply({ from: value || null })} />
-        </Field>
-        <Field label="To">
-          <DateInput value={filters.to ?? ""} min={filters.from ?? undefined} onValueChange={(value) => apply({ to: value || null })} />
+        <Field label="Dates" className="lg:col-span-2">
+          <DateRangePicker
+            value={{ from: filters.from ?? null, to: filters.to ?? null }}
+            onApply={(range) => apply({ from: range.from, to: range.to })}
+            placeholder="Any date"
+          />
         </Field>
         <div className="flex h-11 items-center sm:col-span-2 sm:h-10 lg:col-span-1">
           <Switch

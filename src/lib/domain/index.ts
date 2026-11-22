@@ -4,6 +4,7 @@
  */
 export * from "./errors";
 export * from "./dates";
+export * from "./date-entry";
 export * from "./money";
 export * from "./calendar";
 export * from "./status";
