@@ -18,6 +18,12 @@ import {
   type F4Tenant,
 } from "./f4-tenant";
 
+/** Working days, hours per day and the holidays switch live in the gear's side panel. */
+async function openWorkingTime(page: Page) {
+  await page.getByRole("button", { name: "Working time settings" }).click();
+  await expect(page.getByTestId("calendar-settings")).toBeVisible();
+}
+
 let consoleErrors: string[] = [];
 test.beforeEach(async ({ page }) => {
   consoleErrors = [];
@@ -139,9 +145,11 @@ test.describe("Calendar — managers", () => {
     await showOctober2026(page);
 
     // 10 h/day: 40 h now takes 4 working days (12, 13, 15, 16 Oct — the 14th is still off).
+    await openWorkingTime(page);
     const hours = page.getByLabel("Working hours per day");
     await hours.fill("10");
     await hours.press("Enter");
+    await page.getByRole("button", { name: "Done" }).click();
 
     // Add a local holiday on Thu 15 Oct.
     await page.getByTestId("calendar-lists").getByRole("button", { name: "Add" }).click();
@@ -185,12 +193,12 @@ test.describe("Calendar — managers", () => {
   test("undoing a change clears the save bar; a change that moves nothing saves directly", async ({ page, context }) => {
     await loginAs(context, F4_OWNER);
     await openCalendar(page, project.id);
+    await openWorkingTime(page);
     await page.getByRole("switch", { name: "Mark all holidays as non-working" }).click();
     await page.getByRole("switch", { name: "Mark all holidays as non-working" }).click();
-    await expect(page.getByTestId("calendar-savebar")).toHaveCount(0);
-
     await page.getByRole("checkbox", { name: "Saturday" }).click();
     await page.getByRole("checkbox", { name: "Saturday" }).click();
+    await page.getByRole("button", { name: "Done" }).click();
     await expect(page.getByTestId("calendar-savebar")).toHaveCount(0);
 
     // A make-up Saturday after the work package ends: nothing moves, so no preview dialog.
@@ -209,6 +217,7 @@ test.describe("Calendar — access", () => {
     await loginAs(context, F4_PM);
     await openCalendar(page, tenant.showcaseId);
     await expect(page.getByTestId("calendar-lock")).toHaveCount(0);
+    await openWorkingTime(page);
     await expect(page.getByRole("checkbox", { name: "Monday" })).toBeEnabled();
   });
 
@@ -216,8 +225,10 @@ test.describe("Calendar — access", () => {
     await loginAs(context, F4_INSPECTOR);
     await openCalendar(page, tenant.showcaseId);
     await expect(page.getByTestId("calendar-lock")).toContainText("View only");
+    await openWorkingTime(page);
     await expect(page.getByRole("checkbox", { name: "Monday" })).toBeDisabled();
     await expect(page.getByLabel("Working hours per day")).toBeDisabled();
+    await page.keyboard.press("Escape");
     await page.locator("[data-testid=calendar-month] button[data-date]").first().click();
     await expect(page.getByTestId("calendar-day-panel")).toBeVisible();
     await expect(page.getByTestId("calendar-day-panel").getByRole("button")).toHaveCount(0);
@@ -227,7 +238,9 @@ test.describe("Calendar — access", () => {
     await loginAs(context, F4_OWNER);
     await openCalendar(page, tenant.cancelledId);
     await expect(page.getByTestId("calendar-lock")).toContainText("cancelled");
+    await openWorkingTime(page);
     await expect(page.getByRole("checkbox", { name: "Monday" })).toBeDisabled();
+    await page.keyboard.press("Escape");
 
     // The database refuses it too (migration 20261023090000), not only the UI and Server Actions.
     const { client } = await supabaseAs(F4_OWNER);

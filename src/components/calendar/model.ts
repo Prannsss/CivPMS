@@ -42,6 +42,17 @@ export const WEEKDAYS = [
   { day: 7, short: "Sun", long: "Sunday" },
 ] as const;
 
+/** "Mon–Fri", "Mon–Sat", "Mon, Wed, Fri" or "No working days" for the weekly pattern. */
+export function workDaysLabel(workDays: ReadonlyArray<number>): string {
+  const days = [...new Set(workDays)].filter((d) => d >= 1 && d <= 7).sort((x, y) => x - y);
+  if (days.length === 0) return "No working days";
+  if (days.length === 7) return "Every day";
+  const short = (d: number) => WEEKDAYS[d - 1].short;
+  const consecutive = days.every((d, i) => i === 0 || d === days[i - 1] + 1);
+  if (consecutive && days.length >= 3) return `${short(days[0])}–${short(days[days.length - 1])}`;
+  return days.map(short).join(", ");
+}
+
 const byDate = <T extends { date: string }>(a: T, b: T) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
 /** Normalises a calendar into a draft (sorted lists, notes as null when empty). */
