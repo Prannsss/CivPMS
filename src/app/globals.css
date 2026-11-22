@@ -285,20 +285,25 @@
   --shadow-lg: var(--elev-lg);
   --shadow-popover: var(--elev-popover);
 
+  /* Motion: things arrive with a soft ease-out, leave quicker with an ease-in, and move between
+   * two states with ease-in-out. 120–240 ms; all of it is cut to ~0 under prefers-reduced-motion. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
   --animate-fade-in: fade-in 160ms var(--ease-out);
-  --animate-fade-out: fade-out 120ms ease-in;
+  --animate-fade-out: fade-out 120ms var(--ease-in);
   --animate-pop-in: pop-in 180ms var(--ease-out);
-  --animate-pop-out: pop-out 120ms ease-in;
-  --animate-sheet-in-bottom: sheet-in-bottom 220ms var(--ease-out);
-  --animate-sheet-out-bottom: sheet-out-bottom 160ms ease-in;
-  --animate-sheet-in-left: sheet-in-left 220ms var(--ease-out);
-  --animate-sheet-out-left: sheet-out-left 160ms ease-in;
-  --animate-sheet-in-right: sheet-in-right 220ms var(--ease-out);
-  --animate-sheet-out-right: sheet-out-right 160ms ease-in;
-  --animate-sheet-in-top: sheet-in-top 220ms var(--ease-out);
-  --animate-sheet-out-top: sheet-out-top 160ms ease-in;
+  --animate-pop-out: pop-out 120ms var(--ease-in);
+  --animate-page-in: fade-in 200ms var(--ease-out);
+  --animate-sheet-in-bottom: sheet-in-bottom 240ms var(--ease-out);
+  --animate-sheet-out-bottom: sheet-out-bottom 160ms var(--ease-in);
+  --animate-sheet-in-left: sheet-in-left 240ms var(--ease-out);
+  --animate-sheet-out-left: sheet-out-left 160ms var(--ease-in);
+  --animate-sheet-in-right: sheet-in-right 240ms var(--ease-out);
+  --animate-sheet-out-right: sheet-out-right 160ms var(--ease-in);
+  --animate-sheet-in-top: sheet-in-top 240ms var(--ease-out);
+  --animate-sheet-out-top: sheet-out-top 160ms var(--ease-in);
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
 
@@ -310,13 +315,15 @@
     from { opacity: 1; }
     to { opacity: 0; }
   }
+  /* Grows out of its transform-origin (the trigger, for Radix popper content) and slides in
+   * from the trigger's side (--pop-x/--pop-y, set from data-side in the base layer). */
   @keyframes pop-in {
-    from { opacity: 0; transform: translateY(4px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity: 0; transform: translate(var(--pop-x, 0px), var(--pop-y, 0px)) scale(0.96); }
+    to { opacity: 1; transform: translate(0, 0) scale(1); }
   }
   @keyframes pop-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.97); }
+    from { opacity: 1; transform: translate(0, 0) scale(1); }
+    to { opacity: 0; transform: translate(var(--pop-x, 0px), var(--pop-y, 0px)) scale(0.96); }
   }
   @keyframes sheet-in-bottom {
     from { transform: translateY(100%); }
@@ -492,6 +499,14 @@
     cursor: pointer;
     opacity: 0.7;
   }
+
+  /* Popper content (popover, menu, select, tooltip) slides in from its trigger: content placed
+   * below the trigger starts slightly above its final spot, and so on. Centered dialogs have no
+   * data-side and only scale from the center. */
+  :where([data-side="bottom"]) { --pop-y: -4px; }
+  :where([data-side="top"]) { --pop-y: 4px; }
+  :where([data-side="left"]) { --pop-x: 4px; }
+  :where([data-side="right"]) { --pop-x: -4px; }
 
   @media (prefers-reduced-motion: reduce) {
     *,

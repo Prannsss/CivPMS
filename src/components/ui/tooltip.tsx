@@ -16,6 +16,7 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 export function TooltipContent({
   className,
   sideOffset = 6,
+  collisionPadding = 8,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
@@ -23,9 +24,11 @@ export function TooltipContent({
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
         className={cn(
-          "z-50 max-w-xs rounded-sm bg-inverse px-2.5 py-1.5 text-xs leading-4 font-medium text-inverse-foreground shadow-popover",
-          "data-[state=closed]:animate-fade-out data-[state=delayed-open]:animate-fade-in data-[state=instant-open]:animate-fade-in",
+          "z-50 max-w-[min(20rem,var(--radix-tooltip-content-available-width))] rounded-sm bg-inverse px-2.5 py-1.5 text-xs leading-4 font-medium text-inverse-foreground shadow-popover",
+          // Grows from the trigger on first show; moving between tooltips (instant-open) only fades.
+          "origin-(--radix-tooltip-content-transform-origin) data-[state=closed]:animate-fade-out data-[state=delayed-open]:animate-pop-in data-[state=instant-open]:animate-fade-in",
           className,
         )}
         {...props}

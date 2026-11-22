@@ -72,7 +72,7 @@ export function ConfirmDialog({
             }
           }}
           className={cn(
-            "fixed z-50 flex flex-col bg-surface text-foreground shadow-lg outline-none",
+            "fixed z-50 flex max-h-[92dvh] flex-col overflow-y-auto bg-surface text-foreground shadow-lg outline-none sm:max-h-[min(85dvh,52rem)]",
             "inset-x-0 bottom-0 rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
             "sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:w-[calc(100%-2rem)] sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border sm:pb-0",
             "sm:data-[state=open]:animate-pop-in sm:data-[state=closed]:animate-pop-out",
