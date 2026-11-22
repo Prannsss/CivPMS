@@ -184,7 +184,7 @@ export function DateRangePicker({
           </div>
 
           <div className="flex min-h-0 flex-col overflow-y-auto sm:flex-row">
-            <div className="min-w-0 flex-1 p-4">
+            <div className="min-w-0 flex-1 p-3 sm:p-4">
               <CalendarGrid
                 month={month}
                 onMonthChange={setMonth}

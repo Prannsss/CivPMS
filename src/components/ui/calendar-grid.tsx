@@ -139,7 +139,7 @@ export function CalendarGrid({
       <div ref={gridRef} role="grid" aria-label={monthLabel(shown)} onMouseLeave={() => onHoverDate?.(null)}>
         <div role="row" className="grid grid-cols-7">
           {WEEKDAYS.map((day) => (
-            <span key={day} role="columnheader" className="grid h-8 place-items-center text-xs font-medium text-muted-foreground">
+            <span key={day} role="columnheader" className="grid h-7 place-items-center sm:h-8 text-xs font-medium text-muted-foreground">
               {day}
             </span>
           ))}
@@ -159,7 +159,7 @@ export function CalendarGrid({
                   key={date}
                   aria-selected={isSelected || inRange || undefined}
                   className={cn(
-                    "relative flex h-10 items-center justify-center",
+                    "relative flex h-9 items-center justify-center sm:h-10",
                     inRange && "bg-primary-soft",
                     isStart && "bg-linear-to-r from-transparent from-50% to-primary-soft to-50%",
                     isEnd && "bg-linear-to-r from-primary-soft from-50% to-transparent to-50%",
@@ -180,7 +180,7 @@ export function CalendarGrid({
                     onFocus={() => onHoverDate?.(date)}
                     onKeyDown={(event) => onKeyDown(event, date)}
                     className={cn(
-                      "relative grid size-9 place-items-center rounded-md text-sm tabular-nums transition-colors duration-150 focus-ring",
+                      "relative grid size-8 place-items-center rounded-md text-sm tabular-nums sm:size-9 transition-colors duration-150 focus-ring",
                       inMonth ? "text-foreground" : "text-muted-foreground/60",
                       !isSelected && !isDisabled && "hover:bg-surface-sunken",
                       isSelected && "bg-primary font-semibold text-primary-foreground shadow-xs hover:bg-primary-hover",

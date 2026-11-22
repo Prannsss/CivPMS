@@ -170,7 +170,7 @@ export function DateInput({
             "origin-(--radix-popover-content-transform-origin) data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
           )}
         >
-          <div className="min-w-0 flex-1 p-4">
+          <div className="min-w-0 flex-1 p-3 sm:p-4">
             <CalendarGrid
               month={month}
               onMonthChange={setMonth}
