@@ -70,9 +70,6 @@ export function ProjectShellClient({ data, project, children }: ProjectShellClie
           notifications: shell.notifications,
           user: shell.user,
           searchPlaceholder: shell.searchPlaceholder,
-          // The sidebar takes width from the content, so give the breadcrumb a larger share than
-          // the default top-bar grid (long project names stay readable at 1280–1440 px).
-          innerClassName: "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.65fr)_max-content]",
         }}
         palette={shell.palette}
       >
