@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/projects
   try {
     const supabase = await createClient();
     const { data: claims } = await supabase.auth.getClaims();
-    if (!claims?.claims?.sub) return plain(401, "Your session has ended. Sign in again, then export.");
+    if (!claims?.claims?.sub) return plain(401, "Your session has ended. Log in again, then export.");
 
     const { data: project, error } = await supabase
       .from("project_overview")

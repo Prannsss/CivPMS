@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
-<title>Sign in to CivPMS</title>
+<title>Log in to CivPMS</title>
 <style>
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
   table { border-collapse:collapse; }
@@ -24,7 +24,7 @@
 </style>
 </head>
 <body style="margin:0;padding:0;background:#F1F5F9;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:#F1F5F9;">Your one-time link to sign in to CivPMS.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:#F1F5F9;">Your one-time link to log in to CivPMS.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1F5F9;">
   <tr>
     <td align="center" class="outer-pad" style="padding:32px 16px;">
@@ -42,12 +42,12 @@
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td class="card-pad" style="padding:32px;font-family:Poppins,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
-                  <h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.01em;color:#0A0A0A;">Sign in to CivPMS</h1>
-                  <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155;">Use the button below to sign in as <strong style="font-weight:600;color:#0A0A0A;">{{ .Email }}</strong>. No password needed.</p>
+                  <h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.01em;color:#0A0A0A;">Log in to CivPMS</h1>
+                  <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155;">Use the button below to log in as <strong style="font-weight:600;color:#0A0A0A;">{{ .Email }}</strong>. No password needed.</p>
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;">
                     <tr>
                       <td align="center" bgcolor="#0866FF" style="border-radius:12px;background:#0866FF;">
-                        <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/" target="_blank" rel="noopener" style="display:inline-block;padding:13px 28px;font-size:15px;line-height:22px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:12px;">Sign in</a>
+                        <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/" target="_blank" rel="noopener" style="display:inline-block;padding:13px 28px;font-size:15px;line-height:22px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:12px;">Log in</a>
                       </td>
                     </tr>
                   </table>
@@ -60,7 +60,7 @@
         </tr>
         <tr>
           <td style="padding:20px 8px 0;font-family:Poppins,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#475569;">
-            You're receiving this email because a sign-in link was requested for {{ .Email }}. If it wasn't you, ignore this email; nobody can sign in without this link.
+            You're receiving this email because a login link was requested for {{ .Email }}. If it wasn't you, ignore this email; nobody can log in without this link.
             <br><br>CivPMS · Project management for engineering and construction teams
           </td>
         </tr>
