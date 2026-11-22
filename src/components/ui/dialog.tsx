@@ -12,8 +12,9 @@ export const DialogPortal = DialogPrimitive.Portal;
 export function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
+      data-slot="overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-overlay backdrop-blur-[2px]",
+        "fixed inset-0 z-50 bg-overlay backdrop-blur-xs",
         "data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
         className,
       )}
@@ -50,10 +51,10 @@ export function DialogContent({ className, children, size = "md", showClose = tr
         className={cn(
           "fixed z-50 flex flex-col bg-surface text-foreground shadow-lg outline-none",
           // phone: bottom sheet
-          "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]",
+          "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-md border-t border-border pb-[env(safe-area-inset-bottom)]",
           "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
           // ≥ sm: centered card
-          "sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:max-h-[min(85dvh,52rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border sm:pb-0",
+          "sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:max-h-[min(85dvh,52rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-md sm:border sm:pb-0",
           "sm:data-[state=open]:animate-pop-in sm:data-[state=closed]:animate-pop-out",
           dialogSizes[size],
           className,
@@ -102,7 +103,7 @@ export function DialogFooter({ className, ...props }: React.ComponentProps<"div"
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface-muted px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:rounded-b-xl sm:px-6",
+        "flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface-muted px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:rounded-b-md sm:px-6",
         "[&>button]:w-full sm:[&>button]:w-auto",
         className,
       )}

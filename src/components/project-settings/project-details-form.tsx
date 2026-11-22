@@ -7,6 +7,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { Clock, Pencil, RefreshCw, Save, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ColorSwatchPicker } from "@/components/ui/color-swatch-picker";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DateInput } from "@/components/ui/date-input";
 import { Field } from "@/components/ui/field";
@@ -67,6 +68,7 @@ export function ProjectDetailsForm({
   initialVersion: number;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
   const wasEditing = useRef(false);
@@ -143,14 +145,28 @@ export function ProjectDetailsForm({
     setResolving(null);
   }
 
-  function cancel() {
+  /** Leaves edit mode; asks first when there are unsaved edits. */
+  async function cancel() {
+    if (isDirty) {
+      const discard = await confirm({
+        title: "Discard your changes?",
+        description: "Your edits to the project details are not saved.",
+        confirmLabel: "Discard changes",
+        cancelLabel: "Keep editing",
+        tone: "danger",
+      });
+      if (!discard) return;
+    }
     form.reset(toFormDefaults(saved));
     setConflict(null);
     setEditing(false);
   }
 
   function onFormKeyDown(event: React.KeyboardEvent<HTMLFormElement>) {
-    if (event.key === "Escape" && !isSubmitting) cancel();
+    if (event.key === "Escape" && !isSubmitting) {
+      event.preventDefault();
+      void cancel();
+    }
   }
 
   // Leaving edit mode puts focus back on the pencil instead of dropping it on the page.
@@ -161,7 +177,7 @@ export function ProjectDetailsForm({
 
   const actions = editing ? (
     <>
-      <Button variant="outline" size="sm" className="max-sm:h-11" onClick={cancel} disabled={isSubmitting}>
+      <Button variant="outline" size="sm" className="max-sm:h-11" onClick={() => void cancel()} disabled={isSubmitting}>
         Cancel
       </Button>
       <Button

@@ -23,7 +23,7 @@ export function ProjectsHomeSkeleton() {
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
-            className="flex min-h-56 flex-col justify-between rounded-2xl border border-border bg-surface-muted p-5"
+            className="flex min-h-56 flex-col justify-between rounded-md border border-border bg-surface-muted p-5"
           >
             <div className="flex gap-1.5">
               <Skeleton className="h-6 w-20 rounded-full" />
