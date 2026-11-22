@@ -222,7 +222,8 @@ export function WbsGraph({
             pannable
             zoomable
             position="bottom-right"
-            className="!hidden overflow-hidden rounded-md border border-border sm:!block"
+            // A ring, not a border: the border would eat 2 px of the 168 px the map is drawn at.
+            className="!hidden overflow-hidden rounded-md ring-1 ring-border sm:!block"
             nodeBorderRadius={10}
             ariaLabel="Mini map of the work breakdown"
             style={{ width: 168, height: 112 }}
