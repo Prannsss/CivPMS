@@ -62,7 +62,7 @@ function NameForm({ initialName }: { initialName: string }) {
   }
 
   return (
-    <form
+    <form method="post"
       onSubmit={form.handleSubmit(onSubmit)}
       noValidate
       aria-label="Your name"

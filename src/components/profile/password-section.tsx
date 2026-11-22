@@ -86,7 +86,7 @@ function ChangePasswordForm({ email }: { email: string }) {
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate aria-label="Change password" className="flex flex-col gap-5">
+    <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate aria-label="Change password" className="flex flex-col gap-5">
       <input type="email" name="username" autoComplete="username" value={email} readOnly hidden />
       <FormError>{errors.root?.serverError?.message}</FormError>
       <Field label="Current password" required error={errors.currentPassword?.message}>

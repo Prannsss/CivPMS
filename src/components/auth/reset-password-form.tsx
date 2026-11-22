@@ -40,7 +40,7 @@ export function ResetPasswordForm({ email }: { email: string | null }) {
   }
 
   return (
-    <form
+    <form method="post"
       onSubmit={form.handleSubmit(onSubmit)}
       noValidate
       className="flex flex-col gap-5"

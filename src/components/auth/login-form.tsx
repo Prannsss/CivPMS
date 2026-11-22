@@ -77,7 +77,7 @@ export function LoginForm({ next, initialEmail = "", notice = null, googleEnable
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5" aria-label="Log in">
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5" aria-label="Log in">
         {rootError?.message ? (
           <FormError>
             <p>{rootError.message}</p>

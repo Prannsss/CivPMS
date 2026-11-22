@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import "@/lib/zod-jitless";
 
 /**
  * next-themes injects an inline script that sets the theme class before first paint (it runs from the

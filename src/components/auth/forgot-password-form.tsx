@@ -38,7 +38,7 @@ export function ForgotPasswordForm({ initialEmail = "", next }: { initialEmail?:
 
   return (
     <div className="flex flex-col gap-6">
-      <form
+      <form method="post"
         onSubmit={form.handleSubmit(onSubmit)}
         noValidate
         className="flex flex-col gap-5"
