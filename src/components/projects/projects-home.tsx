@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownUp, History, Plus, Search, X } from "lucide-react";
+import { ArrowDownUp, History, Plus } from "lucide-react";
 import { PendingInvitations, type PendingInvitation } from "@/components/invitations/pending-invitations";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -55,7 +54,7 @@ const TILE_FILTERS: ReadonlySet<HomeFilter> = new Set(["all", "planning", "activ
 
 /**
  * The projects home for company members (mockups 6–7): header with a count summary, URL-synced
- * toolbar (segment, search, sort), the card grid with the "Add project" tile, the create dialog
+ * toolbar (status segments; sort sits beside "Add project"; searching is the top bar's ⌘K), the card grid with the "Add project" tile, the create dialog
  * (also opened by `/?new=1` from the command palette) and the Owner PM's "Recently deleted" drawer.
  */
 export function ProjectsHome({
@@ -106,12 +105,15 @@ export function ProjectsHome({
     window.history.replaceState(null, "", next ? `/?${next}` : "/");
   }, []);
 
-  const visible = useMemo(() => applyHomeQuery(projects, query), [projects, query]);
-  const counts = useMemo(() => countByFilter(projects, query.q), [projects, query.q]);
+  // No search box on this page any more (the top bar's ⌘K searches projects): an old `?q=` link is
+  // ignored rather than filtering invisibly, and the next change drops it from the URL.
+  const view = useMemo<HomeQuery>(() => ({ ...query, q: "" }), [query]);
+  const visible = useMemo(() => applyHomeQuery(projects, view), [projects, view]);
+  const counts = useMemo(() => countByFilter(projects, ""), [projects]);
   const summary = homeSummary(projects);
   const hasAnyProject = projects.length > 0;
   const trashCount = trash?.length ?? 0;
-  const filtered = query.filter !== "all" || query.q.trim() !== "";
+  const filtered = query.filter !== "all";
 
   async function handleArchive(project: HomeProject, archived: boolean) {
     const result = await setProjectArchived({ projectId: project.id, archived });
@@ -162,6 +164,7 @@ export function ProjectsHome({
           </span>
         </Button>
       ) : null}
+      {hasAnyProject ? <SortSelect sort={query.sort} onChange={(sort) => updateQuery({ sort, q: "" })} /> : null}
       {canCreate && hasAnyProject ? (
         <Button onClick={() => setCreateOpen(true)} data-testid="add-project">
           <Plus aria-hidden />
@@ -204,7 +207,7 @@ export function ProjectsHome({
             <h2 id="projects-grid-heading" className="sr-only">
               Your projects
             </h2>
-            <Toolbar query={query} counts={counts} onChange={updateQuery} />
+            <Toolbar query={query} counts={counts} onChange={(patch) => updateQuery({ ...patch, q: "" })} />
             <p className="sr-only" role="status" aria-live="polite">
               {filtered ? `Showing ${pluralize(visible.length, "project")}.` : ""}
             </p>
@@ -212,7 +215,7 @@ export function ProjectsHome({
             {visible.length === 0 ? (
               <FilteredEmptyState
                 filter={query.filter}
-                query={query.q}
+                query=""
                 onReset={() => updateQuery({ filter: "all", q: "" })}
               />
             ) : (
@@ -222,7 +225,7 @@ export function ProjectsHome({
                     <ProjectCard project={project} onArchive={handleArchive} onDelete={handleDelete} />
                   </li>
                 ))}
-                {canCreate && TILE_FILTERS.has(query.filter) && !query.q.trim() ? (
+                {canCreate && TILE_FILTERS.has(query.filter) ? (
                   <li className="flex flex-col">
                     <AddProjectTile onClick={() => setCreateOpen(true)} />
                   </li>
@@ -256,80 +259,56 @@ function Toolbar({
   onChange: (patch: Partial<HomeQuery>) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-      {/* Seven segments don't fit a phone: the row scrolls sideways inside the page gutter. */}
-      <div className="-mx-4 -my-1 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
-        <SegmentedControl
-          aria-label="Filter projects by status"
-          value={query.filter}
-          onValueChange={(filter) => onChange({ filter })}
-          options={HOME_FILTERS.map((filter) => ({
-            value: filter,
-            label: (
-              <span className="inline-flex items-center gap-1.5">
-                {FILTER_LABELS[filter]}
-                {counts[filter] > 0 || filter === query.filter ? (
-                  <span
-                    className={cn(
-                      "min-w-4 rounded-full px-1.5 text-center text-[11px] leading-4 font-semibold tabular-nums",
-                      filter === "attention" && counts.attention > 0
-                        ? "bg-danger-soft text-danger-text"
-                        : "bg-surface-sunken text-muted-foreground in-data-[state=on]:bg-surface-muted",
-                    )}
-                  >
-                    {counts[filter]}
-                  </span>
-                ) : null}
-              </span>
-            ),
-          }))}
-        />
-      </div>
-      <div className="flex gap-2 sm:items-center">
-        <Input
-          type="search"
-          aria-label="Search projects by name or site"
-          placeholder="Search name or site"
-          value={query.q}
-          onChange={(event) => onChange({ q: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && query.q) {
-              event.preventDefault();
-              onChange({ q: "" });
-            }
-          }}
-          leading={<Search aria-hidden />}
-          trailing={
-            query.q ? (
-              <button
-                type="button"
-                onClick={() => onChange({ q: "" })}
-                aria-label="Clear search"
-                className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-surface-sunken hover:text-foreground focus-ring sm:size-8"
-              >
-                <X aria-hidden className="size-4" />
-              </button>
-            ) : null
-          }
-          wrapperClassName="min-w-0 flex-1 xl:w-56 xl:flex-none"
-          className="[&::-webkit-search-cancel-button]:hidden"
-        />
-        <Select value={query.sort} onValueChange={(sort) => onChange({ sort: sort as HomeSort })}>
-          <SelectTrigger aria-label="Sort projects" className="w-auto shrink-0 gap-2 sm:w-[13.5rem]">
-            <ArrowDownUp aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <span className="hidden sm:inline">
-              <SelectValue />
+    // Spans the full width; seven segments don't fit a phone, so there the row scrolls sideways
+    // inside the page gutter (min-w-max) instead of squeezing the labels.
+    <div className="-mx-4 -my-1 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
+      <SegmentedControl
+        aria-label="Filter projects by status"
+        fullWidth
+        className="min-w-max lg:min-w-0"
+        value={query.filter}
+        onValueChange={(filter) => onChange({ filter })}
+        options={HOME_FILTERS.map((filter) => ({
+          value: filter,
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              {FILTER_LABELS[filter]}
+              {counts[filter] > 0 || filter === query.filter ? (
+                <span
+                  className={cn(
+                    "min-w-4 rounded-full px-1.5 text-center text-[11px] leading-4 font-semibold tabular-nums",
+                    filter === "attention" && counts.attention > 0
+                      ? "bg-danger-soft text-danger-text"
+                      : "bg-surface-sunken text-muted-foreground in-data-[state=on]:bg-surface-muted",
+                  )}
+                >
+                  {counts[filter]}
+                </span>
+              ) : null}
             </span>
-          </SelectTrigger>
-          <SelectContent align="end" className="min-w-[13.5rem]">
-            {HOME_SORTS.map((sort) => (
-              <SelectItem key={sort} value={sort}>
-                {SORT_LABELS[sort]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          ),
+        }))}
+      />
     </div>
+  );
+}
+
+function SortSelect({ sort, onChange }: { sort: HomeSort; onChange: (sort: HomeSort) => void }) {
+  return (
+    <Select value={sort} onValueChange={(next) => onChange(next as HomeSort)}>
+      <SelectTrigger aria-label="Sort projects" className="w-auto shrink-0 gap-2 sm:w-[13.5rem]">
+        <ArrowDownUp aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <span className="hidden sm:inline">
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent align="end" className="min-w-[13.5rem]">
+        {HOME_SORTS.map((option) => (
+          <SelectItem key={option} value={option}>
+            {SORT_LABELS[option]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

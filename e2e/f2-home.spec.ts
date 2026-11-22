@@ -66,17 +66,16 @@ test.describe("projects home — demo tenant (read only)", () => {
     await expect(page.getByRole("radio", { name: /Needs attention/ })).toHaveAttribute("data-state", "on");
     await expect(page.getByTestId("project-card")).toHaveCount(2);
 
-    // Search by site name, then clear.
+    // No search box on the page (the top bar's ⌘K searches); an old ?q= link no longer filters.
     await page.getByRole("radio", { name: /^All/ }).click();
-    const search = page.getByRole("searchbox", { name: "Search projects by name or site" });
-    await search.fill("talisay");
-    await expect(page).toHaveURL(/q=talisay/);
-    await expect(page.getByTestId("project-card")).toHaveCount(1);
-    await expect(card(page, "Cebu Coastal Road Widening")).toBeVisible();
-    await search.fill("no such project zzz");
-    await expect(page.getByTestId("projects-filter-empty")).toContainText("No projects match");
-    await page.getByRole("button", { name: "Clear filters" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("searchbox", { name: "Search projects by name or site" })).toHaveCount(0);
+    await page.goto("/?q=no-such-project-zzz");
+    await expect(page.getByTestId("project-card")).toHaveCount(4);
+
+    // A status with nothing in it explains itself and resets.
+    await page.getByRole("radio", { name: /^Completed/ }).click();
+    await expect(page.getByTestId("projects-filter-empty")).toBeVisible();
+    await page.goto("/");
     await expect(page.getByTestId("project-card")).toHaveCount(4);
 
     // Sort by name.
