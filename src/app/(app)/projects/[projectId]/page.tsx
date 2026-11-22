@@ -57,8 +57,11 @@ export default async function ProjectDashboardPage({ params }: PageProps<"/proje
       <PageHeader
         className="pb-0 sm:pb-0"
         title="Dashboard"
-        // The top bar shows the full project name on desktop; phones truncate it there, so repeat it here.
-        breadcrumbs={<span className="font-medium text-foreground lg:hidden">{project.name}</span>}
+        // Phones truncate a long project name in the top bar, so repeat it here — only when it is long
+        // enough to be cut off (a short name would just appear twice).
+        breadcrumbs={
+          project.name.length > 24 ? <span className="font-medium text-foreground lg:hidden">{project.name}</span> : undefined
+        }
         meta={
           <>
             <ProjectStatusBadges status={project.status} derived={derivedBadgesFor(project)} />

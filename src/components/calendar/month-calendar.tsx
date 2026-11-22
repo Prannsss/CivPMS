@@ -206,7 +206,9 @@ export function MonthCalendar({
               const inProject = cell.date >= projectStart && cell.date <= projectEnd;
               const marker =
                 cell.date === projectStart ? "Project start" : cell.date === projectEnd ? "Project end" : null;
-              const label = info.label ?? marker;
+              // A plain weekend needs no word: the hatching and the column header say it (and "Weekend"
+              // didn't fit narrow cells). The accessible name below still states it.
+              const label = (info.kind === "weekend" && !info.holiday ? null : info.label) ?? marker;
               const accessible = `${formatDate(cell.date)}, ${statusText(info)}${marker ? `, ${marker.toLowerCase()}` : ""}${isToday ? ", today" : ""}`;
               return (
                 <div role="gridcell" key={cell.date} aria-selected={openDate === cell.date}>
@@ -249,7 +251,7 @@ export function MonthCalendar({
                           <span
                             aria-hidden
                             className={cn(
-                              "line-clamp-2 hidden w-full text-[11px] leading-[0.9rem] sm:block",
+                              "line-clamp-2 w-full text-[11px] leading-[0.9rem] [overflow-wrap:anywhere] max-sm:hidden",
                               info.label ? style.label : "font-medium text-primary-text",
                             )}
                           >

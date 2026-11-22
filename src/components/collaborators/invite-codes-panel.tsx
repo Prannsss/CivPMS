@@ -153,7 +153,7 @@ export function InviteCodesPanel({
         />
       ) : (
         <>
-          <ul className="flex flex-col divide-y divide-border">
+          <ul className="@container flex flex-col divide-y divide-border">
             {[...active, ...inactive].map((code) => {
               const badge = STATE_BADGE[code.state];
               const isActive = code.state === "active";
@@ -162,7 +162,7 @@ export function InviteCodesPanel({
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span
                       className={cn(
-                        "rounded-md border px-3 py-1.5 font-mono text-[15px] font-semibold tracking-[0.12em] tabular-nums",
+                        "shrink-0 rounded-md border px-3 py-1.5 font-mono text-[15px] font-semibold tracking-[0.12em] whitespace-nowrap tabular-nums",
                         isActive ? "border-border-strong bg-surface-sunken text-foreground" : "border-border text-muted-foreground line-through",
                       )}
                     >
@@ -182,15 +182,15 @@ export function InviteCodesPanel({
                     </div>
                   </div>
                   {isActive ? (
-                    <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-                      <Button variant="outline" size="sm" className="flex-1 max-sm:h-11 sm:flex-none" onClick={() => copyToClipboard(code.code, "Invite code copied")}>
+                    <div className="flex w-full shrink-0 gap-2 @lg:w-auto">
+                      <Button variant="outline" size="sm" className="flex-1 max-sm:h-11 @lg:flex-none" onClick={() => copyToClipboard(code.code, "Invite code copied")}>
                         <Copy aria-hidden />
                         Copy
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 text-danger-text hover:bg-danger-soft hover:text-danger-text max-sm:h-11 sm:flex-none"
+                        className="flex-1 text-danger-text hover:bg-danger-soft hover:text-danger-text max-sm:h-11 @lg:flex-none"
                         onClick={() => revoke(code)}
                         loading={revoking === code.id}
                         disabled={revoking !== null}

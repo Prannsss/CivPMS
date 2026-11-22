@@ -576,7 +576,8 @@ icon and a "Try again" action.
 | Use `danger` only for destructive actions (delete, remove, logout) | Use red for "Delayed" buttons or decoration |
 | Label the action **Logout** (buttons, menu items, titles); write "log out" / "log in" in sentences | Mix "Sign out", "Log out" and "Sign in" |
 | Keep a collapsing rail's icons at a fixed x and fade its labels (they stay mounted) | Unmount labels or switch to `justify-center` on toggle (the icons jump) |
-| Settings with distinct jobs: clickable section rows (title + one-line purpose) that switch the panel beside them (`ProjectSettingsView`, `?section=`) | One long page where Status and Delete sit under the details form |
+| Settings show one section at a time: Project Settings rows with a one-line purpose (`ProjectSettingsView`, `?section=`); Profile and Company settings use `SettingsLayout` (nav switches the panel, `#section` in the URL so email links work; a pill row on phones) | One long page where Status and Delete sit under the details form |
+| Modals use the 12 px radius (`rounded-md`); a modal over a modal dims less (`--overlay-stacked`) so only the lower modal recedes; every backdrop blurs 4 px | Two full-strength backdrops that turn the page nearly black |
 | Details read-only first; a pencil in the panel header opens the form and becomes Cancel + Save (Esc cancels, focus returns to the pencil) | Always-open forms with a Save bar at the bottom of a long card |
 | Give project cards blue, green, pink, purple, teal or graphite | Give a project card red, orange or yellow |
 | `primary-text` for links and blue text | `text-primary` on small text (fails AA in dark mode) |

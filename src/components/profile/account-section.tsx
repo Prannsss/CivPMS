@@ -98,7 +98,7 @@ function NameForm({ initialName }: { initialName: string }) {
   );
 }
 
-/** Photo, name, sign-in email (read-only) and company role. */
+/** Photo, name, login email (read-only) and company role. */
 export function AccountSection({
   userId,
   fullName,
@@ -132,7 +132,7 @@ export function AccountSection({
           hint={
             hasGoogle
               ? "Managed by Google. You log in with your Google account, so the address can't be changed here."
-              : "Your sign-in address. Can't be changed yet."
+              : "Your login email. Can't be changed yet."
           }
         >
           <Input
