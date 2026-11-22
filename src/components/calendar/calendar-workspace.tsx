@@ -303,8 +303,8 @@ export function CalendarWorkspace({
                   inputMode="decimal"
                   defaultValue={String(draft.hoursPerDay)}
                   disabled={!canEdit}
-                  trailing={<span className="text-xs font-medium text-muted-foreground">h/day</span>}
-                  className="tabular-nums"
+                  trailing={<span className="pr-3 text-xs font-medium text-muted-foreground">h/day</span>}
+                  className="pr-16 tabular-nums"
                   wrapperClassName="max-w-44"
                   onBlur={(event) => commitHours(event.target.value)}
                   onKeyDown={(event) => {
