@@ -13,6 +13,8 @@ export type ProjectShellProps = {
   palette?: Omit<CommandPaletteProps, "open" | "onOpenChange">;
   children: React.ReactNode;
   contentClassName?: string;
+  /** Collapsed state read from the cookie on the server (first paint). */
+  initialCollapsed?: boolean;
 };
 
 /**
@@ -21,8 +23,8 @@ export type ProjectShellProps = {
  * top bar and content. Below lg the sidebar becomes an off-canvas sheet opened from the
  * top bar's hamburger.
  */
-export function ProjectShell({ sidebar, topBar, palette, children, contentClassName }: ProjectShellProps) {
-  const [collapsed, setCollapsed] = useSidebarCollapsed();
+export function ProjectShell({ sidebar, topBar, palette, children, contentClassName, initialCollapsed = false }: ProjectShellProps) {
+  const [collapsed, setCollapsed] = useSidebarCollapsed(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 

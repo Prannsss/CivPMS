@@ -138,7 +138,7 @@ function HomePreview() {
           viewAllHref: "#shell",
           onMarkAllRead: () => toast.success("All caught up"),
         }}
-        user={{ user: MOCK_USER, signOut: { onSignOut: () => toast.message("Signed out (demo)") } }}
+        user={{ user: MOCK_USER, signOut: { onSignOut: () => toast.message("Logged out (demo)") } }}
       />
       <div className="px-4 pt-4 pb-8 sm:px-6 lg:px-8">
         <PageHeader
@@ -184,7 +184,7 @@ function ProjectWorkspacePreview() {
     items: getProjectNavItems(project.id),
     activeId: "dashboard",
     allProjectsHref: "#shell",
-    signOut: { onSignOut: () => toast.message("Signed out (demo)") },
+    signOut: { onSignOut: () => toast.message("Logged out (demo)") },
   };
   return (
     <div className="flex overflow-hidden rounded-2xl border border-border bg-background shadow-sm lg:h-[46rem]">
@@ -285,7 +285,7 @@ export function ShellSection() {
       </Demo>
       <Demo
         title="Project workspace (mockup 8)"
-        description="Blue sidebar with white active pill, Soon tags and red Log out. Collapses to icons on desktop; becomes a drawer below 1024px (hamburger)."
+        description="Blue sidebar with white active pill, Soon tags and red Logout. Collapses to icons on desktop; becomes a drawer below 1024px (hamburger)."
         bodyClassName="border-0 bg-transparent p-0 sm:p-0"
       >
         <ProjectWorkspacePreview />

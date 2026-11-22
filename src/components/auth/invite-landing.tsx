@@ -374,8 +374,8 @@ function WrongAccount({
       title={`This invitation is for ${emailHint}`}
       description={
         <>
-          You&apos;re signed in as{" "}
-          <span className="font-medium break-all text-foreground">{viewerEmail ?? "another account"}</span>. Sign out,
+          You&apos;re logged in as{" "}
+          <span className="font-medium break-all text-foreground">{viewerEmail ?? "another account"}</span>. Log out,
           then log in with the invited address to accept it.
         </>
       }
@@ -516,7 +516,7 @@ function AcceptActions({ token, invitation, viewer, onDeclined }: ActionProps) {
       <p className="flex items-start gap-2 text-sm text-muted-foreground">
         <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success-text" />
         <span>
-          Signed in as <span className="font-medium break-all text-foreground">{viewer.email}</span>, the invited
+          Logged in as <span className="font-medium break-all text-foreground">{viewer.email}</span>, the invited
           address.
           {viewer.companyName ? null : <> Accepting makes you part of {withPeriod(invitation.companyName)}</>}
         </span>

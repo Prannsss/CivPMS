@@ -23,11 +23,13 @@ export type ShellProject = {
 export type ProjectShellClientProps = {
   data: ShellData;
   project: ShellProject;
+  /** Desktop rail collapsed (from the cookie). */
+  sidebarCollapsed?: boolean;
   children: React.ReactNode;
 };
 
 /** Sidebar frame for /projects/[projectId]/*, wired to live data (mockup 8). */
-export function ProjectShellClient({ data, project, children }: ProjectShellClientProps) {
+export function ProjectShellClient({ data, project, sidebarCollapsed = false, children }: ProjectShellClientProps) {
   const navItems = useMemo(
     () => getProjectNavItems(project.id).filter((item) => item.id !== "settings" || project.canManage),
     [project.id, project.canManage],
@@ -54,6 +56,7 @@ export function ProjectShellClient({ data, project, children }: ProjectShellClie
   return (
     <>
       <ProjectShell
+        initialCollapsed={sidebarCollapsed}
         sidebar={{
           project: {
             name: project.name,

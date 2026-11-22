@@ -14,10 +14,10 @@ const NAV: SettingsNavItem[] = [
   { id: "display", label: "Display", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "password", label: "Password", icon: KeyRound },
-  { id: "session", label: "Sign out", icon: LogOut },
+  { id: "session", label: "Logout", icon: LogOut },
 ];
 
-/** Profile page body: section nav + Account, Display, Notifications, Password and Sign out. */
+/** Profile page body: section nav + Account, Display, Notifications, Password and Logout. */
 export function ProfileView({ data }: { data: ProfilePageData }) {
   return (
     <SettingsLayout nav={NAV} label="Profile sections">

@@ -46,7 +46,7 @@ const itemClasses = cn(
 );
 
 export type DropdownMenuItemProps = React.ComponentProps<typeof MenuPrimitive.Item> & {
-  /** `danger` for destructive items such as Sign out or Delete. */
+  /** `danger` for destructive items such as Logout or Delete. */
   variant?: "default" | "danger";
   inset?: boolean;
 };

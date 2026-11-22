@@ -573,7 +573,9 @@ icon and a "Try again" action.
 | Use tokens: `bg-surface`, `text-danger-text`, `border-border-strong` | Hard-code `#hex`, `bg-blue-600`, `text-red-500` |
 | Pair status color with an icon and a label (`StatusBadge`) | Show a red dot or red text as the only signal |
 | One solid primary button per screen | Two blue buttons fighting for attention |
-| Use `danger` only for destructive actions (delete, remove, sign out) | Use red for "Delayed" buttons or decoration |
+| Use `danger` only for destructive actions (delete, remove, logout) | Use red for "Delayed" buttons or decoration |
+| Label the action **Logout** (buttons, menu items, titles); write "log out" / "log in" in sentences | Mix "Sign out", "Log out" and "Sign in" |
+| Keep a collapsing rail's icons at a fixed x and fade its labels (they stay mounted) | Unmount labels or switch to `justify-center` on toggle (the icons jump) |
 | Give project cards blue, green, pink, purple, teal or graphite | Give a project card red, orange or yellow |
 | `primary-text` for links and blue text | `text-primary` on small text (fails AA in dark mode) |
 | `IconButton` with an `aria-label` | Icon-only `<button>` with no accessible name |

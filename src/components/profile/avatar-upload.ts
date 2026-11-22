@@ -58,7 +58,7 @@ export const AVATAR_MESSAGES: Record<AvatarErrorCode, string> = {
   UNSUPPORTED_TYPE: "That file isn't a photo we can use. Pick a JPG, PNG, WebP, GIF or HEIC image.",
   TOO_LARGE: "This photo is larger than 15 MB. Pick a smaller one or take a screenshot of it.",
   UNREADABLE: "We couldn't read this image. Try another photo, or save it as JPG or PNG first.",
-  UNAUTHENTICATED: "Your session has expired. Sign in again, then upload your photo.",
+  UNAUTHENTICATED: "Your session has expired. Log in again, then upload your photo.",
   RATE_LIMITED: "Too many uploads in a row. Wait a moment and try again.",
   UPLOAD_FAILED: "Your photo couldn't be uploaded. Check your connection and try again.",
 };
@@ -135,7 +135,7 @@ export function interpretMediaResponse(status: number, body: unknown, retryAfter
       return final("UNAUTHENTICATED");
     case 403:
       // Storage policy refused the write (FORBIDDEN): not a session problem the user can fix by waiting.
-      return final("UPLOAD_FAILED", "Your photo couldn't be saved to your account. Sign out, sign in again and try once more.");
+      return final("UPLOAD_FAILED", "Your photo couldn't be saved to your account. Log out, log in again and try once more.");
     case 413:
       return final("TOO_LARGE");
     case 415:

@@ -207,7 +207,7 @@ export function NavigationSection() {
         </Demo>
       </div>
 
-      <Demo title="Top-bar widgets" description="Theme toggle, notification bell (unread badge caps at 99+, per-project filter) and user menu (big avatar, red Sign out).">
+      <Demo title="Top-bar widgets" description="Theme toggle, notification bell (unread badge caps at 99+, per-project filter) and user menu (big avatar, red Logout).">
         <Row className="gap-4">
           <ThemeToggle />
           <NotificationBell
@@ -224,7 +224,7 @@ export function NavigationSection() {
             user={MOCK_USER}
             profileHref="#navigation"
             settingsHref="#navigation"
-            signOut={{ onSignOut: () => toast.message("Signed out (demo)") }}
+            signOut={{ onSignOut: () => toast.message("Logged out (demo)") }}
           />
           <IconButton aria-label="Invite collaborator" variant="outline">
             <UserPlus aria-hidden />

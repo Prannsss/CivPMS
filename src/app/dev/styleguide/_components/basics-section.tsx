@@ -76,7 +76,7 @@ export function ButtonsSection() {
     <Section
       id="buttons"
       title="Buttons"
-      description="One obvious primary action per screen. Danger is only for destructive actions (delete, remove, sign out). 44px tall on phones, 40px on desktop."
+      description="One obvious primary action per screen. Danger is only for destructive actions (delete, remove, logout). 44px tall on phones, 40px on desktop."
     >
       <Demo title="Variants">
         <Row>
