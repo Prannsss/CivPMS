@@ -13,8 +13,8 @@ const sheetVariants = cva("fixed z-50 flex flex-col bg-surface text-foreground s
   variants: {
     side: {
       right:
-        "inset-y-0 right-0 h-dvh w-[min(26rem,calc(100%-2.5rem))] border-l border-border data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
-      left: "inset-y-0 left-0 h-dvh w-[min(20rem,calc(100%-3.5rem))] border-r border-border data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
+        "inset-y-0 right-0 h-dvh w-[min(26rem,calc(100%-2.5rem))] overflow-hidden rounded-l-md border-l border-border data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
+      left: "inset-y-0 left-0 h-dvh w-[min(20rem,calc(100%-3.5rem))] overflow-hidden rounded-r-md border-r border-border data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
       bottom:
         "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
       top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-2xl border-b border-border data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top",
