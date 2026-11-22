@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ProjectAvatar } from "@/components/ui/project-color";
-import { STATUS_META, type DerivedBadge, type ProjectStatus } from "@/components/ui/status-badge";
+import type { DerivedBadge, ProjectStatus } from "@/components/ui/status-badge";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { SignOutHandler } from "./user-menu";
@@ -105,7 +105,6 @@ export function ProjectSidebar({
   const pathname = usePathname();
   const active = activeId ?? findActiveNavId(items, pathname);
   const isCollapsed = mode === "rail" && collapsed;
-  const statusMeta = project.status ? STATUS_META[project.status] : null;
 
   return (
     <div
@@ -142,14 +141,7 @@ export function ProjectSidebar({
         {isCollapsed ? null : (
           <div className="flex min-w-0 flex-col gap-1.5">
             <p className="line-clamp-2 text-base leading-[1.3rem] font-semibold tracking-[-0.01em] break-words">{project.name}</p>
-            {statusMeta || (project.derivedBadges && project.derivedBadges.length > 0) ? (
-              <div className="flex flex-wrap gap-1">
-                {statusMeta ? <SidebarBadge label={statusMeta.label} icon={statusMeta.icon} /> : null}
-                {project.derivedBadges?.map((badge) => (
-                  <SidebarBadge key={badge} label={STATUS_META[badge].label} icon={STATUS_META[badge].icon} alert />
-                ))}
-              </div>
-            ) : null}
+            {/* Status and badges live in the page header, not here. */}
           </div>
         )}
       </div>
@@ -240,22 +232,6 @@ export function ProjectSidebar({
         <SignOutButton signOut={signOut} collapsed={isCollapsed} />
       </div>
     </div>
-  );
-}
-
-function SidebarBadge({ label, icon: Icon, alert = false }: { label: string; icon: LucideIcon; alert?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] leading-4 font-semibold",
-        alert
-          ? "bg-danger text-danger-foreground"
-          : "bg-black/25 text-white dark:bg-sidebar-hover dark:text-sidebar-fg",
-      )}
-    >
-      <Icon aria-hidden className="size-3.5" strokeWidth={2.25} />
-      {label}
-    </span>
   );
 }
 

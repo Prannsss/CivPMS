@@ -56,11 +56,11 @@ calendar edits on Completed/Cancelled projects are refused by the actions (`plan
 the database (`private.lock_wbs` / `private.get_managed_activity` → `assert_plan_open`), covered by
 SQL test 11 and by `e2e/f4-wbs` / `f4-calendar` calling the RPCs with the Owner PM's own token.
 
-## 2. Pushed, waiting for the owner's pull requests (2026-11-21)
+## 2. Merged into `main` (2026-11-22)
 
-`main` is still at the Phase 0–1 merge (PR #1). These branches are pushed, verified (typecheck,
-`npm run lint`, Vitest, `next build`) and **stacked**; open PRs into `main` in this order (each later
-branch contains the earlier ones, so its PR shows only its own commits once the earlier one is merged):
+At the owner's request every branch below was merged into `main` in this order, one commit per branch,
+authored by the owner and without co-author lines (the branches stay on GitHub with their detailed
+history). Each was verified (typecheck, `npm run lint`, Vitest, `next build`) before the merge:
 
 1. `fix/next-security`: Next.js 16.4.2 → 16.4.6 (7 moderate advisories; `next build` refused 16.4.2).
 2. `docs/owner-decisions`: the roadmap (from `claude/civpms-roadmap`) + owner answers Q1–9, D8 (branch/PR
@@ -79,6 +79,10 @@ branch contains the earlier ones, so its PR shows only its own commits once the 
 11. `fix/topbar-search-center`: the top-bar search pill sits in the middle of the bar (`1fr auto 1fr`).
 12. `feat/home-toolbar`: projects home: status filter spans the row, the page search box is gone (⌘K
     searches; old `?q=` links are ignored), the sort sits beside Add project.
+13. `feat/user-menu-tidy`: account menu without the email (name, company, role badge).
+14. `feat/home-mobile-slide`: sliding pill in every segmented control; actions beside the title on phones.
+15. `feat/ux-hierarchy-copy`: shorter copy (~90 strings) and calmer hierarchy on every screen; no status
+    badges in the project sidebar; calendar working time in a gear-opened side panel with a summary chip.
 
 Not run in this session: the **full** Playwright suite (the cloud environment has no `DEMO_PASSWORD` or
 secret keys, so the demo accounts can't sign in). Run against the live project instead: `e2e/styleguide`

@@ -290,7 +290,9 @@ test("5 · the inspector accepts and gets a read-only project", async ({ page, c
   // Read-only calendar.
   await page.goto(`/projects/${projectId}/calendar`);
   await expect(page.getByTestId("calendar-lock")).toContainText("View only");
+  await page.getByRole("button", { name: "Working time settings" }).click();
   await expect(page.getByRole("checkbox", { name: "Monday" })).toBeDisabled();
+  await page.keyboard.press("Escape");
 
   // No invite controls, no project settings.
   await page.goto(`/projects/${projectId}/collaborators`);

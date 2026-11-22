@@ -295,7 +295,7 @@ export function MonthCalendar({
       <p className="flex items-start gap-1.5 text-xs leading-4 text-muted-foreground">
         <Info aria-hidden className="mt-px size-3.5 shrink-0" />
         {canEdit
-          ? "Click or right-click a day (long-press on touch) to mark it as working or non-working. Use the arrow keys to move between days."
+          ? "Click or long-press a day to make it working or non-working."
           : "Click a day to see why it is working or non-working."}
       </p>
     </section>

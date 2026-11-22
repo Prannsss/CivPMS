@@ -219,7 +219,7 @@ export function NotificationsView({
           <EmptyState
             icon={<Inbox />}
             title="No notifications yet"
-            description="Invitations, project alerts (Delayed, over budget) and team changes will show up here and on the bell."
+            description="Invitations, project alerts and team changes show up here."
             action={
               <Button variant="outline" asChild>
                 <Link href="/profile#notifications">Choose what you&apos;re notified about</Link>
@@ -230,7 +230,7 @@ export function NotificationsView({
           <EmptyState
             icon={<BellOff />}
             title="You're all caught up"
-            description="No unread notifications. New ones also appear on the bell at the top."
+            description="New ones also show on the bell."
             action={
               <Button variant="outline" onClick={() => navigate({ unread: false, projectId: null })}>
                 Show all notifications

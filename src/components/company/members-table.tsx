@@ -146,7 +146,7 @@ export function MembersTable({
           size="sm"
           icon={<Users />}
           title="Nobody here yet"
-          description="Invite people from a project's Collaborators tab, or share a company invite code with inspectors."
+          description="Invite people from a project's Collaborators tab, or share an invite code."
           headingLevel="h3"
         />
       ) : (

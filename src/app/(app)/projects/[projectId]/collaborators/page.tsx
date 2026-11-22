@@ -45,7 +45,7 @@ export default async function CollaboratorsPage({ params }: PageProps<"/projects
           <CardTitle>Members</CardTitle>
           <CardDescription>
             {canManage
-              ? "Removing someone takes away this project only. They stay in your company."
+              ? "Removing someone affects this project only."
               : "Only Project Managers can invite or remove people."}
           </CardDescription>
         </CardHeader>
@@ -65,7 +65,7 @@ export default async function CollaboratorsPage({ params }: PageProps<"/projects
           <Card>
             <CardHeader className="pb-4 sm:pb-4">
               <CardTitle>Pending invitations</CardTitle>
-              <CardDescription>Email invitations expire after 7 days. Resend to send a fresh link.</CardDescription>
+              <CardDescription>Links expire after 7 days.</CardDescription>
               {invitations.length > 0 ? (
                 <CardAction>
                   <Badge tone={pending > 0 ? "primary" : "neutral"} className="tabular-nums">
@@ -82,7 +82,7 @@ export default async function CollaboratorsPage({ params }: PageProps<"/projects
           <Card>
             <CardHeader className="pb-4 sm:pb-4">
               <CardTitle>Invite codes</CardTitle>
-              <CardDescription>For inspectors: they enter the code when they join, no email needed.</CardDescription>
+              <CardDescription>Inspectors join with a code, no email needed.</CardDescription>
               {activeCodes > 0 ? (
                 <CardAction>
                   <Badge tone="success" className="tabular-nums">

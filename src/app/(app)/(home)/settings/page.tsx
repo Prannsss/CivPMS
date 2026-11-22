@@ -32,7 +32,7 @@ function NoCompany() {
         eyebrow="No company yet"
         icon={<Building2 />}
         title="You're not in a company yet"
-        description="Company settings appear once you join one. Enter an invite code or accept an invitation from the projects home."
+        description="Join a company with an invite code or an invitation from the projects home."
         actions={
           <Button asChild>
             <Link href="/">Join a company</Link>

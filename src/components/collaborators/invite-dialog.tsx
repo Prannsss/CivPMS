@@ -169,13 +169,13 @@ export function InviteDialog({ projectId, projectName }: { projectId: string; pr
                         value="inspector"
                         icon={<HardHat />}
                         title="Inspector / QA / QC"
-                        description="Views the plan and updates progress. Can't change the plan, budget or team."
+                        description="Views the plan and updates progress."
                       />
                       <ChoiceCard
                         value="pm"
                         icon={<UserPlus />}
                         title="Project Manager"
-                        description="Plans the work, edits the budget and dates, and manages the team."
+                        description="Plans the work and manages budget, dates and team."
                       />
                     </RadioGroup>
                   )}

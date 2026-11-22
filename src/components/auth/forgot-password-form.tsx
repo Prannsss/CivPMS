@@ -48,7 +48,6 @@ export function ForgotPasswordForm({ initialEmail = "", next }: { initialEmail?:
         <Field
           label="Email"
           required
-          hint="We'll email you a link to set a new password."
           error={form.formState.errors.email?.message}
         >
           <Input

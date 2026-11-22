@@ -105,19 +105,17 @@ export const BudgetPanel = memo(function BudgetPanel({
           <ul className="col-span-3 -mb-1 flex flex-col gap-2 border-t border-border pt-3 lg:col-span-4">
             {allocation.state === "exceeded" ? (
               <Note tone="danger" testId="wbs-budget-warning" title={`Over budget by ${formatPeso(-allocation.remaining)}.`}>
-                Changes still save. Lower some work package costs or raise the budget in Project settings.
+                Changes still save. Lower some costs or raise the budget in Project settings.
               </Note>
             ) : allocation.state === "near" ? (
               <Note tone="warning" testId="wbs-budget-warning" title="Close to the budget limit.">
-                {Math.round(allocation.ratio * 100)}% is allocated, so {formatPeso(allocation.remaining)} is left for any
-                work not costed yet.
+                {Math.round(allocation.ratio * 100)}% allocated · {formatPeso(allocation.remaining)} left.
               </Note>
             ) : null}
             {totals.usedFallbackWeight ? (
               <Note tone="info" testId="wbs-fallback" title="Progress is less precise for some work packages.">
-                They have no {weighting === "cost" ? "estimated cost" : "duration"} yet, so they are weighted by{" "}
-                {weighting === "cost" ? "hours" : "cost"} or equally. Add {weighting === "cost" ? "costs" : "durations"}{" "}
-                to make the percentages accurate.
+                Some have no {weighting === "cost" ? "estimated cost" : "duration"}, so they count by{" "}
+                {weighting === "cost" ? "hours" : "cost"} or equally.
               </Note>
             ) : null}
           </ul>

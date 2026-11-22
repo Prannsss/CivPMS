@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
+import { workDaysLabel,
   countChanges,
   describeDay,
   markDay,
@@ -115,5 +115,16 @@ describe("month grid", () => {
   it("keeps at least one working day when removing weekends", () => {
     const weekendOnly = { ...base, workDays: [6, 7] };
     expect(withoutWeekends(weekendOnly).workDays).toEqual([6, 7]);
+  });
+});
+
+describe("workDaysLabel", () => {
+  it("summarises the weekly pattern", () => {
+    expect(workDaysLabel([1, 2, 3, 4, 5])).toBe("Mon–Fri");
+    expect(workDaysLabel([6, 1, 2, 3, 4, 5])).toBe("Mon–Sat");
+    expect(workDaysLabel([1, 3, 5])).toBe("Mon, Wed, Fri");
+    expect(workDaysLabel([6, 7])).toBe("Sat, Sun");
+    expect(workDaysLabel([1, 2, 3, 4, 5, 6, 7])).toBe("Every day");
+    expect(workDaysLabel([])).toBe("No working days");
   });
 });

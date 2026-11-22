@@ -103,7 +103,7 @@ export function MembersList({
         size="sm"
         icon={<Users />}
         title="Nobody here yet"
-        description="Invite Project Managers and inspectors to plan and track this project together."
+        description="Invite PMs and inspectors to plan and track this project."
         headingLevel="h3"
       />
     );

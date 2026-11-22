@@ -56,7 +56,7 @@ function RenameForm({ name }: { name: string }) {
           className="min-w-0 flex-1"
           label="Company name"
           required
-          hint="Shown on the projects home, invitations and emails. Must be unique on CivPMS."
+          hint="Must be unique on CivPMS."
           error={errors.name?.message}
         >
           <Input

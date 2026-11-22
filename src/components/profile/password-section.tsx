@@ -117,7 +117,7 @@ export function PasswordSection({ email, hasPassword }: { email: string; hasPass
       title="Password"
       description={
         hasPassword
-          ? `At least ${PASSWORD_MIN_LENGTH} characters. A short phrase you can remember works well.`
+          ? undefined
           : "You sign in with Google, so there is no CivPMS password to change."
       }
     >

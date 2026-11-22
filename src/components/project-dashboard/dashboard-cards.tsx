@@ -325,7 +325,7 @@ export function RecentActivityCard({ entries, projectId, now }: { entries: Audit
     <Card>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
-        <CardDescription>The latest changes from the audit trail</CardDescription>
+        <CardDescription>Latest changes</CardDescription>
       </CardHeader>
       <CardContent className="pt-3 sm:pt-3">
         {entries.length === 0 ? (
@@ -335,7 +335,7 @@ export function RecentActivityCard({ entries, projectId, now }: { entries: Audit
             headingLevel="h4"
             icon={<History />}
             title="No changes yet"
-            description="Edits, status changes and new team members will be listed here as they happen."
+            description="Edits, status changes and new members show up here."
           />
         ) : (
           <ol className="flex flex-col gap-4">
@@ -370,7 +370,7 @@ export function BudgetCard({ project }: { project: DashboardProject }) {
     <Card>
       <CardHeader>
         <CardTitle>Budget</CardTitle>
-        <CardDescription>Estimated cost of all work packages against the project budget</CardDescription>
+        <CardDescription>Work package costs against the budget</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <Meter
@@ -399,7 +399,7 @@ export function BudgetCard({ project }: { project: DashboardProject }) {
           </div>
         </dl>
         <p className="text-xs leading-4 text-muted-foreground">
-          The Near Budget Limit warning starts at {Math.round(project.nearBudgetThreshold * 100)}% of the budget.
+          Warning at {Math.round(project.nearBudgetThreshold * 100)}% of the budget.
         </p>
       </CardContent>
     </Card>
@@ -527,7 +527,7 @@ export function InspectionsComingCard() {
           <ClipboardCheck aria-hidden className="size-[18px] text-muted-foreground" />
           Site inspections
         </CardTitle>
-        <CardDescription>Propose, approve and track inspections for this project.</CardDescription>
+        <CardDescription>Propose, approve and track site inspections.</CardDescription>
         <CardAction>
           <Badge tone="neutral" variant="outline" size="sm">
             Coming next
@@ -536,7 +536,7 @@ export function InspectionsComingCard() {
       </CardHeader>
       <CardContent className="pt-3 sm:pt-3">
         <p className="text-[13px] leading-5 text-muted-foreground">
-          Upcoming inspections and approvals will appear here in a later release.
+          Coming in a later release.
         </p>
       </CardContent>
     </Card>

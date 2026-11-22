@@ -90,7 +90,7 @@ describe("buildAttentionItems", () => {
     );
     const items = buildAttentionItems({ project: { ...base, allocated: 950_000 }, work, canManage: true });
     expect(items.map((i) => i.kind)).toEqual(["projected_late", "budget_near"]);
-    expect(items[0]?.title).toBe("Scheduled work ends 20 days after the project end date");
+    expect(items[0]?.title).toBe("Work runs 20 days past the end date");
     expect(items[1]?.title).toBe("95% of the budget is allocated");
   });
 
@@ -114,7 +114,7 @@ describe("texts", () => {
     expect(missingText(["start", "cost"])).toBe("Missing start date and cost.");
     expect(missingText(["start", "duration", "cost"])).toBe("Missing start date, duration and cost.");
     expect(delayText({ derived: { reason: "END_PASSED", days: 3 }, reportedDelayed: false, endDate: "2026-10-10", startDate: null })).toBe(
-      "Planned end (10 Oct 2026) passed 3 days ago.",
+      "3 days late · planned end 10 Oct 2026.",
     );
     expect(delayText({ derived: null, reportedDelayed: true, endDate: null, startDate: null })).toBe("Reported as delayed.");
     expect(delayText({ derived: { reason: "START_PASSED", days: 1 }, reportedDelayed: true, endDate: null, startDate: "2026-10-12" })).toBe(

@@ -4,7 +4,7 @@ CivPMS is a Project Management System for engineering/construction companies (Pr
 
 - **Product spec:** `SPEC.md` lives outside the repo (the repo is public). Agents get its path in their task prompt. Section numbers below (`§5.2`) refer to it.
 - **Decisions that override or extend the spec:** `docs/DECISIONS.md`. When the spec and this file disagree, this file wins.
-- **Current scope: Phases 0–1** (foundations + planning core). Gantt, dependencies, CPM, baselines UI, progress updates, inspections, S-curve, sharing/viewers, offline/PWA, global search and import/export are later phases. Build so they slot in without rewrites, but do not build them now.
+- **Current scope: Phases 0–1 + Stage A** (foundations, planning core, read-only Gantt and planned S-curve — `docs/ROADMAP.md` §4.0). Dependencies, CPM, Gantt editing, baselines UI, progress updates, inspections, sharing/viewers, global search and import/export are later phases; offline mode is out of scope (D7). Build so they slot in without rewrites, but do not build them early.
 
 ## Stack
 
@@ -116,7 +116,7 @@ Global UI services (from `components/ui`): `toast` helpers (sonner, themed, supp
 - **Email invitations** per spec §4.4 (project + role pm|inspector, 7-day expiry, token hashed, one company per user).
 - **Durations** are stored in working hours. End date = the working day on which the last working hour falls (12 h at 8 h/day starting Mon → ends Tue). Zero-duration = milestone (end = start).
 - **Parents ignore their own cost/hours/dates** once they have children (values derive from leaves).
-- Gantt and S-curve tabs exist in the sidebar but show a "coming next" empty state in this phase.
+- Gantt is read-only and the S-curve shows the planned line only (Stage A); links, CPM and editing come in Phase 2, the actual line with progress updates in Phase 3.
 
 ## Commands
 

@@ -42,7 +42,7 @@ export function PendingInvitations({
             size="sm"
             icon={<MailCheck />}
             title="No pending invitations"
-            description="Invite Project Managers and inspectors by email from a project's Collaborators tab."
+            description="Invite people by email from a project's Collaborators tab."
             headingLevel="h3"
           />
         </div>

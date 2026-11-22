@@ -11,7 +11,7 @@ export default function ProjectPageNotFound() {
         eyebrow="Not found"
         icon={<SearchX />}
         title="We couldn't find that"
-        description="It may have been deleted, or you no longer have access to it. Use the project menu to go somewhere else."
+        description="It may have been deleted, or you no longer have access."
         actions={
           <Button variant="outline" asChild>
             <Link href="/">Back to projects</Link>

@@ -56,7 +56,7 @@ export function TrashSheet({
               icon={<History />}
               headingLevel="h3"
               title="Nothing deleted lately"
-              description="Deleted deliverables and work packages stay here for 30 days, so you can bring them back."
+              description="Deleted items stay here for 30 days."
             />
           ) : (
             <ul className="flex flex-col gap-2">

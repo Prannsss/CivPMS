@@ -161,7 +161,7 @@ export function ProjectDetailsForm({
         <FormError>{form.formState.errors.root?.serverError?.message}</FormError>
 
         {/* Plain text fields use register() (uncontrolled): text typed before hydration is kept. */}
-        <Field label="Project name" required hint="3–120 characters, unique within your company." error={errors.name?.message}>
+        <Field label="Project name" required hint="Must be unique in your company." error={errors.name?.message}>
           <Input {...form.register("name")} autoComplete="off" />
         </Field>
 
@@ -192,7 +192,7 @@ export function ProjectDetailsForm({
           name="budget"
           label="Estimated project budget"
           required
-          hint="Work package costs are compared against this amount."
+          hint="Work package costs count against this."
           render={({ field }) => (
             <CurrencyInput
               value={typeof field.value === "number" ? field.value : parseNumericInput(field.value)}
@@ -208,7 +208,6 @@ export function ProjectDetailsForm({
         <div className="grid gap-5 sm:grid-cols-2">
           <Field
             label="Site name or location"
-            hint="Shown on the project card and to everyone on the project."
             error={errors.siteName?.message}
           >
             <Input {...form.register("siteName")} placeholder="e.g. Talisay, Cebu" />
@@ -226,7 +225,6 @@ export function ProjectDetailsForm({
           control={form.control}
           name="color"
           label="Card color"
-          hint="Used for the project card on the home screen."
           render={({ field }) => <ColorSwatchPicker value={field.value} onValueChange={field.onChange} />}
         />
 
@@ -250,13 +248,13 @@ export function ProjectDetailsForm({
                   value="cost"
                   icon={<Wallet />}
                   title="By estimated cost"
-                  description="A ₱5M work package counts five times more than a ₱1M one. Best when costs are known."
+                  description="A ₱5M package counts 5× a ₱1M one. Best when costs are known."
                 />
                 <ChoiceCard
                   value="hours"
                   icon={<Clock />}
                   title="By working hours"
-                  description="Longer work counts more, whatever it costs. Best for labour-driven schedules."
+                  description="Longer work counts more. Best for labour-heavy work."
                 />
               </RadioGroup>
             )}

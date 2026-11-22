@@ -14,7 +14,7 @@ export default function NotFound() {
         eyebrow="Error 404"
         icon={<Compass />}
         title="We couldn't find that page"
-        description="The link may be broken or the page may have moved. Check the address, or go back to your projects."
+        description="The link may be broken or the page moved."
         actions={
           <Button asChild>
             <Link href="/">Back to projects</Link>

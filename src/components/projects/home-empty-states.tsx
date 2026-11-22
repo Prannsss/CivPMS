@@ -138,7 +138,7 @@ export function FilteredEmptyState({
         data-testid="projects-filter-empty"
         icon={<Archive />}
         title="No archived projects"
-        description="Archive completed or cancelled projects to keep your list tidy. You'll find them here."
+        description="Archived projects show up here."
         action={
           <Button variant="outline" onClick={onReset}>
             Show all projects

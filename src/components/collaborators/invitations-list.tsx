@@ -99,7 +99,7 @@ export function InvitationsList({
         size="sm"
         icon={<MailPlus />}
         title="No pending invitations"
-        description="People you invite by email show up here until they accept, so you can resend or revoke."
+        description="Email invitations wait here until accepted."
         headingLevel="h3"
       />
     );

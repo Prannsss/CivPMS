@@ -26,7 +26,7 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
           eyebrow="Managers only"
           icon={<Lock />}
           title="You can't change this project's settings"
-          description="Only the project's Project Managers and the Owner PM can edit its details, status and budget. Ask one of them if something needs to change."
+          description="Only this project's PMs and the Owner PM can edit it."
           actions={
             <Button variant="outline" asChild>
               <Link href={`/projects/${project.id}`}>Back to dashboard</Link>
@@ -47,13 +47,13 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
       <PageHeader
         className="pb-0 sm:pb-0"
         title="Project Settings"
-        description="Details, budget, status and the project's lifecycle. Every change is recorded in the audit trail."
+        description="Every change is recorded in the audit trail."
       />
 
       <SettingsSection
         id="details"
         title="Details"
-        description="Name, dates, budget and site. Dates and budget drive the Delayed and budget badges."
+        description="Dates and budget drive the Delayed and budget badges."
       >
         <ProjectDetailsForm
           projectId={project.id}
@@ -76,7 +76,7 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
       <SettingsSection
         id="status"
         title="Status"
-        description="Planning → Active → On-Hold → Completed, or Cancelled. Status changes notify everyone on the project."
+        description="Planning → Active → On-Hold → Completed, or Cancelled. Everyone on the project is notified."
       >
         <StatusPanel
           projectId={project.id}

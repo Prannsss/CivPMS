@@ -187,7 +187,7 @@ export function GanttView({
   const headerBlock = (
     <PageHeader
       title="Gantt Chart"
-      description="Every activity on your working calendar, drawn from the Work Breakdown. Read-only for now: links between activities and drag editing come next."
+      description="Your work breakdown on the working calendar. Read-only for now."
       actions={
         <Button asChild variant={canEditWbs ? "primary" : "outline"}>
           <Link href={wbsHref}>
