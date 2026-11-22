@@ -116,6 +116,13 @@ updated `shell` / `found-shell` assertions are untested until the suite runs wit
   by design (they check roles themselves); leaked-password protection is off (Auth setting, owner);
   20 unused indexes (INFO: foreign-key / policy indexes kept on purpose, see
   `20261012001600_advisor_fixes.sql`).
+- Audit 2026-11-22, left open on purpose: the CSP keeps `'unsafe-inline'` for scripts (a nonce
+  policy needs per-request rendering, D9a); Supabase session cookies are readable by page scripts
+  (`@supabase/ssr` design, the CSP limits the blast radius); a missing project shows the
+  not-found screen with HTTP 200 (streamed layout); some list links are 20 px tall on phones (pass
+  WCAG 2.2's spacing exception, below the 44 px house rule); `project_overview` keeps Supabase's
+  default write grants (harmless: `security_invoker` and no base-table write rights). The media
+  service's new "Log in" wording ships with its next manual Render deploy.
 - 2027 Eid holidays are not seeded (not proclaimed yet) — add by migration when declared.
 - Dev log shows a benign `The destination stream errored while writing data` when a Playwright test
   closes a page mid-stream.
