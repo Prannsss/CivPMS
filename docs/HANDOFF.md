@@ -109,8 +109,6 @@ updated `shell` / `found-shell` assertions are untested until the suite runs wit
   but would resurface if all children were deleted. Rare; surface it as a warning.
 - WBS graph: on wide trees the first view keeps cards readable (≥ 50 % zoom) so outer branches
   start off-screen (pan or use Fit); at 1440 px the minimap can cover part of an edge card.
-- Audit filters use native date inputs: they show the browser's locale format (mm/dd/yyyy in
-  en-US) instead of `10 Oct 2026`.
 - Supabase advisors: `get_invitation_by_token` is executable by `anon` (intentional: the
   `/invite/[token]` landing page); the SECURITY DEFINER RPCs callable by `authenticated` are the API
   by design (they check roles themselves); leaked-password protection is off (Auth setting, owner);
