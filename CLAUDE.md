@@ -136,6 +136,7 @@ npm run test:e2e     # playwright
 - Server-only modules import `server-only`.
 - Every page has loading (skeleton) and error states; every list has an empty state.
 - Commit messages: imperative, scoped (`feat(wbs): …`, `fix(db): …`).
+- Before any push, chain every check with `&&` under `set -o pipefail` (a check piped into `tail`/`grep` otherwise reports the pipe's exit code, not the check's).
 
 ## Known pitfalls (lessons learned — read before working)
 
@@ -143,7 +144,7 @@ Current build status and next steps: `docs/HANDOFF.md`.
 
 Environment (cloud container)
 - **Remote URL resets on session restart** to the repo's old name `Prannsss/PMS` → push fails with "repository not found". Always run `git remote set-url origin https://github.com/Prannsss/CivPMS` before pushing.
-- **Only `claude/exciting-sagan-7valgn` may be pushed.** Agent branches (`wf/*`) exist only locally and die with the container — merge finished work into the main branch and push promptly; never leave verified work only on a `wf/*` branch.
+- **Branches and PRs (owner rule, 2026-11-21):** `main` is the integration branch. Every work package gets its own branch named by type — `feat/…`, `fix/…`, `chore/…`, `docs/…`, `refactor/…`, `test/…` (e.g. `chore/oxlint`), never `claude/…` or random names — and is pushed to that branch. **Only the owner opens and merges pull requests**; agents never create one. When a branch depends on another unmerged branch, base it on that branch and say so in the report (merge order). Local-only branches (`wf/*`, worktrees) die with the container — push verified work promptly.
 - **Network:** `next dev`, Node scripts and Playwright web servers need `NODE_USE_ENV_PROXY=1` to reach Supabase through the proxy (otherwise every page redirects to /login). But **`next build` must run WITHOUT it** — with it, `next/font` fails to fetch Poppins.
 - Killing `next dev` can corrupt `.next/dev/types/routes.d.ts` → the next build fails; delete the generated `.next/dev` folder and rebuild.
 - `tsc` alone fails on `LayoutProps` → always use `npm run typecheck` (runs `next typegen` first).
