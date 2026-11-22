@@ -197,7 +197,7 @@ export const removedFromCompanyEmail: Template = (row, ctx) => {
     callout: { tone: "neutral", text: "You no longer have access to this company's projects." },
     details: [{ label: "Company", value: str(p, "company_name") }],
     cta: { label: `Open ${APP_NAME}`, path: row.link ?? "/" },
-    notes: ["You can still sign in. Join another company with an invite code or an invitation."],
+    notes: ["You can still log in. Join another company with an invite code or an invitation."],
     reason: "your company membership changed",
     tag: "removed_from_company",
   });

@@ -88,7 +88,7 @@ export function isErrorCode(value: unknown): value is ErrorCode {
 
 /** Fallback messages: what happened and how to fix it. RPC `detail` text wins when present. */
 export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
-  UNAUTHENTICATED: "Your session has ended. Sign in again to continue.",
+  UNAUTHENTICATED: "Your session has ended. Log in again to continue.",
   FORBIDDEN: "You don't have permission to do that. Ask a project PM or the Owner PM for access.",
   NOT_FOUND: "We couldn't find that. It may have been deleted, or you may no longer have access.",
   VALIDATION: "Some details need fixing. Check the highlighted fields and try again.",
@@ -103,7 +103,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   CANNOT_INVITE_SELF: "That's your own email. Enter the email of the person you want to invite.",
   INVITEE_IN_OTHER_COMPANY: "This person already belongs to another company.",
   INVITE_EMAIL_MISMATCH:
-    "This invitation was sent to a different email address. Sign in with that email to accept it.",
+    "This invitation was sent to a different email address. Log in with that email to accept it.",
   INVITE_EXPIRED: "This invitation has expired. Ask the project PM to send a new one.",
   INVITE_NOT_PENDING: "This invitation was already used or cancelled.",
   RATE_LIMITED: "Too many attempts. Wait a few minutes, then try again.",
@@ -130,7 +130,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   EMAIL_NOT_CONFIRMED: "Confirm your email first: open the link we sent you, or request a new one.",
   INVALID_CREDENTIALS:
     "That email and password don't match. Check them and try again, or reset your password.",
-  EMAIL_TAKEN: "An account with this email already exists. Sign in instead, or reset your password.",
+  EMAIL_TAKEN: "An account with this email already exists. Log in instead, or reset your password.",
   WEAK_PASSWORD: "Choose a stronger password: at least 10 characters that are hard to guess.",
   OAUTH_FAILED: "Google sign-in didn't finish. Try again, or use your email and password.",
   OAUTH_NOT_CONFIGURED: "Google sign-in isn't set up yet. Use your email and password for now.",
@@ -360,7 +360,7 @@ const AUTH_CODE_MAP: Record<string, { code: ErrorCode; message?: string; field?:
   refresh_token_already_used: { code: "UNAUTHENTICATED" },
   no_authorization: { code: "UNAUTHENTICATED" },
   bad_jwt: { code: "UNAUTHENTICATED" },
-  reauthentication_needed: { code: "UNAUTHENTICATED", message: "Sign in again to confirm it's you." },
+  reauthentication_needed: { code: "UNAUTHENTICATED", message: "Log in again to confirm it's you." },
   user_banned: { code: "FORBIDDEN", message: "This account is suspended. Contact your Owner PM or support." },
   signup_disabled: { code: "FORBIDDEN", message: "New sign-ups are turned off right now. Try again later." },
   email_provider_disabled: {

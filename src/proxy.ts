@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
   if (isApiPath(pathname)) {
     return withSessionCookies(
       NextResponse.json(
-        { ok: false, error: { code: "UNAUTHENTICATED", message: "Please sign in to continue." } },
+        { ok: false, error: { code: "UNAUTHENTICATED", message: "Please log in to continue." } },
         { status: 401 },
       ),
       response,

@@ -382,7 +382,7 @@ function WrongAccount({
       action={
         <>
           <Button variant="outline" size="lg" className="w-full sm:w-auto" asChild>
-            <Link href={HOME_PATH}>Stay signed in</Link>
+            <Link href={HOME_PATH}>Stay logged in</Link>
           </Button>
           <Button
             size="lg"

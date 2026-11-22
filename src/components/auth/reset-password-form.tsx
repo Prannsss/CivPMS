@@ -34,7 +34,7 @@ export function ResetPasswordForm({ email }: { email: string | null }) {
       return;
     }
     setNavigating(true);
-    toast.success("Password updated", { description: "You're signed in with your new password." });
+    toast.success("Password updated", { description: "You're logged in with your new password." });
     router.replace(result.data.redirectTo);
     router.refresh();
   }

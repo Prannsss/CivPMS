@@ -67,7 +67,7 @@ describe("invitationEmail", () => {
     expect(email.html).toContain("Accept invitation");
     expect(email.html).toContain("Inspector / QA / QC");
     expect(email.html).toContain("19 Oct 2026, 2:32 PM (Philippine time)");
-    expect(email.html).toContain("Sign up or sign in with ana@example.com");
+    expect(email.html).toContain("Sign up or log in with ana@example.com");
     expect(email.html).not.toContain("Manage email notifications");
     expect(email.text).toContain(`Accept invitation: ${url}`);
     expect(email.text).toContain("Maria Santos invited you to join Tower A at Tom & Jerry's Builders as Inspector / QA / QC.");

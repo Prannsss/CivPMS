@@ -44,11 +44,11 @@ export function invitationEmail(input: InvitationEmailInput): RenderedEmail {
 
   const notes = isNewUser
     ? [
-        `Sign up or sign in with ${email}. The invitation only works for this email address.`,
+        `Sign up or log in with ${email}. The invitation only works for this email address.`,
         "Not expecting this? You can ignore this email; nothing happens until you accept.",
       ]
     : [
-        `Sign in to ${APP_NAME} with ${email} to accept or decline.`,
+        `Log in to ${APP_NAME} with ${email} to accept or decline.`,
         "Not expecting this? You can decline it in the app or ignore this email.",
       ];
 
