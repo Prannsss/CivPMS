@@ -24,6 +24,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, GripVertical, TriangleAlert } from "lucide-react";
 import { Progress, StatusBadge, toast } from "@/components/ui";
+import { useScrollEdges } from "@/components/ui/use-scroll-edge";
 import {
   canMove,
   canMoveMessage,
@@ -99,6 +100,7 @@ export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filt
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(scrollRef);
   const virtual = rows.length > VIRTUALIZE_AT;
   // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer's own state drives these renders
   const virtualizer = useVirtualizer({
@@ -186,6 +188,7 @@ export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filt
         },
       }}
     >
+      <div className="relative min-w-0">
       <div
         ref={scrollRef}
         data-testid="wbs-table"
@@ -195,28 +198,30 @@ export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filt
           virtual ? "h-[calc(100dvh-10rem)] min-h-96" : "sm:max-h-[calc(100dvh-12rem)] sm:min-h-64",
         )}
       >
-        <table className="w-full min-w-[69.75rem] table-fixed border-separate border-spacing-0 text-sm sm:min-w-[72rem] lg:min-w-[67.5rem]">
+        <table className="w-full min-w-[69.75rem] table-fixed border-separate border-spacing-0 text-sm sm:min-w-[71rem] lg:min-w-[65.75rem]">
           <caption className="sr-only">
             Work breakdown: deliverables, sub-deliverables and work packages with dates, duration, hours, cost and
             progress. Parents roll up from their work packages.
           </caption>
           <colgroup>
-            <col className="w-[4.5rem]" />
+            <col className="w-[5.25rem]" />
             {/* Phones: WBS + Name fill the screen (the summary line under the name shows the rest). */}
             <col className="w-[16.5rem] sm:w-auto" />
-            <col className="w-[7rem]" />
-            <col className="w-[6rem]" />
-            <col className="w-[7rem]" />
+            <col className="w-[6.75rem]" />
+            <col className="w-[5.5rem]" />
+            <col className="w-[6.75rem]" />
             <col className="w-[4.5rem]" />
-            <col className="w-[8.25rem]" />
+            {/* Room for ₱999,999,999.99 */}
+            <col className="w-[8.75rem]" />
             <col className="w-[5.75rem]" />
-            <col className="w-[7.5rem]" />
+            {/* Badge + the "contains delays" icon */}
+            <col className="w-[7.75rem]" />
             <col className="w-11" />
           </colgroup>
           <thead className="sticky top-0 z-20">
             <tr className="bg-surface-muted text-xs font-semibold whitespace-nowrap text-muted-foreground">
               <Th className="sticky left-0 z-30 bg-surface-muted pl-3">WBS</Th>
-              <Th className="z-30 bg-surface-muted md:sticky md:left-[4.5rem] md:shadow-[1px_0_0_var(--border)]">
+              <Th className="z-30 bg-surface-muted md:sticky md:left-[5.25rem] md:shadow-[1px_0_0_var(--border)]">
                 Name
               </Th>
               <Th>Start</Th>
@@ -263,6 +268,17 @@ export const WbsTable = memo(function WbsTable({ roots, rollups, collapsed, filt
             </tbody>
           </SortableContext>
         </table>
+      </div>
+      {/* More columns to the right: a fade says the table continues (it is not cut off). */}
+      <div
+        aria-hidden
+        data-testid="wbs-more-right"
+        data-visible={edges.right || undefined}
+        className={cn(
+          "pointer-events-none absolute inset-y-px right-px z-30 w-12 rounded-r-lg bg-linear-to-l from-surface via-surface/70 to-transparent transition-opacity duration-200",
+          edges.right ? "opacity-100" : "opacity-0",
+        )}
+      />
       </div>
       <DragOverlay dropAnimation={null}>
         {activeRow ? (
@@ -467,7 +483,7 @@ const RowCells = memo(
       {/* Name (indented tree) */}
       <td
         className={cn(
-          "z-10 border-b border-border py-1.5 pr-3 md:sticky md:left-[4.5rem] md:shadow-[1px_0_0_var(--border)]",
+          "z-10 border-b border-border py-1.5 pr-3 md:sticky md:left-[5.25rem] md:shadow-[1px_0_0_var(--border)]",
           cellBg,
         )}
       >

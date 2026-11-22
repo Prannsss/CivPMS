@@ -267,12 +267,6 @@ export function WbsWorkspace({
                 value={view}
                 onValueChange={setView}
               />
-              <SegmentedControl
-                aria-label="Show durations in"
-                options={UNIT_OPTIONS}
-                value={unit}
-                onValueChange={changeUnit}
-              />
               {canEdit && !isEmpty ? (
                 <Button onClick={() => setDialog({ kind: "create", parent: null })}>
                   <Plus /> Add deliverable
@@ -315,6 +309,15 @@ export function WbsWorkspace({
               trashCount={canEdit ? trash.length : null}
               onOpenTrash={() => setTrashOpen(true)}
               showFilter={view === "list"}
+              unitControl={
+                <SegmentedControl
+                  aria-label="Show durations in"
+                  size="sm"
+                  options={UNIT_OPTIONS}
+                  value={unit}
+                  onValueChange={changeUnit}
+                />
+              }
             />
             {view === "list" ? (
               <p className="-mt-1 text-xs leading-4 text-muted-foreground sm:hidden">
@@ -374,6 +377,7 @@ const Toolbar = memo(function Toolbar({
   trashCount,
   onOpenTrash,
   showFilter,
+  unitControl,
 }: {
   filter: string;
   onFilter: (value: string) => void;
@@ -383,6 +387,8 @@ const Toolbar = memo(function Toolbar({
   trashCount: number | null;
   onOpenTrash: () => void;
   showFilter: boolean;
+  /** Hours | Days: how durations show in the table (a display choice, so it sits with the table). */
+  unitControl: React.ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -413,8 +419,10 @@ const Toolbar = memo(function Toolbar({
           <ChevronsDownUp /> Collapse<span className="-ml-1 hidden sm:inline"> all</span>
         </Button>
       </div>
+      <div className="ml-auto flex items-center gap-2">
+      {unitControl}
       {trashCount !== null ? (
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={onOpenTrash}>
+        <Button variant="ghost" size="sm" onClick={onOpenTrash}>
           <History /> <span className="sm:hidden">Deleted</span>
           <span className="hidden sm:inline">Recently deleted</span>
           {trashCount > 0 ? (
@@ -424,6 +432,7 @@ const Toolbar = memo(function Toolbar({
           ) : null}
         </Button>
       ) : null}
+      </div>
     </div>
   );
 });
