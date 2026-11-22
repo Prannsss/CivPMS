@@ -44,7 +44,7 @@ export function passwordErrorMessage(code: string | undefined, message: string |
     case "reauthentication_needed":
     case "session_expired":
     case "session_not_found":
-      return { text: "For your security, sign out and sign in again, then change your password." };
+      return { text: "For your security, log out and log in again, then change your password." };
     case "over_request_rate_limit":
     case "over_email_send_rate_limit":
       return { text: "Too many attempts. Wait a minute and try again." };
@@ -82,7 +82,7 @@ function ChangePasswordForm({ email }: { email: string }) {
       return;
     }
     form.reset({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    toast.success("Password changed", { description: "Use your new password the next time you sign in." });
+    toast.success("Password changed", { description: "Use your new password the next time you log in." });
   }
 
   return (
@@ -118,7 +118,7 @@ export function PasswordSection({ email, hasPassword }: { email: string; hasPass
       description={
         hasPassword
           ? undefined
-          : "You sign in with Google, so there is no CivPMS password to change."
+          : "You log in with Google, so there is no CivPMS password to change."
       }
     >
       {hasPassword ? (

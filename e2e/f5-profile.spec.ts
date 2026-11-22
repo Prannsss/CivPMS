@@ -213,6 +213,6 @@ test("change the password, then change it back", async ({ page, context }) => {
 test("sign out from the profile", async ({ page, context }) => {
   await loginAs(context, F5.profile, { fresh: true });
   await page.goto("/profile#session");
-  await page.getByRole("button", { name: "Sign out" }).last().click();
+  await page.getByRole("button", { name: "Logout" }).last().click();
   await expect(page).toHaveURL(/\/login/);
 });

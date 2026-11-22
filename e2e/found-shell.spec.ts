@@ -84,7 +84,7 @@ test("signing out from the user menu ends the session", async ({ page, context }
   await loginAs(context, "owner", { fresh: true });
   await page.goto("/");
   await page.getByRole("button", { name: "Account menu for Juan Dela Cruz" }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await page.getByRole("menuitem", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/");
   await expect(page).toHaveURL(/\/login\?next=%2F$/);
@@ -95,8 +95,8 @@ test("signing out from the palette ends the session", async ({ page, context }) 
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
   const palette = await openPalette(page);
-  await palette.getByRole("combobox").fill("sign out");
-  await palette.getByRole("option", { name: /Sign out/ }).click();
+  await palette.getByRole("combobox").fill("logout");
+  await palette.getByRole("option", { name: /Logout/ }).click();
   await expect(page).toHaveURL(/\/login$/);
 });
 

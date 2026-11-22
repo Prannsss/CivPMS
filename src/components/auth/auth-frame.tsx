@@ -11,7 +11,7 @@ export type AuthFrameProps = {
   aside?: React.ReactNode;
   /** `default` (400 px) for auth forms, `wide` (560 px) for onboarding and invitations. */
   width?: "default" | "wide";
-  /** Extra content on the right of the header row (e.g. "Signed in as …"). */
+  /** Extra content on the right of the header row (e.g. "Logged in as …"). */
   headerAside?: React.ReactNode;
 };
 

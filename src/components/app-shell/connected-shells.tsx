@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+import { SIDEBAR_COLLAPSED_COOKIE } from "@/lib/constants";
 import type { ProjectAccess } from "@/server/context";
 import { HomeShellClient } from "./home-shell-client";
 import { loadShellData } from "./load-shell-data";
@@ -23,7 +25,8 @@ export async function ConnectedProjectShell({
   access: ProjectAccess;
   children: React.ReactNode;
 }) {
-  const data = await loadShellData();
+  const [data, cookieStore] = await Promise.all([loadShellData(), cookies()]);
+  const sidebarCollapsed = cookieStore.get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
   const { project, permissions } = access;
   const shellProject: ShellProject = {
     id: project.id,
@@ -35,7 +38,7 @@ export async function ConnectedProjectShell({
     canManage: permissions.canEditProject,
   };
   return (
-    <ProjectShellClient data={data} project={shellProject}>
+    <ProjectShellClient data={data} project={shellProject} sidebarCollapsed={sidebarCollapsed}>
       {children}
     </ProjectShellClient>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -21,6 +21,7 @@ import {
 import { ProjectAvatar } from "@/components/ui/project-color";
 import type { DerivedBadge, ProjectStatus } from "@/components/ui/status-badge";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { SIDEBAR_COLLAPSED_COOKIE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { SignOutHandler } from "./user-menu";
 
@@ -72,6 +73,18 @@ export function findActiveNavId(items: ReadonlyArray<ProjectNavItem>, pathname: 
 const sidebarFocus =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-fg";
 
+/**
+ * Rail labels stay mounted and fade, so nothing re-flows when the rail collapses: icons keep the
+ * same x in both states (18 px padding centres a 20 px icon in the 80 px rail) and only the width
+ * animates. Labels fade out quickly on collapse and fade in once the rail has mostly opened.
+ */
+function railLabel(collapsed: boolean) {
+  return cn(
+    "min-w-0 flex-1 overflow-hidden whitespace-nowrap transition-opacity",
+    collapsed ? "opacity-0 duration-100" : "opacity-100 duration-200 delay-150",
+  );
+}
+
 export type ProjectSidebarProps = {
   project: ProjectSidebarProject;
   items: ReadonlyArray<ProjectNavItem>;
@@ -109,41 +122,53 @@ export function ProjectSidebar({
   return (
     <div
       data-collapsed={isCollapsed || undefined}
-      className={cn("flex h-full min-h-0 flex-col bg-sidebar-bg text-sidebar-fg", className)}
+      className={cn("flex h-full min-h-0 flex-col overflow-hidden bg-sidebar-bg text-sidebar-fg", className)}
     >
       {/* Back link */}
-      <div className={cn("px-3 pt-3", isCollapsed && "flex justify-center")}>
+      <div className="pt-3 pl-[22px]">
         <SimpleTooltip content="All projects" side="right" disabled={!isCollapsed}>
           <Link
             href={allProjectsHref}
             onClick={onNavigate}
-            aria-label={isCollapsed ? "All projects" : undefined}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-sidebar-fg transition-colors hover:bg-sidebar-hover",
-              isCollapsed && "w-9 justify-center px-0",
+              "inline-flex h-9 items-center rounded-full px-2.5 text-[13px] font-medium text-sidebar-fg transition-colors hover:bg-sidebar-hover",
               sidebarFocus,
             )}
           >
             <ArrowLeft aria-hidden className="size-4 shrink-0" />
-            {isCollapsed ? null : "All projects"}
+            {/* Width + opacity so the pill closes into a 36 px circle without a jump. */}
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap transition-[max-width,margin,opacity] duration-300 ease-in-out",
+                isCollapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-40 opacity-100",
+              )}
+            >
+              All projects
+            </span>
           </Link>
         </SimpleTooltip>
       </div>
 
       {/* Project identity */}
-      <div className={cn("flex items-center gap-3 px-5 pt-4 pb-5", isCollapsed && "justify-center px-0")}>
+      <div className="flex items-center gap-3 px-5 pt-4 pb-5">
         <ProjectAvatar
           name={project.name}
           color={project.color}
           size={isCollapsed ? "md" : "lg"}
-          className="ring-2 ring-sidebar-fg/40"
+          className="shrink-0 ring-2 ring-sidebar-fg/40 transition-[width,height,font-size] duration-300 ease-in-out"
         />
-        {isCollapsed ? null : (
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <p className="line-clamp-2 text-base leading-[1.3rem] font-semibold tracking-[-0.01em] break-words">{project.name}</p>
-            {/* Status and badges live in the page header, not here. */}
-          </div>
-        )}
+        {/* Fixed width in the rail so the name never re-wraps while the width animates.
+            Status and badges live in the page header, not here. */}
+        <p
+          aria-hidden={isCollapsed || undefined}
+          className={cn(
+            "line-clamp-2 text-base leading-[1.3rem] font-semibold tracking-[-0.01em] break-words transition-opacity",
+            mode === "rail" ? "w-[11.5rem] shrink-0" : "min-w-0 flex-1",
+            isCollapsed ? "opacity-0 duration-100" : "opacity-100 duration-200 delay-150",
+          )}
+        >
+          {project.name}
+        </p>
       </div>
 
       <div aria-hidden className="mx-4 h-px bg-sidebar-border" />
@@ -158,7 +183,7 @@ export function ProjectSidebar({
             const inner = (
               <>
                 <Icon aria-hidden className="size-5 shrink-0" />
-                {isCollapsed ? null : <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                <span className={railLabel(isCollapsed)}>{item.label}</span>
                 {!isCollapsed && item.soon ? (
                   <span
                     className={cn(
@@ -174,8 +199,7 @@ export function ProjectSidebar({
               </>
             );
             const itemClass = cn(
-              "flex h-11 w-full items-center gap-3 rounded-md px-3.5 text-[15px] leading-5 font-medium transition-[background-color,color,box-shadow] duration-150",
-              isCollapsed && "justify-center px-0",
+              "flex h-11 w-full items-center gap-3 rounded-md px-[18px] text-[15px] leading-5 font-medium transition-[background-color,color,box-shadow] duration-150",
               sidebarFocus,
               isActive
                 ? "bg-sidebar-active-bg text-sidebar-active-fg shadow-sm"
@@ -187,16 +211,15 @@ export function ProjectSidebar({
               <li key={item.id}>
                 <SimpleTooltip content={label} side="right" disabled={!isCollapsed}>
                   {isDisabled ? (
-                    <span role="link" aria-disabled="true" aria-label={isCollapsed ? label : undefined} className={itemClass} tabIndex={-1}>
+                    <span role="link" aria-disabled="true" className={itemClass} tabIndex={-1}>
                       {inner}
-                      {isCollapsed || !item.soon ? null : <span className="sr-only">(coming soon)</span>}
+                      {item.soon ? <span className="sr-only">(coming soon)</span> : null}
                     </span>
                   ) : (
                     <Link
                       href={item.href}
                       onClick={onNavigate}
                       aria-current={isActive ? "page" : undefined}
-                      aria-label={isCollapsed ? label : undefined}
                       className={itemClass}
                     >
                       {inner}
@@ -219,13 +242,14 @@ export function ProjectSidebar({
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!isCollapsed}
               className={cn(
-                "flex h-10 w-full items-center gap-3 rounded-md px-3.5 text-[13px] font-medium text-sidebar-fg transition-colors hover:bg-sidebar-hover",
-                isCollapsed && "justify-center px-0",
+                "flex h-10 w-full items-center gap-3 rounded-md px-[18px] text-[13px] font-medium text-sidebar-fg transition-colors hover:bg-sidebar-hover",
                 sidebarFocus,
               )}
             >
-              {isCollapsed ? <PanelLeftOpen aria-hidden className="size-5" /> : <PanelLeftClose aria-hidden className="size-5" />}
-              {isCollapsed ? null : "Collapse"}
+              {isCollapsed ? <PanelLeftOpen aria-hidden className="size-5 shrink-0" /> : <PanelLeftClose aria-hidden className="size-5 shrink-0" />}
+              <span aria-hidden className={cn(railLabel(isCollapsed), "text-left")}>
+                Collapse
+              </span>
             </button>
           </SimpleTooltip>
         ) : null}
@@ -237,14 +261,13 @@ export function ProjectSidebar({
 
 function SignOutButton({ signOut, collapsed }: { signOut: SignOutHandler; collapsed: boolean }) {
   const className = cn(
-    "flex h-11 w-full items-center gap-3 rounded-md bg-danger px-3.5 text-[15px] font-medium text-danger-foreground shadow-xs transition-colors hover:bg-danger-hover",
-    collapsed && "justify-center px-0",
+    "flex h-11 w-full items-center gap-3 rounded-md bg-danger px-[18px] text-[15px] font-medium text-danger-foreground shadow-xs transition-colors hover:bg-danger-hover",
     sidebarFocus,
   );
   const content = (
     <>
       <LogOut aria-hidden className="size-5 shrink-0" />
-      {collapsed ? <span className="sr-only">Log out</span> : "Log out"}
+      <span className={cn(railLabel(collapsed), "text-left")}>Logout</span>
     </>
   );
   const button =
@@ -260,46 +283,27 @@ function SignOutButton({ signOut, collapsed }: { signOut: SignOutHandler; collap
       </button>
     );
   return (
-    <SimpleTooltip content="Log out" side="right" disabled={!collapsed}>
+    <SimpleTooltip content="Logout" side="right" disabled={!collapsed}>
       {button}
     </SimpleTooltip>
   );
 }
 
-const collapseListeners = new Set<() => void>();
 
-function readCollapsed(storageKey: string): boolean {
-  try {
-    return window.localStorage.getItem(storageKey) === "1";
-  } catch {
-    return false;
-  }
+function writeCollapsedCookie(value: boolean) {
+  document.cookie = `${SIDEBAR_COLLAPSED_COOKIE}=${value ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
 }
 
-/** Persisted collapsed state for the desktop rail (per browser, hydration-safe). */
-export function useSidebarCollapsed(storageKey = "civpms:sidebar-collapsed"): [boolean, (value: boolean) => void] {
-  const collapsed = useSyncExternalStore(
-    (onChange) => {
-      collapseListeners.add(onChange);
-      window.addEventListener("storage", onChange);
-      return () => {
-        collapseListeners.delete(onChange);
-        window.removeEventListener("storage", onChange);
-      };
-    },
-    () => readCollapsed(storageKey),
-    () => false,
-  );
-  const update = useCallback(
-    (value: boolean) => {
-      try {
-        window.localStorage.setItem(storageKey, value ? "1" : "0");
-      } catch {
-        // Storage unavailable (private mode): the toggle simply won't persist.
-      }
-      collapseListeners.forEach((listener) => listener());
-    },
-    [storageKey],
-  );
+/**
+ * Collapsed state for the desktop rail, per browser. The server renders from the cookie, so a
+ * collapsed rail no longer paints expanded and then animates shut after hydration.
+ */
+export function useSidebarCollapsed(initial = false): [boolean, (value: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(initial);
+
+  const update = useCallback((value: boolean) => {
+    writeCollapsedCookie(value);
+    setCollapsed(value);
+  }, []);
   return [collapsed, update];
 }

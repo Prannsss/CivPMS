@@ -131,7 +131,7 @@ export function AccountSection({
           label="Email"
           hint={
             hasGoogle
-              ? "Managed by Google. You sign in with your Google account, so the address can't be changed here."
+              ? "Managed by Google. You log in with your Google account, so the address can't be changed here."
               : "Your sign-in address. Can't be changed yet."
           }
         >

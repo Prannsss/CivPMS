@@ -154,7 +154,7 @@ describe("uploadAvatar", () => {
     expect(d.uploadToStorage).not.toHaveBeenCalled();
   });
 
-  it("asks to sign in again when there is no session", async () => {
+  it("asks to log in again when there is no session", async () => {
     const d = deps({ getAccessToken: async () => null });
     await expect(uploadAvatar(photo(), d)).rejects.toMatchObject({ code: "UNAUTHENTICATED", message: AVATAR_MESSAGES.UNAUTHENTICATED });
   });

@@ -15,3 +15,6 @@ export const PASSWORD_MIN_LENGTH = 10;
 export const INVITATION_TTL_DAYS = 7;
 export const SOFT_DELETE_RESTORE_DAYS = 30;
 export const WBS_MAX_DEPTH = 3;
+
+/** Desktop project-sidebar collapsed flag ("1"/"0"): read by the project layout so the first paint has the right width. */
+export const SIDEBAR_COLLAPSED_COOKIE = "civpms-sidebar-collapsed";

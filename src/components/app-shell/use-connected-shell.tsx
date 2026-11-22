@@ -282,10 +282,10 @@ export function useConnectedShell(data: ShellData, project?: ProjectPaletteConte
     },
     {
       id: "action:sign-out",
-      label: "Sign out",
+      label: "Logout",
       hint: viewer.email,
       icon: <LogOut />,
-      keywords: ["log out", "logout", "sign off"],
+      keywords: ["log out", "sign out", "sign off"],
       onSelect: submitSignOut,
     },
   );

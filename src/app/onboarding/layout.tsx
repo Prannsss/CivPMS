@@ -25,7 +25,7 @@ export default async function OnboardingLayout({ children }: LayoutProps<"/onboa
               ) : null}
               <Button type="submit" variant="ghost" size="sm" className="max-sm:h-11">
                 <LogOut aria-hidden />
-                Sign out
+                Logout
               </Button>
             </form>
           ) : null

@@ -3,7 +3,7 @@
  * only from our own pages (a cross-site form post is refused). Ends this browser's session and
  * answers 303 → /login.
  *
- * Usage from any page: `<form action="/auth/signout" method="post"><button>Log out</button></form>`.
+ * Usage from any page: `<form action="/auth/signout" method="post"><button>Logout</button></form>`.
  */
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -34,7 +34,7 @@ function isSameOriginPost(request: NextRequest): boolean {
 export async function POST(request: NextRequest) {
   if (!isSameOriginPost(request)) {
     return NextResponse.json(
-      { ok: false, error: { code: "FORBIDDEN", message: "Sign out from CivPMS itself." } },
+      { ok: false, error: { code: "FORBIDDEN", message: "Log out from CivPMS itself." } },
       { status: 403 },
     );
   }

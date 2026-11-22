@@ -48,7 +48,7 @@ export type UserMenuProps = {
   className?: string;
 };
 
-/** Big avatar circle (mockups 6–7) with Profile, Settings, Theme and a red Sign out. */
+/** Big avatar circle (mockups 6–7) with Profile, Settings, Theme and a red Logout. */
 export function UserMenu({
   user,
   signOut,
@@ -145,7 +145,7 @@ export function UserMenu({
             }}
           >
             <LogOut aria-hidden />
-            Sign out
+            Logout
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
