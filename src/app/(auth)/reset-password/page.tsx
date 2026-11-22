@@ -27,7 +27,7 @@ export default async function ResetPasswordPage() {
             </AuthIcon>
           }
           title="This reset link has expired"
-          description="Reset links work once and only for an hour. Request a new one and use the newest email."
+          description="Reset links work once, for an hour. Request a new one."
         />
         <div className="flex flex-col gap-3">
           <Button size="lg" className="w-full" asChild>

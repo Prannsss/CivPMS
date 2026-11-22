@@ -136,7 +136,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
     <SettingsCard
       id="invite-codes"
       title="Company invite codes"
-      description="For inspectors: entering a code joins your company, without an email invitation. Then add them to projects from Collaborators."
+      description="Inspectors join your company with a code. Add them to projects from Collaborators."
       actions={
         codes.length > 0 ? (
           <Button variant="outline" size="sm" className="max-sm:h-11" onClick={openDialog}>
@@ -154,7 +154,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
             size="sm"
             icon={<KeyRound />}
             title="No company invite codes yet"
-            description="Create a code, share it with an inspector, and they join your company when they enter it."
+            description="Create a code and share it with an inspector."
             headingLevel="h3"
             action={
               <Button variant="outline" onClick={openDialog}>
@@ -239,7 +239,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
         open={open}
         onOpenChange={(next) => !creating && setOpen(next)}
         title="Create a company invite code"
-        description="Inspectors who enter this code join your company as Inspector / QA / QC. Add them to projects afterwards."
+        description="Inspectors who enter this code join your company. Add them to projects afterwards."
         size="sm"
         footer={
           <>
@@ -254,7 +254,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
       >
         <form id="create-company-code" onSubmit={create} noValidate className="flex flex-col gap-5">
           <FormError>{formError}</FormError>
-          <Field label="Expires after" hint="After this, the code stops working. People who joined keep access.">
+          <Field label="Expires after" hint="People who already joined keep access.">
             <Select value={expiry} onValueChange={setExpiry}>
               <SelectTrigger>
                 <SelectValue />
@@ -268,7 +268,7 @@ export function CompanyInviteCodes({ codes, today }: { codes: CompanyInviteCode[
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Usage limit" hint="How many people can join with it. Leave empty for no limit." error={maxUsesError ?? undefined}>
+          <Field label="Usage limit" hint="Leave empty for no limit." error={maxUsesError ?? undefined}>
             <Input
               name="maxUses"
               defaultValue=""

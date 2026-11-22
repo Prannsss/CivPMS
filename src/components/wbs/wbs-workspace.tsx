@@ -258,7 +258,7 @@ export function WbsWorkspace({
         <PageHeader
           className="pb-0 sm:pb-0"
           title="Work Breakdown"
-          description="Deliverables, sub-deliverables and work packages. Parents roll up from their work packages."
+          description="Deliverables, sub-deliverables and work packages. Parents add up their work packages."
           actions={
             <>
               <SegmentedControl
@@ -336,11 +336,11 @@ export function WbsWorkspace({
             <p className="text-xs leading-4 text-muted-foreground">
               {canEdit
                 ? view === "list"
-                  ? "Click a work package's value to edit it. Drag the handle to reorder; drag sideways to change its level. Every row's menu has keyboard-friendly moves."
-                  : "Drag to pan, scroll or pinch to zoom. Click a card's arrow to collapse its branch; use the list view to edit values."
+                  ? "Click a value to edit it. Drag the handle to reorder, sideways to change level."
+                  : "Drag to pan, scroll or pinch to zoom. Edit values in the list view."
                 : view === "list"
-                  ? "Parents show values rolled up from their work packages."
-                  : "Drag to pan, scroll or pinch to zoom. Click a card's arrow to collapse its branch."}
+                  ? "Parents add up their work packages."
+                  : "Drag to pan, scroll or pinch to zoom."}
             </p>
           </section>
         )}

@@ -142,7 +142,7 @@ export function InviteCodesPanel({
           size="sm"
           icon={<KeyRound />}
           title="No invite codes yet"
-          description="Create a code to let inspectors join this project without an email invitation."
+          description="Inspectors join this project by entering a code."
           headingLevel="h3"
           action={
             <Button variant="outline" onClick={openDialog}>
@@ -217,7 +217,7 @@ export function InviteCodesPanel({
         open={open}
         onOpenChange={(next) => !creating && setOpen(next)}
         title="Create an invite code"
-        description="Inspectors who enter this code join this project (and your company) as Inspector / QA / QC."
+        description="Inspectors who enter this code join this project and your company."
         size="sm"
         footer={
           <>
@@ -232,7 +232,7 @@ export function InviteCodesPanel({
       >
         <form id="create-invite-code" onSubmit={create} noValidate className="flex flex-col gap-5">
           <FormError>{formError}</FormError>
-          <Field label="Expires after" hint="After this, the code stops working. People who joined keep access.">
+          <Field label="Expires after" hint="People who already joined keep access.">
             <Select value={expiry} onValueChange={setExpiry}>
               <SelectTrigger>
                 <SelectValue />

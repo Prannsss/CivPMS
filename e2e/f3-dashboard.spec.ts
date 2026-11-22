@@ -30,7 +30,7 @@ test("a delayed, over-budget project shows the overrun and what needs attention"
   await expect(page.getByText("Delayed activities")).toBeVisible();
   const attention = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "Needs attention" }) });
   await expect(attention.getByText(/^Over budget by ₱/)).toBeVisible();
-  const delayedLink = attention.getByRole("link", { name: /passed \d+ days ago/ }).first();
+  const delayedLink = attention.getByRole("link", { name: /\d+ days? late · planned end/ }).first();
   await expect(delayedLink).toHaveAttribute("href", new RegExp(`/projects/${davao}/wbs\\?activity=`));
 
   const budget = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "Budget", exact: true }) });
@@ -92,7 +92,7 @@ test("a fresh project asks for its work breakdown, then lists late and unplanned
     await page.goto(`/projects/${late}`);
     const attention = page.locator("[data-slot=card]").filter({ has: page.getByRole("heading", { name: "Needs attention" }) });
     // 40 h from Tue 1 Sep 2026 ends on Mon 7 Sep: long past, so derived Delayed (§10.5).
-    const delayed = attention.getByRole("link", { name: /\[F3\] Retaining wall.*Planned end \(7 Sep 2026\) passed/ });
+    const delayed = attention.getByRole("link", { name: /\[F3\] Retaining wall.*late · planned end 7 Sep 2026/ });
     await expect(delayed).toHaveAttribute("href", new RegExp(`/projects/${late}/wbs\\?activity=`));
     await expect(attention.getByRole("link", { name: /\[F3\] Landscaping.*Missing start date, duration and cost/ })).toBeVisible();
     await expect(page.getByText("1 work package not scheduled yet")).toBeVisible();

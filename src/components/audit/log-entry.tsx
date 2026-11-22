@@ -79,7 +79,7 @@ export function LogEntry({
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <p className="text-sm leading-5 text-foreground">
-          <span className="font-semibold">{entry.actorName}</span>
+          <span className="font-medium">{entry.actorName}</span>
           <span className="sr-only">: </span>
           <span className="ml-1.5 break-words">
             <ChangeSummary summary={entry.summary} />

@@ -30,7 +30,7 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
             </AuthIcon>
           }
           title="This invitation link doesn't work"
-          description="It may be incomplete or out of date. Open the newest invitation email, or ask the person who invited you to send a new one."
+          description="Open the newest invitation email, or ask for a new one."
         />
         <Button size="lg" className="w-full" asChild>
           <Link href={session.user ? HOME_PATH : LOGIN_PATH}>{session.user ? "Go to CivPMS" : "Log in"}</Link>

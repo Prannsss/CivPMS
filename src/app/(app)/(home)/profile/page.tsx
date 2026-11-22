@@ -10,7 +10,7 @@ export default async function ProfilePage() {
   const data = await getProfilePageData();
   return (
     <div className="flex flex-col">
-      <PageHeader title="Profile" description="Your photo, name, display preferences, notifications and password." />
+      <PageHeader title="Profile" description="Account, display, alerts and password." />
       <ProfileView data={data} />
     </div>
   );

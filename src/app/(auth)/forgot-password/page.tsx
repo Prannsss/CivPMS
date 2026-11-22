@@ -17,7 +17,7 @@ export default async function ForgotPasswordPage({ searchParams }: PageProps<"/f
           </AuthIcon>
         }
         title="Forgot your password?"
-        description="Enter the email you use for CivPMS and we'll send you a link to choose a new one."
+        description="Enter your email and we'll send a reset link."
       />
       <ForgotPasswordForm initialEmail={emailParam(params.email)} next={cleanNext(firstParam(params.next))} />
     </div>

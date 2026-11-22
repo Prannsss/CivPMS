@@ -74,7 +74,7 @@ export function DateLists({
         <TabsContent value="holidays" className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <p className="text-xs leading-4 text-muted-foreground">
-              Philippine holidays were copied in when the project was created. Edit them for local holidays.
+              Philippine holidays, copied in at creation. Edit for local ones.
             </p>
             {canEdit ? (
               <Button size="sm" variant="outline" className="shrink-0" onClick={() => setDialog({ mode: "add" })}>
@@ -89,7 +89,7 @@ export function DateLists({
               headingLevel="h3"
               icon={<CalendarPlus />}
               title="No holidays"
-              description="Add the holidays your site observes so work isn't scheduled on them."
+              description="Add the holidays your site observes."
               action={
                 canEdit ? (
                   <Button size="sm" onClick={() => setDialog({ mode: "add" })}>
@@ -158,7 +158,7 @@ export function DateLists({
               title="No overrides"
               description={
                 canEdit
-                  ? "Click or right-click a day in the calendar to mark it as working or non-working."
+                  ? "Click a day in the calendar to change it."
                   : "Every day follows the weekly pattern and the holiday list."
               }
             />

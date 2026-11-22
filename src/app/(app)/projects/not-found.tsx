@@ -17,7 +17,7 @@ export default function ProjectNotFound() {
         eyebrow="Project not available"
         icon={<FolderSearch />}
         title="We couldn't open that project"
-        description="It may have been deleted, or it hasn't been shared with you. If you need access, ask the project's Project Manager to invite you."
+        description="It may have been deleted or not shared with you. Ask the project's PM for access."
         actions={
           <Button asChild>
             <Link href="/">Back to projects</Link>

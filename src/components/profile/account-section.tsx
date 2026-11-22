@@ -74,7 +74,7 @@ function NameForm({ initialName }: { initialName: string }) {
           className="min-w-0 flex-1"
           label="Full name"
           required
-          hint="Shown to your teammates, on invitations and in the audit trail."
+          hint="Shown to your team and in the audit trail."
           error={errors.fullName?.message}
         >
           <Input
@@ -120,7 +120,7 @@ export function AccountSection({
     <SettingsCard
       id="account"
       title="Account"
-      description="How you appear to your company and teammates."
+      description="How your team sees you."
     >
       <div className="flex flex-col gap-6">
         <AvatarEditor userId={userId} name={fullName} initialUrl={avatarUrl} />
@@ -132,7 +132,7 @@ export function AccountSection({
           hint={
             hasGoogle
               ? "Managed by Google. You sign in with your Google account, so the address can't be changed here."
-              : "You sign in with this address. It can't be changed yet."
+              : "Your sign-in address. Can't be changed yet."
           }
         >
           <Input
@@ -156,7 +156,7 @@ export function AccountSection({
             <span className="text-[13px] leading-5 text-muted-foreground">
               {company
                 ? company.role === "owner_pm"
-                  ? "You created this company and manage its settings."
+                  ? "You manage this company."
                   : "Your Owner PM manages company roles."
                 : "You're not in a company yet. Enter an invite code or accept an invitation to join one."}
             </span>

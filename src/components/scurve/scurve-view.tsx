@@ -112,7 +112,7 @@ export function SCurveView({
   const header = (
     <PageHeader
       title="S-Curve"
-      description="Cumulative planned progress over time, from the baseline. The actual line joins it once progress updates are recorded."
+      description="Planned progress over time, from the baseline."
     />
   );
 
@@ -123,7 +123,7 @@ export function SCurveView({
         <EmptyState
           icon={<ChartSpline />}
           title="No baseline yet"
-          description="The planned curve is drawn from the baseline, a frozen copy of the plan taken when the project becomes Active. Finish planning in the Work Breakdown, then set the project to Active."
+          description="The curve comes from the baseline, taken when the project goes Active. Finish planning, then set it to Active."
           action={
             canEditProject ? (
               <Button asChild>
@@ -146,7 +146,7 @@ export function SCurveView({
         <EmptyState
           icon={<ChartSpline />}
           title={`Baseline v${baseline.version} has no scheduled work`}
-          description="None of its work packages had a start date and a duration when it was taken, so there is nothing to draw."
+          description="None of its work packages had dates when it was taken."
         />
       </div>
     );
@@ -186,8 +186,7 @@ export function SCurveView({
       </div>
 
       <Notice tone="info" title="No progress recorded yet" data-testid="scurve-no-progress">
-        The actual line appears here once progress updates are recorded (they arrive with field updates). Until then the
-        chart shows the plan only.
+        The actual line appears once progress updates arrive.
       </Notice>
       {overrun ? (
         <Notice tone="danger" title={`This project is ${pluralize(overrun.days, "day")} past its planned end`}>

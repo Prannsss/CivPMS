@@ -197,7 +197,7 @@ function CreateProjectForm({
             name="name"
             label="Project name"
             required
-            hint="3–120 characters, unique within your company."
+            hint="Must be unique in your company."
             render={({ field }) => (
               <Input
                 {...field}

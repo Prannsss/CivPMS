@@ -1,5 +1,5 @@
 export const APP_NAME = "CivPMS";
-export const APP_TAGLINE = "The modern project management system for engineering teams.";
+export const APP_TAGLINE = "Project management for engineering and construction teams.";
 
 /** Business timezone for "today", Delayed checks, logs and exports (spec §17.1). */
 export const BUSINESS_TIMEZONE = "Asia/Manila";

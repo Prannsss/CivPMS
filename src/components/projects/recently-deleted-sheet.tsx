@@ -67,7 +67,7 @@ export function RecentlyDeletedSheet({ open, onOpenChange, items, now }: Recentl
               size="sm"
               icon={<History />}
               title="Nothing here"
-              description="Projects you delete show up here for 30 days, so you can bring them back."
+              description="Deleted projects stay here for 30 days."
             />
           ) : (
             <ul className="flex flex-col gap-3" aria-label="Deleted projects">

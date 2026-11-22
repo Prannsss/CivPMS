@@ -65,7 +65,7 @@ export function NotificationsSection({ initial }: { initial: ResolvedPrefs }) {
     <SettingsCard
       id="notifications"
       title="Notifications"
-      description="Choose what reaches you in the app and by email. Changes save right away."
+      description="In-app and email alerts. Changes save right away."
       flush
     >
       <div role="table" aria-label="Notification preferences" className="flex flex-col">
@@ -100,7 +100,6 @@ export function NotificationsSection({ initial }: { initial: ResolvedPrefs }) {
                 >
                   <div role="cell" className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-sm leading-5 font-medium text-foreground">{row.label}</span>
-                    <span className="text-[13px] leading-5 text-muted-foreground">{row.description}</span>
                   </div>
                   <div role="cell" className="flex justify-center">
                     <Switch
@@ -131,7 +130,7 @@ export function NotificationsSection({ initial }: { initial: ResolvedPrefs }) {
             Email delivery
           </h3>
           <p className="text-[13px] leading-5 text-muted-foreground">
-            Too many emails? Get one summary each morning instead. In-app notifications still arrive instantly.
+            Get one summary each morning instead. In-app alerts stay instant.
           </p>
         </div>
         <RadioGroup
@@ -142,11 +141,11 @@ export function NotificationsSection({ initial }: { initial: ResolvedPrefs }) {
           className="grid gap-3 md:grid-cols-2"
         >
           <ChoiceCard value="off" icon={<MailCheck />} title="Right away" description="One email per event, as it happens." />
-          <ChoiceCard value="daily" icon={<Sparkles />} title="Daily summary" description="One email each morning with everything since the last one." />
+          <ChoiceCard value="daily" icon={<Sparkles />} title="Daily summary" description="One email each morning." />
         </RadioGroup>
         {initial.upcoming.length > 0 ? (
           <p className="text-xs leading-5 text-muted-foreground">
-            Notifications for site inspections, activity progress and offline sync arrive with those features.
+            Inspection and progress alerts arrive with those features.
           </p>
         ) : null}
       </div>

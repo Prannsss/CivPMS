@@ -61,11 +61,11 @@ export function missingText(missing: ReadonlyArray<MissingField>): string {
   return text ? `Missing ${text}.` : "";
 }
 
-/** "Planned end passed 13 days ago" / "Planned start passed 2 days ago, not started yet" / "Reported as delayed". */
+/** "13 days late · planned end 10 Oct 2026" / "Should have started 2 days ago (8 Oct 2026)" / "Reported as delayed". */
 export function delayText(activity: Pick<DashboardActivity, "derived" | "reportedDelayed" | "endDate" | "startDate">): string {
   const parts: string[] = [];
   if (activity.derived?.reason === "END_PASSED") {
-    parts.push(`Planned end (${formatDate(activity.endDate)}) passed ${pluralize(activity.derived.days, "day")} ago`);
+    parts.push(`${pluralize(activity.derived.days, "day")} late · planned end ${formatDate(activity.endDate)}`);
   } else if (activity.derived?.reason === "START_PASSED") {
     parts.push(`Should have started ${pluralize(activity.derived.days, "day")} ago (${formatDate(activity.startDate)})`);
   }
@@ -103,8 +103,8 @@ export function buildAttentionItems(input: {
       id: "projected-late",
       kind: "projected_late",
       tone: "warning",
-      title: `Scheduled work ends ${pluralize(days, "day")} after the project end date`,
-      detail: `The last work package ends on ${formatDate(work.scheduleEnd)}; the project ends on ${formatDate(project.endDate)}.`,
+      title: `Work runs ${pluralize(days, "day")} past the end date`,
+      detail: `Last work package ends ${formatDate(work.scheduleEnd)}; the project ends ${formatDate(project.endDate)}.`,
       href: wbsHref(project.id),
     });
   }
@@ -116,7 +116,7 @@ export function buildAttentionItems(input: {
       kind: "budget_exceeded",
       tone: "danger",
       title: `Over budget by ${formatPeso(-budget.remaining)}`,
-      detail: `Work packages add up to ${formatPeso(budget.allocated)} against a budget of ${formatPeso(budget.budget)}. Reduce costs or raise the budget.`,
+      detail: `Work packages total ${formatPeso(budget.allocated)} of ${formatPeso(budget.budget)}. Cut costs or raise the budget.`,
       href: settingsHref ?? wbsHref(project.id),
     });
   } else if (budget.state === "near") {
@@ -125,7 +125,7 @@ export function buildAttentionItems(input: {
       kind: "budget_near",
       tone: "warning",
       title: `${formatPercent(budget.ratio * 100)} of the budget is allocated`,
-      detail: `${formatPeso(budget.remaining)} left before the budget of ${formatPeso(budget.budget)} is used up.`,
+      detail: `${formatPeso(budget.remaining)} left of ${formatPeso(budget.budget)}.`,
       href: wbsHref(project.id),
     });
   }
@@ -148,7 +148,7 @@ export function buildAttentionItems(input: {
       kind: "delayed_more",
       tone: "danger",
       title: `${pluralize(more, "more delayed work package", "more delayed work packages")}`,
-      detail: "Open the work breakdown and filter by Delayed to see them all.",
+      detail: "See them all in the work breakdown.",
       href: wbsHref(project.id),
     });
   }

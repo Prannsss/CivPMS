@@ -63,7 +63,7 @@ export function AuditLog({
       <EmptyState
         icon={<SearchX />}
         title="No entries match these filters"
-        description="Try a wider date range, another person or type, or clear the filters to see the whole history."
+        description="Widen the dates or clear the filters."
         action={
           <Button variant="outline" asChild>
             <a href={onClearHref}>Clear all filters</a>
@@ -74,7 +74,7 @@ export function AuditLog({
       <EmptyState
         icon={<History />}
         title="No history yet"
-        description="Every change to this project (details, status, work breakdown, calendar and team) is recorded here automatically and can't be edited or deleted."
+        description="Every change to this project is recorded here and can't be edited or deleted."
       />
     );
   }

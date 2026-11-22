@@ -210,7 +210,7 @@ export function CalendarWorkspace({
       <PageHeader
         className="pb-0 sm:pb-0"
         title="Calendar"
-        description="Working days, hours, holidays and site exceptions. Work package end dates follow this calendar."
+        description="Working days, hours and holidays. End dates follow this calendar."
       />
 
       {lock ? (
@@ -223,7 +223,7 @@ export function CalendarWorkspace({
         <div className="flex flex-col gap-1">
           <h2 className="text-base leading-6 font-semibold tracking-[-0.01em] text-foreground">Working time</h2>
           <p className="text-[13px] leading-5 text-muted-foreground">
-            Durations are counted in working hours on these days only.
+            Work is counted on these days only.
           </p>
         </div>
         <fieldset className="flex min-w-0 flex-col gap-3">
@@ -267,7 +267,7 @@ export function CalendarWorkspace({
           <Field
             label="Working hours per day"
             error={hoursError ?? undefined}
-            hint="1–24 hours. At 8 h/day, a 16-hour work package takes 2 days."
+            hint="1–24 hours."
           >
             <Input
               key={hoursKey}
@@ -288,7 +288,7 @@ export function CalendarWorkspace({
             disabled={!canEdit}
             onCheckedChange={(value) => update((d) => ({ ...d, holidaysNonWorking: value }))}
             label="Mark all holidays as non-working"
-            description="When off, holidays stay listed but work continues on them."
+            description="When off, holidays are listed but still worked."
           />
         </div>
       </Card>

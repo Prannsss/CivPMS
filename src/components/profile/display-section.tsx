@@ -44,7 +44,7 @@ export function DisplaySection({ initialUnit }: { initialUnit: Unit }) {
           label="Show durations in"
           hint={
             <>
-              Durations are stored in working hours. Example: {formatDuration(12, unit, 8)} at 8 hours a day.
+              Example: {formatDuration(12, unit, 8)} at 8 hours a day.
             </>
           }
         >
