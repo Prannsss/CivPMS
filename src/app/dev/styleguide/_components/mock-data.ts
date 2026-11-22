@@ -10,7 +10,8 @@ const minutesAgo = (m: number) => new Date(MOCK_NOW.getTime() - m * 60_000).toIS
 export const MOCK_USER = {
   name: "Juan Dela Cruz",
   email: "juan@delacruzbuilders.ph",
-  subtitle: "Owner PM · Dela Cruz Builders",
+  role: "Owner PM",
+  company: "Dela Cruz Builders",
 };
 
 export type MockProject = {
