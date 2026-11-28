@@ -128,6 +128,7 @@ npm run lint:eslint  # optional: the 7 rules Oxlint lacks
 npm run typecheck
 npm test             # vitest
 npm run test:e2e     # playwright
+npm run check:secrets  # Supabase secret-key guard (also runs in web.yml CI)
 ```
 
 ## Quality bar
