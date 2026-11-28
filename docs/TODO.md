@@ -39,11 +39,11 @@ Detail: [ROADMAP §2](ROADMAP.md#2-before-phase-2).
 
 - [ ] **B-03** Staging: apply every migration, seed demo data, point Vercel Preview at staging (needs O-3).
 - [ ] **B-04** Nightly encrypted off-site backup (GitHub Action, `pg_dump` + `age`, `rclone crypt` of both buckets, 35-day retention) — **before any Phase 2 migration** (needs O-4).
-- [ ] **B-05** Web CI `.github/workflows/web.yml`: typecheck, lint, Vitest, build, `npm audit`, gitleaks, secret-key import guard.
+- [x] **B-05** Web CI `.github/workflows/web.yml`: secret-key guard (`npm run check:secrets`), lint, typecheck, Vitest, build, `npm audit`. Gitleaks not added yet (its action needs a pinned SHA we could not verify from here); GitHub secret scanning covers the public repo meanwhile.
 - [ ] **B-06** Error reporting with Sentry (needs O-5).
-- [ ] **B-07** Pin Vercel functions to `sin1` in `vercel.json`.
-- [ ] **B-08** Small debt: register-based `FormField` variant; `{{ .RedirectTo }}` in `confirm-signup.html`; hide the WBS graph minimap on narrow screens.
-- [ ] **B-09** Offline clean-up for D7: hide the "Offline sync conflicts" notification row; record D7.
+- [x] **B-07** Pin Vercel functions to `sin1` in `vercel.json` (`"regions": ["sin1"]`).
+- [ ] **B-08** Small debt, partly done: the WBS minimap is already hidden below `sm`. Still open: `{{ .RedirectTo }}` in `confirm-signup.html` (question below). The register-based `FormField` is not built; forms use `Field` with `register()`, which is the rule in CLAUDE.md.
+- [x] **B-09** Offline clean-up for D7: the "Offline sync conflicts" row is removed from the notification settings; D7 stays in `docs/DECISIONS.md`.
 
 ## 3. Phase 2 — Scheduling (29 packages, ≈ 24 agent-days)
 
