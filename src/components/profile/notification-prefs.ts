@@ -5,8 +5,8 @@
  * use the catalog defaults, exactly like `private.notify`.
  *
  * Rows are grouped by the spec's event families (`NOTIFICATION_EVENT_TYPES`). Families whose
- * features arrive in later phases (inspections, progress escalations, offline sync) have no
- * database types yet and are listed as "coming".
+ * features arrive in later phases (inspections, progress escalations) have no database types yet
+ * and are listed as "coming". Offline sync is out of scope (D7), so it has no row at all.
  */
 import {
   DEFAULT_NOTIFICATION_PREFS,
@@ -69,7 +69,6 @@ export const FAMILY_TITLES: Record<NotificationEventType, string> = {
   activity_completed: "Activity completed",
   project_alerts: "Project alerts",
   membership_removed: "Access changes",
-  sync_conflicts: "Offline sync conflicts",
 };
 
 const FAMILY_ORDER: NotificationEventType[] = ["project_alerts", "invitations", "membership_removed"];
