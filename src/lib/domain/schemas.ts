@@ -413,7 +413,6 @@ export const NOTIFICATION_EVENT_TYPES = [
   "activity_completed",
   "project_alerts",
   "membership_removed",
-  "sync_conflicts",
 ] as const;
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
 

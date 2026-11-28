@@ -22,7 +22,7 @@ describe("resolvePrefs", () => {
   it("lists later-phase families as upcoming", () => {
     const { upcoming } = resolvePrefs({}, CATALOG);
     expect(upcoming).toContain("Inspection reminders");
-    expect(upcoming).toContain("Offline sync conflicts");
+    expect(upcoming).not.toContain("Offline sync conflicts");
     expect(upcoming).not.toContain("Project alerts");
   });
 
