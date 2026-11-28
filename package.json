@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "check:secrets": "node scripts/check-secret-key.mjs",
     "db:types": "npx supabase gen types typescript --project-id bxfohhwvzbvmyokcsmwq --schema public > src/lib/supabase/database.types.ts"
   },
   "dependencies": {

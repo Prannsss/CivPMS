@@ -1,0 +1,64 @@
+# CI for the Next.js app. The Rust media service has its own workflow (backend.yml).
+name: web
+
+on:
+  push:
+    paths-ignore:
+      - backend/**
+      - .github/workflows/backend.yml
+  pull_request:
+    paths-ignore:
+      - backend/**
+      - .github/workflows/backend.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Build-time placeholders only: the build reads these two public variables and never calls
+  # Supabase. No real keys or secrets are used in CI.
+  NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  check:
+    name: lint · types · tests · build · audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned to commit SHAs (tag in the comment). Same pin as backend.yml.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner image ships Node; the app needs >= 20.9 (package.json engines).
+      - name: Check Node version
+        run: |
+          node -v
+          node -e 'const major = Number(process.versions.node.split(".")[0]); if (major < 20) { console.error("Node 20.9+ is required"); process.exit(1); }'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Supabase secret-key guard
+        run: npm run check:secrets
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Dependency audit (high and critical, production dependencies)
+        run: npm audit --omit=dev --audit-level=high
